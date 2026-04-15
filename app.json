@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "obra-conectada-mobile",
+    "slug": "obra-conectada-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "br.com.suaempresa.obraconectada"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "name": "Obra Conectada",
+      "shortName": "ObraApp",
+      "themeColor": "#2563EB",
+      "backgroundColor": "#FFFFFF"
+    },
+    "experiments": {
+      "baseUrl": "/obra-conectada-mobile"
+    }
+  }
+}
