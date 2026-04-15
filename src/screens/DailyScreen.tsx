@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -14,6 +15,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
+import { uploadLocalFileToStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
 import {
   DailyLogRow,
@@ -128,6 +130,7 @@ function DailyLogForm({
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
 
   useEffect(() => {
     setActivities(existingLog?.activities ?? "");
@@ -137,6 +140,7 @@ function DailyLogForm({
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
+    setPendingRemoval(null);
   }, [existingLog, initialEmployeeIds, visible]);
 
   const handleToggleEmployee = (employeeId: string) => {
@@ -185,32 +189,22 @@ function DailyLogForm({
         return null;
       }
 
-      // Ler o arquivo
-      const response = await fetch(fileUri);
-      const blob = await response.blob();
-
       const timestamp = Date.now();
       const randomId = Math.random().toString(36).substring(2, 9);
       const filePath = `${projectId}/${timestamp}_${randomId}_${fileName}`;
 
-      // Fazer upload para Supabase Storage
-      const { error: uploadError } = await supabase.storage
-        .from("daily-logs")
-        .upload(filePath, blob, {
-          contentType: isPhoto ? "image/jpeg" : "video/mp4",
-          upsert: false,
-        });
-
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        setLocalError(`Erro ao fazer upload: ${uploadError.message}`);
-        return null;
-      }
+      await uploadLocalFileToStorage({
+        bucket: "daily-logs",
+        filePath,
+        fileUri,
+        contentType: asset.mimeType ?? (isPhoto ? "image/jpeg" : "video/mp4"),
+      });
 
       // Obter a URL pública
       const { data } = supabase.storage.from("daily-logs").getPublicUrl(filePath);
       return data?.publicUrl ?? null;
     } catch (error) {
+      console.error("Upload error:", error);
       console.error("Media upload error:", error);
       setLocalError(`Erro ao processar arquivo: ${error instanceof Error ? error.message : "erro desconhecido"}`);
       return null;
@@ -239,6 +233,30 @@ function DailyLogForm({
 
   const handleRemoveVideo = (index: number) => {
     setVideosUrls((current) => current.filter((_, i) => i !== index));
+  };
+
+  const handleOpenMedia = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Midia", "Nao foi possivel abrir este arquivo.");
+    }
+  };
+
+  const handleRequestRemoval = (type: "photo" | "video", index: number) => {
+    setPendingRemoval({ type, index });
+  };
+
+  const handleConfirmRemoval = () => {
+    if (!pendingRemoval) return;
+
+    if (pendingRemoval.type === "photo") {
+      handleRemovePhoto(pendingRemoval.index);
+    } else {
+      handleRemoveVideo(pendingRemoval.index);
+    }
+
+    setPendingRemoval(null);
   };
 
   const handleClose = () => {
@@ -370,7 +388,7 @@ function DailyLogForm({
 
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Fotos e Videos</Text>
-              <View style={styles.mediaActions}>
+              <View style={styles.mediaSection}>
                 <Pressable 
                   style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]}
                   onPress={handleAddPhoto}
@@ -382,6 +400,29 @@ function DailyLogForm({
                     <Text style={styles.mediaButtonText}>+ Fotos</Text>
                   )}
                 </Pressable>
+                <View style={styles.previewSection}>
+                  <Text style={styles.mediaGridTitle}>Fotos ({photosUrls.length})</Text>
+                  {photosUrls.length ? (
+                    <View style={styles.mediaListRow}>
+                      {photosUrls.map((url, index) => (
+                        <Pressable
+                          key={`photo_${index}`}
+                          style={styles.mediaItemContainer}
+                          onPress={() => void handleOpenMedia(url)}
+                          onLongPress={() => handleRequestRemoval("photo", index)}
+                          delayLongPress={3000}
+                        >
+                          <Image source={{ uri: url }} style={styles.mediaThumb} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyPreviewBox}>
+                      <Text style={styles.emptyPreviewText}>Nenhuma foto adicionada.</Text>
+                    </View>
+                  )}
+                </View>
+
                 <Pressable 
                   style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]}
                   onPress={handleAddVideo}
@@ -393,50 +434,51 @@ function DailyLogForm({
                     <Text style={styles.mediaButtonText}>+ Videos</Text>
                   )}
                 </Pressable>
-              </View>
-
-              {photosUrls.length > 0 && (
-                <View style={styles.mediaGrid}>
-                  <Text style={styles.mediaGridTitle}>Fotos ({photosUrls.length})</Text>
-                  <View style={styles.mediaListRow}>
-                    {photosUrls.map((url, index) => (
-                      <Pressable
-                        key={`photo_${index}`}
-                        style={styles.mediaItemContainer}
-                        onPress={() => handleRemovePhoto(index)}
-                      >
-                        <Image source={{ uri: url }} style={styles.mediaThumb} />
-                        <View style={styles.mediaRemoveIcon}>
-                          <Text style={styles.mediaRemoveText}>×</Text>
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                </View>
-              )}
-
-              {videosUrls.length > 0 && (
-                <View style={styles.mediaGrid}>
+                <View style={styles.previewSection}>
                   <Text style={styles.mediaGridTitle}>Videos ({videosUrls.length})</Text>
-                  <View style={styles.mediaListRow}>
-                    {videosUrls.map((url, index) => (
-                      <Pressable
-                        key={`video_${index}`}
-                        style={styles.mediaItemContainer}
-                        onPress={() => handleRemoveVideo(index)}
-                      >
-                        <View style={styles.videoThumb}>
-                          <Text style={styles.videoIcon}>▶</Text>
-                        </View>
-                        <View style={styles.mediaRemoveIcon}>
-                          <Text style={styles.mediaRemoveText}>×</Text>
-                        </View>
-                      </Pressable>
-                    ))}
+                  {videosUrls.length ? (
+                    <View style={styles.mediaListRow}>
+                      {videosUrls.map((url, index) => (
+                        <Pressable
+                          key={`video_${index}`}
+                          style={styles.mediaItemContainer}
+                          onPress={() => void handleOpenMedia(url)}
+                          onLongPress={() => handleRequestRemoval("video", index)}
+                          delayLongPress={3000}
+                        >
+                          <View style={styles.videoThumb}>
+                            <Text style={styles.videoIcon}>▶</Text>
+                            <Text style={styles.videoLabel}>Video {index + 1}</Text>
+                          </View>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyPreviewBox}>
+                      <Text style={styles.emptyPreviewText}>Nenhum video adicionado.</Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <Modal transparent animationType="fade" visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)}>
+              <View style={styles.confirmBackdrop}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={() => setPendingRemoval(null)} />
+                <View style={styles.confirmCard}>
+                  <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
+                  <Text style={styles.confirmText}>Deseja remover este item da lista de uploads?</Text>
+                  <View style={styles.confirmActions}>
+                    <Pressable style={styles.confirmCancel} onPress={() => setPendingRemoval(null)}>
+                      <Text style={styles.confirmCancelText}>Nao</Text>
+                    </Pressable>
+                    <Pressable style={styles.confirmAccept} onPress={handleConfirmRemoval}>
+                      <Text style={styles.confirmAcceptText}>Sim</Text>
+                    </Pressable>
                   </View>
                 </View>
-              )}
-            </View>
+              </View>
+            </Modal>
 
             {existingLog ? (
               <Pressable
@@ -1040,10 +1082,7 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
   },
-  mediaActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  mediaSection: { gap: 12 },
   mediaButton: {
     borderRadius: 12,
     borderWidth: 1,
@@ -1057,10 +1096,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  mediaGrid: {
-    marginTop: 12,
-    gap: 8,
-  },
+  previewSection: { gap: 8 },
   mediaGridTitle: {
     fontSize: 14,
     fontWeight: "700",
@@ -1070,6 +1106,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 10,
     flexWrap: "wrap",
+  },
+  emptyPreviewBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  emptyPreviewText: {
+    color: colors.textMuted,
+    fontSize: 13,
   },
   mediaItemContainer: {
     position: "relative",
@@ -1089,27 +1137,71 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
   videoIcon: {
     fontSize: 32,
     color: colors.text,
   },
-  mediaRemoveIcon: {
-    position: "absolute",
-    top: -4,
-    right: -4,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.danger,
+  videoLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  confirmBackdrop: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "rgba(31, 28, 23, 0.24)",
+    paddingHorizontal: 20,
   },
-  mediaRemoveText: {
-    color: colors.surface,
-    fontSize: 18,
+  confirmCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    padding: 18,
+    gap: 12,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+  },
+  confirmText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    color: colors.text,
     fontWeight: "700",
-    lineHeight: 20,
+  },
+  confirmAccept: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: colors.danger,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmAcceptText: {
+    color: colors.surface,
+    fontWeight: "800",
   },
   saveButton: {
     borderRadius: 14,

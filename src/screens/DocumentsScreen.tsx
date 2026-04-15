@@ -13,6 +13,7 @@ import {
   useDocuments,
   useSignedDocumentUrl,
 } from "../hooks/useDocuments";
+import { uploadLocalFileToStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
 
 const categoryOptions: { value: DocumentCategory | "todos"; label: string }[] = [
@@ -89,6 +90,7 @@ export function DocumentsScreen() {
   const [expiresAt, setExpiresAt] = useState("");
   const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [confirmRemovePickedFile, setConfirmRemovePickedFile] = useState(false);
 
   const filteredDocuments = useMemo(
     () => (filter === "todos" ? documents : documents.filter((item) => item.category === filter)),
@@ -121,6 +123,7 @@ export function DocumentsScreen() {
     setExpiresAt("");
     setPickedFile(null);
     setLocalError(null);
+    setConfirmRemovePickedFile(false);
   };
 
   const handleSave = async () => {
@@ -152,18 +155,14 @@ export function DocumentsScreen() {
 
     try {
       setLocalError(null);
-      const response = await fetch(pickedFile.uri);
-      const blob = await response.blob();
       const filePath = buildFilePath(project.id, category, pickedFile.name);
 
-      const { error: uploadError } = await supabase.storage.from("project-documents").upload(filePath, blob, {
+      await uploadLocalFileToStorage({
+        bucket: "project-documents",
+        filePath,
+        fileUri: pickedFile.uri,
         contentType: pickedFile.mimeType ?? "application/octet-stream",
-        upsert: false,
       });
-
-      if (uploadError) {
-        throw uploadError;
-      }
 
       await createDocument.mutateAsync({
         projectId: project.id,
@@ -180,6 +179,7 @@ export function DocumentsScreen() {
       resetForm();
       setFormOpen(false);
     } catch (error) {
+      console.error("Upload error:", error);
       const message = error instanceof Error ? error.message : "Nao foi possivel salvar o documento.";
       setLocalError(message);
     }
@@ -192,6 +192,16 @@ export function DocumentsScreen() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Nao foi possivel abrir o documento.";
       Alert.alert("Erro ao abrir", message);
+    }
+  };
+
+  const handleOpenPickedFile = async () => {
+    if (!pickedFile?.uri) return;
+
+    try {
+      await Linking.openURL(pickedFile.uri);
+    } catch {
+      Alert.alert("Arquivo", "Nao foi possivel abrir o arquivo selecionado.");
     }
   };
 
@@ -377,9 +387,22 @@ export function DocumentsScreen() {
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Arquivo *</Text>
                 <Pressable style={styles.fieldInput} onPress={() => void handlePickFile()}>
-                  <Text style={styles.fieldText}>{pickedFile?.name ?? "Selecionar arquivo"}</Text>
+                  <Text style={styles.fieldText}>{pickedFile ? "Trocar arquivo" : "Selecionar arquivo"}</Text>
                 </Pressable>
-                {pickedFile ? <Text style={styles.fileHint}>{formatBytes(pickedFile.size ?? null)}</Text> : null}
+                {pickedFile ? (
+                  <View style={styles.previewBlock}>
+                    <Text style={styles.previewLabel}>Preview do arquivo</Text>
+                    <Pressable
+                      style={styles.filePreviewCard}
+                      onPress={() => void handleOpenPickedFile()}
+                      onLongPress={() => setConfirmRemovePickedFile(true)}
+                      delayLongPress={3000}
+                    >
+                      <Text style={styles.filePreviewName}>{pickedFile.name}</Text>
+                      <Text style={styles.fileHint}>{formatBytes(pickedFile.size ?? null)}</Text>
+                    </Pressable>
+                  </View>
+                ) : null}
               </View>
 
               {localError ? <Text style={styles.localError}>{localError}</Text> : null}
@@ -392,6 +415,30 @@ export function DocumentsScreen() {
                 {createDocument.isPending ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>Salvar documento</Text>}
               </Pressable>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent animationType="fade" visible={confirmRemovePickedFile} onRequestClose={() => setConfirmRemovePickedFile(false)}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmRemovePickedFile(false)} />
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
+            <Text style={styles.confirmText}>Deseja remover este arquivo selecionado?</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => setConfirmRemovePickedFile(false)}>
+                <Text style={styles.confirmCancelText}>Nao</Text>
+              </Pressable>
+              <Pressable
+                style={styles.confirmAccept}
+                onPress={() => {
+                  setPickedFile(null);
+                  setConfirmRemovePickedFile(false);
+                }}
+              >
+                <Text style={styles.confirmAcceptText}>Sim</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -503,6 +550,18 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   fieldText: { fontSize: 15, color: colors.text },
+  previewBlock: { gap: 8 },
+  previewLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  filePreviewCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    gap: 4,
+  },
+  filePreviewName: { fontSize: 14, fontWeight: "700", color: colors.text },
   fileHint: { fontSize: 12, color: colors.textMuted },
   categoryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   categoryChip: {
@@ -517,5 +576,13 @@ const styles = StyleSheet.create({
   categoryChipText: { color: colors.text, fontSize: 13, fontWeight: "700" },
   categoryChipTextActive: { color: colors.primary },
   localError: { color: colors.danger, fontSize: 13 },
+  confirmCard: { width: "100%", maxWidth: 320, borderRadius: 18, backgroundColor: colors.surface, padding: 18, gap: 12 },
+  confirmTitle: { fontSize: 16, fontWeight: "800", color: colors.text, textAlign: "center" },
+  confirmText: { fontSize: 14, lineHeight: 21, color: colors.textMuted, textAlign: "center" },
+  confirmActions: { flexDirection: "row", gap: 10 },
+  confirmCancel: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, paddingVertical: 12, alignItems: "center" },
+  confirmCancelText: { color: colors.text, fontWeight: "700" },
+  confirmAccept: { flex: 1, borderRadius: 12, backgroundColor: colors.danger, paddingVertical: 12, alignItems: "center" },
+  confirmAcceptText: { color: colors.surface, fontWeight: "800" },
   buttonPressed: { opacity: 0.82 },
 });

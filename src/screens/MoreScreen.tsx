@@ -1,7 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -17,11 +17,13 @@ export function MoreScreen() {
   const [draftName, setDraftName] = useState("");
   const [draftAvatar, setDraftAvatar] = useState("");
   const [saving, setSaving] = useState(false);
+  const [confirmRemoveAvatar, setConfirmRemoveAvatar] = useState(false);
 
   useEffect(() => {
     if (editVisible) {
       setDraftName(fullName);
       setDraftAvatar(avatarUrl);
+      setConfirmRemoveAvatar(false);
     }
   }, [avatarUrl, editVisible, fullName]);
 
@@ -91,6 +93,16 @@ export function MoreScreen() {
     }
   };
 
+  const handleOpenAvatar = async () => {
+    if (!draftAvatar.trim()) return;
+
+    try {
+      await Linking.openURL(draftAvatar.trim());
+    } catch {
+      Alert.alert("Foto", "Nao foi possivel abrir a imagem.");
+    }
+  };
+
   return (
     <>
       <AppScreen title="Perfil" subtitle="Dados do usuario conectado neste aparelho.">
@@ -131,17 +143,24 @@ export function MoreScreen() {
             <Text style={styles.modalTitle}>Editar perfil</Text>
 
             <View style={styles.modalAvatarArea}>
-              <View style={styles.avatarShellLarge}>
-                {draftAvatar ? (
-                  <Image source={{ uri: draftAvatar }} style={styles.avatarImage} />
-                ) : (
-                  <Text style={styles.avatarTextLarge}>{buildInitials(draftName || fullName)}</Text>
-                )}
-              </View>
-
               <Pressable style={({ pressed }) => [styles.photoButton, pressed && styles.buttonPressed]} onPress={() => void pickAvatarFromGallery()}>
                 <Text style={styles.photoButtonText}>{draftAvatar ? "Trocar foto" : "Escolher foto"}</Text>
               </Pressable>
+
+              <View style={styles.previewBlock}>
+                <Text style={styles.previewLabel}>Preview da foto</Text>
+                {draftAvatar ? (
+                  <Pressable onPress={() => void handleOpenAvatar()} onLongPress={() => setConfirmRemoveAvatar(true)} delayLongPress={3000}>
+                    <View style={styles.avatarShellLarge}>
+                      <Image source={{ uri: draftAvatar }} style={styles.avatarImage} />
+                    </View>
+                  </Pressable>
+                ) : (
+                  <View style={styles.emptyPreviewBox}>
+                    <Text style={styles.emptyPreviewText}>Nenhuma foto selecionada.</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
             <View style={styles.formBlock}>
@@ -174,6 +193,30 @@ export function MoreScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal transparent animationType="fade" visible={confirmRemoveAvatar} onRequestClose={() => setConfirmRemoveAvatar(false)}>
+        <View style={styles.confirmBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmRemoveAvatar(false)} />
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Excluir foto?</Text>
+            <Text style={styles.confirmText}>Deseja remover a foto selecionada do perfil?</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => setConfirmRemoveAvatar(false)}>
+                <Text style={styles.confirmCancelText}>Nao</Text>
+              </Pressable>
+              <Pressable
+                style={styles.confirmAccept}
+                onPress={() => {
+                  setDraftAvatar("");
+                  setConfirmRemoveAvatar(false);
+                }}
+              >
+                <Text style={styles.confirmAcceptText}>Sim</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -259,7 +302,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   modalAvatarArea: {
-    alignItems: "center",
+    alignItems: "stretch",
     gap: 12,
   },
   avatarShellLarge: {
@@ -288,6 +331,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: colors.text,
+  },
+  previewBlock: {
+    gap: 8,
+    alignItems: "center",
+  },
+  previewLabel: {
+    alignSelf: "flex-start",
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  emptyPreviewBox: {
+    width: "100%",
+    minHeight: 92,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 14,
+  },
+  emptyPreviewText: {
+    color: colors.textMuted,
+    fontSize: 13,
   },
   formBlock: {
     gap: 8,
@@ -324,6 +392,61 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: "row",
     gap: 12,
+  },
+  confirmBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(31, 28, 23, 0.24)",
+    paddingHorizontal: 20,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    padding: 18,
+    gap: 12,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+  },
+  confirmText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    color: colors.text,
+    fontWeight: "700",
+  },
+  confirmAccept: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: colors.danger,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmAcceptText: {
+    color: colors.surface,
+    fontWeight: "800",
   },
   cancelButton: {
     flex: 1,

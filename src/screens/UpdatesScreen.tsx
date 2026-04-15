@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -115,6 +116,7 @@ function UpdateFormModal(_: UpdateFormModalProps) {
   });
   const [localError, setLocalError] = useState<string | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
 
   useEffect(() => {
     setDraft({
@@ -133,6 +135,7 @@ function UpdateFormModal(_: UpdateFormModalProps) {
     });
     setLocalError(null);
     setStatusOpen(false);
+    setPendingRemoval(null);
   }, [update, visible]);
 
   const pickMedia = async (mediaType: "images" | "videos") => {
@@ -189,6 +192,29 @@ function UpdateFormModal(_: UpdateFormModalProps) {
       photos: draft.photos,
       videos: draft.videos,
     });
+  };
+
+  const handleOpenMedia = async (url: string) => {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Midia", "Nao foi possivel abrir este arquivo.");
+    }
+  };
+
+  const handleRequestRemoval = (type: "photo" | "video", index: number) => {
+    setPendingRemoval({ type, index });
+  };
+
+  const handleConfirmRemoval = () => {
+    if (!pendingRemoval) return;
+
+    setDraft((current) => ({
+      ...current,
+      photos: pendingRemoval.type === "photo" ? current.photos.filter((_, itemIndex) => itemIndex !== pendingRemoval.index) : current.photos,
+      videos: pendingRemoval.type === "video" ? current.videos.filter((_, itemIndex) => itemIndex !== pendingRemoval.index) : current.videos,
+    }));
+    setPendingRemoval(null);
   };
 
   return (
@@ -317,53 +343,60 @@ function UpdateFormModal(_: UpdateFormModalProps) {
 
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Fotos e Videos</Text>
-              <View style={styles.mediaActionRow}>
+              <View style={styles.mediaColumn}>
                 <Pressable style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]} onPress={() => void pickMedia("images")}>
                   <Text style={styles.mediaButtonText}>Fotos</Text>
                 </Pressable>
+                <View style={styles.previewSection}>
+                  <Text style={styles.previewTitle}>Fotos ({draft.photos.length})</Text>
+                  {draft.photos.length ? (
+                    <View style={styles.mediaPreviewGrid}>
+                      {draft.photos.map((photo, index) => (
+                        <Pressable
+                          key={`${photo}-${index}`}
+                          style={styles.mediaThumbWrap}
+                          onPress={() => void handleOpenMedia(photo)}
+                          onLongPress={() => handleRequestRemoval("photo", index)}
+                          delayLongPress={3000}
+                        >
+                          <Image source={{ uri: photo }} style={styles.mediaThumb} />
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyPreviewBox}>
+                      <Text style={styles.emptyPreviewText}>Nenhuma foto adicionada.</Text>
+                    </View>
+                  )}
+                </View>
+
                 <Pressable style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]} onPress={() => void pickMedia("videos")}>
                   <Text style={styles.mediaButtonText}>Videos</Text>
                 </Pressable>
-              </View>
-              {draft.photos.length ? (
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewRow}>
-                  {draft.photos.map((photo, index) => (
-                    <View key={`${photo}-${index}`} style={styles.mediaThumbWrap}>
-                      <Image source={{ uri: photo }} style={styles.mediaThumb} />
-                      <Pressable
-                        style={styles.mediaRemove}
-                        onPress={() =>
-                          setDraft((current) => ({
-                            ...current,
-                            photos: current.photos.filter((_, itemIndex) => itemIndex !== index),
-                          }))
-                        }
-                      >
-                        <Text style={styles.mediaRemoveText}>×</Text>
-                      </Pressable>
+                <View style={styles.previewSection}>
+                  <Text style={styles.previewTitle}>Videos ({draft.videos.length})</Text>
+                  {draft.videos.length ? (
+                    <View style={styles.mediaPreviewGrid}>
+                      {draft.videos.map((video, index) => (
+                        <Pressable
+                          key={`${video}-${index}`}
+                          style={styles.videoPreviewCard}
+                          onPress={() => void handleOpenMedia(video)}
+                          onLongPress={() => handleRequestRemoval("video", index)}
+                          delayLongPress={3000}
+                        >
+                          <Text style={styles.videoPreviewIcon}>▶</Text>
+                          <Text numberOfLines={1} style={styles.videoPreviewText}>Video {index + 1}</Text>
+                        </Pressable>
+                      ))}
                     </View>
-                  ))}
-                </ScrollView>
-              ) : null}
-              {draft.videos.length ? (
-                <View style={styles.videoList}>
-                  {draft.videos.map((video, index) => (
-                    <View key={`${video}-${index}`} style={styles.videoRow}>
-                      <Text numberOfLines={1} style={styles.videoText}>Video {index + 1}</Text>
-                      <Pressable
-                        onPress={() =>
-                          setDraft((current) => ({
-                            ...current,
-                            videos: current.videos.filter((_, itemIndex) => itemIndex !== index),
-                          }))
-                        }
-                      >
-                        <Text style={styles.videoRemoveText}>Remover</Text>
-                      </Pressable>
+                  ) : (
+                    <View style={styles.emptyPreviewBox}>
+                      <Text style={styles.emptyPreviewText}>Nenhum video adicionado.</Text>
                     </View>
-                  ))}
+                  )}
                 </View>
-              ) : null}
+              </View>
             </View>
 
             {localError ? <Text style={styles.localError}>{localError}</Text> : null}
@@ -374,6 +407,24 @@ function UpdateFormModal(_: UpdateFormModalProps) {
           </ScrollView>
         </Pressable>
       </Pressable>
+
+      <Modal transparent animationType="fade" visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)}>
+        <View style={styles.confirmBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPendingRemoval(null)} />
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
+            <Text style={styles.confirmText}>Deseja remover este item da lista de uploads?</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => setPendingRemoval(null)}>
+                <Text style={styles.confirmCancelText}>Nao</Text>
+              </Pressable>
+              <Pressable style={styles.confirmAccept} onPress={handleConfirmRemoval}>
+                <Text style={styles.confirmAcceptText}>Sim</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal transparent animationType="fade" visible={statusOpen} onRequestClose={() => setStatusOpen(false)}>
         <Pressable style={styles.dropdownModalBackdrop} onPress={() => setStatusOpen(false)}>
@@ -525,7 +576,7 @@ function UpdateDetailModal(_: UpdateDetailModalProps) {
             {(update.photos?.length || 0) > 0 ? (
               <View style={styles.detailSection}>
                 <Text style={styles.detailSectionLabel}>Fotos</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewRow}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mediaPreviewGrid}>
                   {update.photos?.map((photo, index) => <Image key={`${photo}-${index}`} source={{ uri: photo }} style={styles.mediaThumb} />)}
                 </ScrollView>
               </View>
@@ -978,12 +1029,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 18,
   },
-  mediaActionRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
+  mediaColumn: { gap: 12 },
   mediaButton: {
-    flex: 1,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -996,12 +1043,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
-  mediaPreviewRow: {
-    gap: 10,
-  },
+  previewSection: { gap: 8 },
+  previewTitle: { color: colors.text, fontSize: 14, fontWeight: "700" },
+  mediaPreviewGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   mediaThumbWrap: {
-    position: "relative",
-    marginRight: 2,
+    width: 84,
+    height: 84,
+    borderRadius: 16,
+    overflow: "hidden",
   },
   mediaThumb: {
     width: 84,
@@ -1011,46 +1060,93 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
     backgroundColor: colors.surfaceMuted,
   },
-  mediaRemove: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "rgba(31, 28, 23, 0.8)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  mediaRemoveText: {
-    color: colors.surface,
-    fontSize: 15,
-    marginTop: -1,
-  },
-  videoList: {
-    gap: 8,
-  },
-  videoRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  emptyPreviewBox: {
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
     backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 14,
   },
-  videoText: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  videoRemoveText: {
-    color: colors.danger,
+  emptyPreviewText: {
+    color: colors.textMuted,
     fontSize: 13,
+  },
+  videoPreviewCard: {
+    width: 84,
+    height: 84,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 8,
+    gap: 6,
+  },
+  videoPreviewIcon: {
+    fontSize: 28,
+    color: colors.text,
+  },
+  videoPreviewText: {
+    color: colors.textMuted,
+    fontSize: 11,
     fontWeight: "700",
+  },
+  confirmBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(31, 28, 23, 0.24)",
+    paddingHorizontal: 20,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 320,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    padding: 18,
+    gap: 12,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+  },
+  confirmText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  confirmCancel: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmCancelText: {
+    color: colors.text,
+    fontWeight: "700",
+  },
+  confirmAccept: {
+    flex: 1,
+    borderRadius: 12,
+    backgroundColor: colors.danger,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  confirmAcceptText: {
+    color: colors.surface,
+    fontWeight: "800",
   },
   localError: {
     color: colors.danger,

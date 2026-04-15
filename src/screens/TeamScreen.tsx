@@ -1,6 +1,6 @@
 import * as ImagePicker from "expo-image-picker";
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -128,6 +128,7 @@ export function TeamScreen() {
   const [workCrewDraft, setWorkCrewDraft] = useState(buildWorkCrewDraft());
   const [activeDateField, setActiveDateField] = useState<"plannedStartDate" | "plannedEndDate" | null>(null);
   const [datePickerMonth, setDatePickerMonth] = useState(() => new Date());
+  const [pendingPreviewRemoval, setPendingPreviewRemoval] = useState<"employee" | "workCrew" | null>(null);
 
   useEffect(() => {
     if (!employeeFormOpen) {
@@ -182,6 +183,16 @@ export function TeamScreen() {
   const handlePickWorkCrewPhoto = async () => {
     const selectedUri = await pickImageFromGallery();
     if (selectedUri) setWorkCrewDraft((current) => ({ ...current, photo: selectedUri }));
+  };
+
+  const handleOpenPreview = async (uri: string) => {
+    if (!uri.trim()) return;
+
+    try {
+      await Linking.openURL(uri.trim());
+    } catch {
+      Alert.alert("Imagem", "Nao foi possivel abrir a imagem.");
+    }
   };
 
   const openDatePicker = (field: "plannedStartDate" | "plannedEndDate") => {
@@ -395,7 +406,11 @@ export function TeamScreen() {
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Foto</Text>
                 <Pressable style={styles.fieldInput} onPress={() => void handlePickEmployeePhoto()}><Text style={styles.fieldText}>{employeeDraft.photo.trim() ? "Trocar foto" : "Abrir galeria"}</Text></Pressable>
-                {employeeDraft.photo.trim() ? <Image source={{ uri: employeeDraft.photo.trim() }} style={styles.previewImage} /> : null}
+                {employeeDraft.photo.trim() ? (
+                  <Pressable onPress={() => void handleOpenPreview(employeeDraft.photo)} onLongPress={() => setPendingPreviewRemoval("employee")} delayLongPress={3000}>
+                    <Image source={{ uri: employeeDraft.photo.trim() }} style={styles.previewImage} />
+                  </Pressable>
+                ) : null}
               </View>
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Nome *</Text>
@@ -427,7 +442,11 @@ export function TeamScreen() {
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Foto</Text>
                 <Pressable style={styles.fieldInput} onPress={() => void handlePickWorkCrewPhoto()}><Text style={styles.fieldText}>{workCrewDraft.photo.trim() ? "Trocar foto" : "Abrir galeria"}</Text></Pressable>
-                {workCrewDraft.photo.trim() ? <Image source={{ uri: workCrewDraft.photo.trim() }} style={styles.previewImage} /> : null}
+                {workCrewDraft.photo.trim() ? (
+                  <Pressable onPress={() => void handleOpenPreview(workCrewDraft.photo)} onLongPress={() => setPendingPreviewRemoval("workCrew")} delayLongPress={3000}>
+                    <Image source={{ uri: workCrewDraft.photo.trim() }} style={styles.previewImage} />
+                  </Pressable>
+                ) : null}
               </View>
               <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Empresa *</Text><TextInput style={styles.fieldInput} value={workCrewDraft.companyName} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, companyName: value }))} placeholder="Nome da empresa" placeholderTextColor={colors.textMuted} /></View>
               <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Contato da empresa</Text><TextInput style={styles.fieldInput} value={workCrewDraft.companyContact} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, companyContact: value }))} placeholder="Telefone, email ou outro contato" placeholderTextColor={colors.textMuted} /></View>
@@ -468,6 +487,35 @@ export function TeamScreen() {
             <View style={styles.calendarWeekHeader}>{weekLabels.map((label) => <Text key={label} style={styles.calendarWeekLabel}>{label}</Text>)}</View>
             <View style={styles.calendarGrid}>{monthGrid.map((cell) => { const activeIso = activeDateField === "plannedStartDate" ? toIsoDate(workCrewDraft.plannedStartDate) : toIsoDate(workCrewDraft.plannedEndDate); const todayIso = isoDate(new Date()); const selected = activeIso === cell.iso; const suggested = !activeIso && todayIso === cell.iso; return <Pressable key={cell.key} style={[styles.calendarDay, selected && styles.calendarDaySelected, suggested && styles.calendarDaySuggested]} onPress={() => applyDate(cell.iso)}><Text style={[styles.calendarDayText, !cell.currentMonth && styles.calendarDayOutside, selected && styles.calendarDayTextSelected, suggested && styles.calendarDayTextSuggested]}>{cell.dayNumber}</Text></Pressable>; })}</View>
             <View style={styles.calendarFooter}><Pressable onPress={() => { setWorkCrewDraft((current) => ({ ...current, plannedStartDate: activeDateField === "plannedStartDate" ? "" : current.plannedStartDate, plannedEndDate: activeDateField === "plannedEndDate" ? "" : current.plannedEndDate })); setActiveDateField(null); }}><Text style={styles.clearText}>Limpar</Text></Pressable></View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal transparent animationType="fade" visible={Boolean(pendingPreviewRemoval)} onRequestClose={() => setPendingPreviewRemoval(null)}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPendingPreviewRemoval(null)} />
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Excluir foto?</Text>
+            <Text style={styles.confirmText}>Deseja remover esta imagem selecionada?</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.confirmCancel} onPress={() => setPendingPreviewRemoval(null)}>
+                <Text style={styles.confirmCancelText}>Nao</Text>
+              </Pressable>
+              <Pressable
+                style={styles.confirmAccept}
+                onPress={() => {
+                  if (pendingPreviewRemoval === "employee") {
+                    setEmployeeDraft((current) => ({ ...current, photo: "" }));
+                  } else {
+                    setWorkCrewDraft((current) => ({ ...current, photo: "" }));
+                  }
+
+                  setPendingPreviewRemoval(null);
+                }}
+              >
+                <Text style={styles.confirmAcceptText}>Sim</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -559,5 +607,13 @@ const styles = StyleSheet.create({
   calendarDayTextSuggested: { color: colors.primary, fontWeight: "700" },
   calendarFooter: { paddingTop: 12, alignItems: "flex-end" },
   clearText: { color: colors.primary, fontSize: 14, fontWeight: "700" },
+  confirmCard: { width: "100%", maxWidth: 320, borderRadius: 18, backgroundColor: colors.surface, padding: 18, gap: 12 },
+  confirmTitle: { fontSize: 16, fontWeight: "800", color: colors.text, textAlign: "center" },
+  confirmText: { fontSize: 14, lineHeight: 21, color: colors.textMuted, textAlign: "center" },
+  confirmActions: { flexDirection: "row", gap: 10 },
+  confirmCancel: { flex: 1, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, paddingVertical: 12, alignItems: "center" },
+  confirmCancelText: { color: colors.text, fontWeight: "700" },
+  confirmAccept: { flex: 1, borderRadius: 12, backgroundColor: colors.danger, paddingVertical: 12, alignItems: "center" },
+  confirmAcceptText: { color: colors.surface, fontWeight: "800" },
   buttonPressed: { opacity: 0.82 },
 });

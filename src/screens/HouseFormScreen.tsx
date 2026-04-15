@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Linking,
   Modal,
   Pressable,
   ScrollView,
@@ -87,6 +88,7 @@ export function HouseFormScreen() {
   const [employeeFormVisible, setEmployeeFormVisible] = useState(true);
   const [occupationMenuOpen, setOccupationMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingPreviewRemoval, setPendingPreviewRemoval] = useState<"house" | "employee" | null>(null);
 
   const employeesQuery = useQuery({
     queryKey: ["house-employees", project?.id],
@@ -202,6 +204,16 @@ export function HouseFormScreen() {
     const selectedUri = await pickImageFromGallery();
     if (selectedUri) {
       setEmployeeDraft((current) => ({ ...current, photo: selectedUri }));
+    }
+  };
+
+  const handleOpenPreview = async (uri: string) => {
+    if (!uri.trim()) return;
+
+    try {
+      await Linking.openURL(uri.trim());
+    } catch {
+      Alert.alert("Imagem", "Nao foi possivel abrir a imagem.");
     }
   };
 
@@ -429,7 +441,9 @@ export function HouseFormScreen() {
             {photoUrl.trim() ? (
               <View style={styles.previewBlock}>
                 <Text style={styles.previewLabel}>Pre-visualizacao da casa</Text>
-                <Image source={{ uri: photoUrl.trim() }} style={styles.previewImage} />
+                <Pressable onPress={() => void handleOpenPreview(photoUrl)} onLongPress={() => setPendingPreviewRemoval("house")} delayLongPress={3000}>
+                  <Image source={{ uri: photoUrl.trim() }} style={styles.previewImage} />
+                </Pressable>
               </View>
             ) : null}
           </View>
@@ -540,7 +554,9 @@ export function HouseFormScreen() {
                 {employeeDraft.photo.trim() ? (
                   <View style={styles.previewBlock}>
                     <Text style={styles.previewLabel}>Pre-visualizacao do funcionario</Text>
-                    <Image source={{ uri: employeeDraft.photo.trim() }} style={styles.previewImage} />
+                    <Pressable onPress={() => void handleOpenPreview(employeeDraft.photo)} onLongPress={() => setPendingPreviewRemoval("employee")} delayLongPress={3000}>
+                      <Image source={{ uri: employeeDraft.photo.trim() }} style={styles.previewImage} />
+                    </Pressable>
                   </View>
                 ) : null}
               </View>
@@ -640,6 +656,37 @@ export function HouseFormScreen() {
             </View>
           </Pressable>
         </Pressable>
+      </Modal>
+
+      <Modal transparent animationType="fade" visible={Boolean(pendingPreviewRemoval)} onRequestClose={() => setPendingPreviewRemoval(null)}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setPendingPreviewRemoval(null)} />
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Excluir foto?</Text>
+            <Text style={styles.confirmText}>Deseja remover esta imagem selecionada?</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={styles.secondaryButton} onPress={() => setPendingPreviewRemoval(null)}>
+                <Text style={styles.secondaryButtonText}>Nao</Text>
+              </Pressable>
+              <Pressable
+                style={styles.confirmAccept}
+                onPress={() => {
+                  if (pendingPreviewRemoval === "house") {
+                    setPhotoUrl("");
+                  }
+
+                  if (pendingPreviewRemoval === "employee") {
+                    setEmployeeDraft((current) => ({ ...current, photo: "" }));
+                  }
+
+                  setPendingPreviewRemoval(null);
+                }}
+              >
+                <Text style={styles.confirmAcceptText}>Sim</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -990,6 +1037,44 @@ const styles = StyleSheet.create({
   popupActions: {
     flexDirection: "row",
     gap: 12,
+  },
+  confirmCard: {
+    width: "100%",
+    maxWidth: 320,
+    gap: 12,
+    padding: 18,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+    textAlign: "center",
+  },
+  confirmText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.textMuted,
+    textAlign: "center",
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  confirmAccept: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    backgroundColor: colors.danger,
+  },
+  confirmAcceptText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.surface,
   },
   dropdownContent: {
     paddingHorizontal: 8,
