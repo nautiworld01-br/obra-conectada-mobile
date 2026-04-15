@@ -651,6 +651,7 @@ export function UpdatesScreen() {
         uris: payload.videos,
         pathPrefix: `projects/${project.id}/updates/videos`,
         fileBaseName: `${payload.weekRef.replace(/\s+/g, "_").toLowerCase()}_video`,
+        contentType: "video/mp4",
       });
 
       await upsertUpdate.mutateAsync({

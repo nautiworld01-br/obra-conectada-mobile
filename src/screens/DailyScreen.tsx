@@ -252,7 +252,8 @@ function DailyLogForm({
         uris: videosUrls,
         pathPrefix: `${projectId}/videos`,
         fileBaseName: "video",
-        bucket: "daily-logs"
+        bucket: "daily-logs",
+        contentType: "video/mp4",
       });
 
       await onSave({

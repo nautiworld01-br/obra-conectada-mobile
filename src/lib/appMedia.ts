@@ -1,7 +1,7 @@
 import { uploadLocalFileToStorage } from "./storageUpload";
 import { supabase } from "./supabase";
 
-const DEFAULT_BUCKET = "daily-logs";
+const DEFAULT_BUCKET = "app-media";
 
 export function isRemoteAssetUrl(uri: string | null | undefined) {
   if (!uri) return false;
@@ -31,10 +31,23 @@ function inferContentType(uri: string) {
       return "image/webp";
     case ".heic":
       return "image/heic";
+    case ".gif":
+      return "image/gif";
     case ".mp4":
       return "video/mp4";
     case ".mov":
       return "video/quicktime";
+    case ".m4v":
+      return "video/x-m4v";
+    case ".3gp":
+      return "video/3gpp";
+    case ".avi":
+      return "video/x-msvideo";
+    case ".mpeg":
+    case ".mpg":
+      return "video/mpeg";
+    case ".webm":
+      return "video/webm";
     default:
       return null;
   }
@@ -45,26 +58,29 @@ export async function uploadAppMediaIfNeeded(params: {
   pathPrefix: string;
   fileBaseName: string;
   contentType?: string | null;
+  bucket?: string;
 }) {
   let { uri } = params;
-  const { pathPrefix, fileBaseName, contentType } = params;
+  const { pathPrefix, fileBaseName, contentType, bucket } = params;
   if (!uri || !uri.trim()) return null;
   uri = uri.trim();
 
   if (isRemoteAssetUrl(uri)) return uri.trim();
   if (!supabase) throw new Error("Supabase nao configurado.");
 
-  const extension = inferExtension(uri) || (contentType?.startsWith("video/") ? ".mp4" : ".jpg");
+  const inferredType = contentType ?? inferContentType(uri);
+  const extension = inferExtension(uri) || (inferredType?.startsWith("video/") ? ".mp4" : ".jpg");
   const filePath = `${pathPrefix}/${Date.now()}_${sanitizeFileName(fileBaseName)}${extension}`;
+  const targetBucket = bucket || DEFAULT_BUCKET;
 
   await uploadLocalFileToStorage({
-    bucket: APP_MEDIA_BUCKET,
+    bucket: targetBucket,
     filePath,
     fileUri: uri,
-    contentType: contentType ?? inferContentType(uri),
+    contentType: inferredType,
   });
 
-  const { data } = supabase.storage.from(APP_MEDIA_BUCKET).getPublicUrl(filePath);
+  const { data } = supabase.storage.from(targetBucket).getPublicUrl(filePath);
   return data.publicUrl;
 }
 
