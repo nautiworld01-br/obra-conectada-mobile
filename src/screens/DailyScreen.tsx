@@ -149,12 +149,12 @@ function DailyLogForm({
     );
   };
 
-  const uploadMediaFile = async (isPhoto: boolean): Promise<string | null> => {
+  const uploadMediaFiles = async (isPhoto: boolean): Promise<string[]> => {
     try {
       setUploading(true);
       if (!projectId) {
         setLocalError("Configure a casa antes de anexar fotos ou videos.");
-        return null;
+        return [];
       }
 
       const permission = isPhoto 
@@ -168,62 +168,68 @@ function DailyLogForm({
             ? "Permita o acesso a galeria para escolher fotos."
             : "Permita o acesso a galeria para escolher vídeos."
         );
-        return null;
+        return [];
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: isPhoto ? ["images"] : ["videos"],
+        allowsMultipleSelection: true,
         quality: 0.8,
       });
 
       if (result.canceled || !result.assets.length) {
-        return null;
+        return [];
       }
-
-      const asset = result.assets[0];
-      const fileName = asset.fileName || `media_${Date.now()}`;
-      const fileUri = asset.uri;
 
       if (!supabase) {
         setLocalError("Supabase não configurado.");
-        return null;
+        return [];
       }
 
-      const timestamp = Date.now();
-      const randomId = Math.random().toString(36).substring(2, 9);
-      const filePath = `${projectId}/${timestamp}_${randomId}_${fileName}`;
+      const uploadedUrls: string[] = [];
 
-      await uploadLocalFileToStorage({
-        bucket: "daily-logs",
-        filePath,
-        fileUri,
-        contentType: asset.mimeType ?? (isPhoto ? "image/jpeg" : "video/mp4"),
-      });
+      for (const asset of result.assets) {
+        const fileName = asset.fileName || `media_${Date.now()}`;
+        const fileUri = asset.uri;
+        const timestamp = Date.now();
+        const randomId = Math.random().toString(36).substring(2, 9);
+        const filePath = `${projectId}/${timestamp}_${randomId}_${fileName}`;
 
-      // Obter a URL pública
-      const { data } = supabase.storage.from("daily-logs").getPublicUrl(filePath);
-      return data?.publicUrl ?? null;
+        await uploadLocalFileToStorage({
+          bucket: "daily-logs",
+          filePath,
+          fileUri,
+          contentType: asset.mimeType ?? (isPhoto ? "image/jpeg" : "video/mp4"),
+        });
+
+        const { data } = supabase.storage.from("daily-logs").getPublicUrl(filePath);
+        if (data?.publicUrl) {
+          uploadedUrls.push(data.publicUrl);
+        }
+      }
+
+      return uploadedUrls;
     } catch (error) {
       console.error("Upload error:", error);
       console.error("Media upload error:", error);
       setLocalError(`Erro ao processar arquivo: ${error instanceof Error ? error.message : "erro desconhecido"}`);
-      return null;
+      return [];
     } finally {
       setUploading(false);
     }
   };
 
   const handleAddPhoto = async () => {
-    const url = await uploadMediaFile(true);
-    if (url) {
-      setPhotosUrls((current) => [...current, url]);
+    const urls = await uploadMediaFiles(true);
+    if (urls.length) {
+      setPhotosUrls((current) => [...current, ...urls]);
     }
   };
 
   const handleAddVideo = async () => {
-    const url = await uploadMediaFile(false);
-    if (url) {
-      setVideosUrls((current) => [...current, url]);
+    const urls = await uploadMediaFiles(false);
+    if (urls.length) {
+      setVideosUrls((current) => [...current, ...urls]);
     }
   };
 
