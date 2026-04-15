@@ -19,6 +19,7 @@ import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
 import { useProject } from "../hooks/useProject";
+import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 import { supabase } from "../lib/supabase";
 
 type EmployeeRole = "empregada domestica" | "marinheiro";
@@ -279,11 +280,16 @@ export function HouseFormScreen() {
 
     try {
       let projectId = project?.id ?? null;
+      const uploadedHousePhotoUrl = await uploadAppMediaIfNeeded({
+        uri: photoUrl.trim() || null,
+        pathPrefix: projectId ? `projects/${projectId}/house` : `users/${user.id}/draft-house`,
+        fileBaseName: "house_cover",
+      });
 
       const projectPayload = {
         name: houseName.trim(),
         address: address.trim() || null,
-        photo_url: photoUrl.trim() || null,
+        photo_url: uploadedHousePhotoUrl,
         observations: observations.trim() || null,
       };
 
@@ -331,11 +337,17 @@ export function HouseFormScreen() {
       }
 
       for (const employee of employees) {
+        const uploadedEmployeePhotoUrl = await uploadAppMediaIfNeeded({
+          uri: employee.photo.trim() || null,
+          pathPrefix: `projects/${projectId}/employees`,
+          fileBaseName: `${employee.full_name.trim().replace(/\s+/g, "_").toLowerCase()}_${employee.id ?? "new"}`,
+        });
+
         const employeePayload = {
           project_id: projectId,
           full_name: employee.full_name.trim(),
           role: employee.role,
-          photo: employee.photo.trim() || null,
+          photo: uploadedEmployeePhotoUrl,
           status: "ativo",
         };
 

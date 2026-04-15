@@ -4,9 +4,11 @@ import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, ScrollView,
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
+import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
 import { TeamEmployeeRole, TeamEmployeeRow, TeamEmployeeStatus, useDeleteEmployee, useTeam, useUpsertEmployee } from "../hooks/useTeam";
 import { WorkCrewRow, useDeleteWorkCrew, useUpsertWorkCrew, useWorkCrews } from "../hooks/useWorkCrews";
+import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 
 const roleOptions: { value: TeamEmployeeRole; label: string }[] = [
   { value: "empregada domestica", label: "Empregada domestica" },
@@ -112,6 +114,7 @@ function buildWorkCrewDraft(workCrew?: WorkCrewRow | null) {
 }
 
 export function TeamScreen() {
+  const { user } = useAuth();
   const { isOwner } = useProfile();
   const { project, employees, isLoading: employeesLoading } = useTeam();
   const { workCrews, isLoading: workCrewsLoading } = useWorkCrews();
@@ -216,13 +219,19 @@ export function TeamScreen() {
     if (!isOwner) return Alert.alert("Permissao", "Somente o proprietario pode editar a equipe.");
     if (!employeeDraft.fullName.trim()) return Alert.alert("Equipe", "Informe o nome do funcionario.");
     try {
+      const photo = await uploadAppMediaIfNeeded({
+        uri: employeeDraft.photo.trim() || null,
+        pathPrefix: `projects/${project.id}/employees`,
+        fileBaseName: `${employeeDraft.fullName.trim().replace(/\s+/g, "_").toLowerCase()}_${employeeDraft.id ?? user?.id ?? "new"}`,
+      });
+
       await upsertEmployee.mutateAsync({
         id: employeeDraft.id,
         projectId: project.id,
         fullName: employeeDraft.fullName.trim(),
         role: employeeDraft.role,
         status: employeeDraft.status,
-        photo: employeeDraft.photo.trim() || null,
+        photo,
       });
       setEmployeeFormOpen(false);
       setEmployeeDraft(buildEmployeeDraft());
@@ -252,10 +261,16 @@ export function TeamScreen() {
     if (averageWorkersValue != null && (!Number.isFinite(averageWorkersValue) || averageWorkersValue < 0)) return Alert.alert("Equipe da obra", "Informe uma media de funcionarios valida.");
     if (contractedAmountValue != null && (!Number.isFinite(contractedAmountValue) || contractedAmountValue < 0)) return Alert.alert("Equipe da obra", "Informe um valor contratado valido.");
     try {
+      const photo = await uploadAppMediaIfNeeded({
+        uri: workCrewDraft.photo.trim() || null,
+        pathPrefix: `projects/${project.id}/work-crews`,
+        fileBaseName: `${workCrewDraft.companyName.trim().replace(/\s+/g, "_").toLowerCase()}_${workCrewDraft.id ?? user?.id ?? "new"}`,
+      });
+
       await upsertWorkCrew.mutateAsync({
         id: workCrewDraft.id,
         projectId: project.id,
-        photo: workCrewDraft.photo.trim() || null,
+        photo,
         companyName: workCrewDraft.companyName.trim(),
         companyContact: workCrewDraft.companyContact.trim() || null,
         responsibleName: workCrewDraft.responsibleName.trim() || null,

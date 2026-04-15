@@ -7,6 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { buildInitials, useProfile } from "../hooks/useProfile";
+import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 import { supabase } from "../lib/supabase";
 
 export function MoreScreen() {
@@ -63,10 +64,16 @@ export function MoreScreen() {
     setSaving(true);
 
     try {
+      const avatarUrl = await uploadAppMediaIfNeeded({
+        uri: draftAvatar.trim() || null,
+        pathPrefix: `users/${user.id}/avatar`,
+        fileBaseName: "profile_avatar",
+      });
+
       const { error: profileError } = await supabase.from("profiles").upsert({
         id: user.id,
         full_name: draftName.trim(),
-        avatar_url: draftAvatar.trim() || null,
+        avatar_url: avatarUrl,
       });
 
       if (profileError) {

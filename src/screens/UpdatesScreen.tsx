@@ -23,6 +23,7 @@ import {
   useUpdates,
   useUpsertUpdate,
 } from "../hooks/useUpdates";
+import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
 
 const statusOptions: { value: UpdateStatus; label: string }[] = [
   { value: "no_prazo", label: "No Prazo" },
@@ -640,6 +641,18 @@ export function UpdatesScreen() {
     }
 
     try {
+      const uploadedPhotos = await uploadAppMediaListIfNeeded({
+        uris: payload.photos,
+        pathPrefix: `projects/${project.id}/updates/photos`,
+        fileBaseName: `${payload.weekRef.replace(/\s+/g, "_").toLowerCase()}_photo`,
+      });
+
+      const uploadedVideos = await uploadAppMediaListIfNeeded({
+        uris: payload.videos,
+        pathPrefix: `projects/${project.id}/updates/videos`,
+        fileBaseName: `${payload.weekRef.replace(/\s+/g, "_").toLowerCase()}_video`,
+      });
+
       await upsertUpdate.mutateAsync({
         id: editingUpdate?.id,
         projectId: project.id,
@@ -654,8 +667,8 @@ export function UpdatesScreen() {
         materialsMissing: payload.materialsMissing,
         nextWeekPlan: payload.nextWeekPlan,
         observations: payload.observations,
-        photos: payload.photos,
-        videos: payload.videos,
+        photos: uploadedPhotos,
+        videos: uploadedVideos,
       });
 
       setFormOpen(false);

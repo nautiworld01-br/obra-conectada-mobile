@@ -19,9 +19,9 @@ export async function uploadLocalFileToStorage({
     throw new Error("Supabase nao configurado.");
   }
 
-  const blob = await readBlobFromLocalUri(fileUri);
+  const arrayBuffer = await readArrayBufferFromLocalUri(fileUri);
 
-  const { error } = await supabase.storage.from(bucket).upload(filePath, blob, {
+  const { error } = await supabase.storage.from(bucket).upload(filePath, arrayBuffer, {
     contentType: contentType ?? undefined,
     upsert,
   });
@@ -31,10 +31,16 @@ export async function uploadLocalFileToStorage({
   }
 }
 
-function readBlobFromLocalUri(fileUri: string): Promise<Blob> {
+function readArrayBufferFromLocalUri(fileUri: string): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.onload = () => resolve(xhr.response as Blob);
+    xhr.onload = () => {
+      const blob = xhr.response as Blob;
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(new Error("Nao foi possivel converter o arquivo para upload."));
+      reader.readAsArrayBuffer(blob);
+    };
     xhr.onerror = () => reject(new Error("Nao foi possivel ler o arquivo local para upload."));
     xhr.responseType = "blob";
     xhr.open("GET", fileUri, true);
