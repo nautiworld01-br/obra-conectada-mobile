@@ -163,6 +163,7 @@ Contrato atual da midia:
 - branch principal: `main`
 - `master` removida
 - publicacao web feita manualmente a partir do build exportado
+- `GitHub Pages` deve apontar para `main /docs`
 - preview mobile feito localmente com `Expo Go`
 - este repositorio nao usa mais `EAS Update`
 
@@ -191,6 +192,21 @@ Para abrir no celular durante o desenvolvimento:
 - usar `Expo Go`
 - iniciar com `npm start` ou `npm run start:tunnel`
 - escanear o QR code exibido pelo Expo
+
+### Publicacao web no Pages
+
+Gerar o build web:
+
+```bash
+npm run export:web
+```
+
+Depois copiar o conteudo de `dist/` para `docs/` e fazer commit da pasta `docs`.
+
+No GitHub Pages, usar:
+
+- branch `main`
+- folder `/docs`
 
 ### Banco
 

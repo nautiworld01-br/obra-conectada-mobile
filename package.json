@@ -7,7 +7,8 @@
     "start:tunnel": "expo start --tunnel",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "export:web": "expo export --platform web"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
