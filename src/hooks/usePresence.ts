@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+const EMPTY_ATTENDANCE: AttendanceRow[] = [];
+
 export type AttendanceStatus = "presente" | "falta" | "meio_periodo";
 
 export type AttendanceRow = {
@@ -20,7 +22,7 @@ export function usePresence(date: string) {
     queryKey: ["attendance", project?.id, date],
     enabled: Boolean(project?.id && supabase && date),
     queryFn: async (): Promise<AttendanceRow[]> => {
-      if (!supabase || !project) return [];
+      if (!supabase || !project) return EMPTY_ATTENDANCE;
 
       const { data, error } = await supabase
         .from("attendance")
@@ -29,12 +31,12 @@ export function usePresence(date: string) {
         .eq("date", date);
 
       if (error) throw error;
-      return (data ?? []) as AttendanceRow[];
+      return ((data ?? EMPTY_ATTENDANCE) as AttendanceRow[]);
     },
   });
 
   return {
-    attendance: query.data ?? [],
+    attendance: query.data ?? EMPTY_ATTENDANCE,
     isLoading: query.isLoading,
     refetch: query.refetch,
   };
