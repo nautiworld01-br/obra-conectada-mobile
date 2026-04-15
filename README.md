@@ -221,3 +221,4 @@ npx supabase db push --db-url "postgresql://postgres:SENHA@db.PROJECT_REF.supaba
 - este README deve ser atualizado sempre que mudarmos regra de permissao, fonte de verdade do banco ou pipeline de deploy
 - se surgir uma migration nova, ela deve nascer neste repo
 - se uma mudanca for aplicada direto no Supabase, ela precisa voltar para `supabase/migrations` antes de ser considerada concluida
+atual
