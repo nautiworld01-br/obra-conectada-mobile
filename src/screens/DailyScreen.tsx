@@ -15,7 +15,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
-import { uploadLocalFilesToPublicUrls } from "../lib/storageUpload";
+import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
 import {
   DailyLogRow,
   EmployeeRow,
@@ -150,17 +150,9 @@ function DailyLogForm({
 
   const pickMediaFiles = async (isPhoto: boolean): Promise<string[]> => {
     try {
-      const permission = isPhoto 
-        ? await ImagePicker.requestMediaLibraryPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      if (!permission.granted) {
-        Alert.alert(
-          "Permissão",
-          isPhoto 
-            ? "Permita o acesso a galeria para escolher fotos."
-            : "Permita o acesso a galeria para escolher vídeos."
-        );
+      const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!granted) {
+        Alert.alert("Permissão", `Permita o acesso a galeria para escolher ${isPhoto ? "fotos" : "vídeos"}.`);
         return [];
       }
 
@@ -249,20 +241,18 @@ function DailyLogForm({
     setLocalError(null);
 
     try {
-      const uploadedPhotos = await uploadLocalFilesToPublicUrls({
-        bucket: "daily-logs",
-        pathPrefix: `${projectId}/photos`,
+      const uploadedPhotos = await uploadAppMediaListIfNeeded({
         uris: photosUrls,
+        pathPrefix: `${projectId}/photos`,
         fileBaseName: "photo",
-        contentType: "image/jpeg",
+        bucket: "daily-logs"
       });
 
-      const uploadedVideos = await uploadLocalFilesToPublicUrls({
-        bucket: "daily-logs",
-        pathPrefix: `${projectId}/videos`,
+      const uploadedVideos = await uploadAppMediaListIfNeeded({
         uris: videosUrls,
+        pathPrefix: `${projectId}/videos`,
         fileBaseName: "video",
-        contentType: "video/mp4",
+        bucket: "daily-logs"
       });
 
       await onSave({

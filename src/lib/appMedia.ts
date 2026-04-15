@@ -1,11 +1,12 @@
 import { uploadLocalFileToStorage } from "./storageUpload";
 import { supabase } from "./supabase";
 
-const APP_MEDIA_BUCKET = "app-media";
+const DEFAULT_BUCKET = "daily-logs";
 
 export function isRemoteAssetUrl(uri: string | null | undefined) {
   if (!uri) return false;
-  return uri.startsWith("http://") || uri.startsWith("https://");
+  const trimmed = uri.trim();
+  return trimmed.startsWith("http://") || trimmed.startsWith("https://");
 }
 
 function sanitizeFileName(name: string) {
@@ -45,8 +46,11 @@ export async function uploadAppMediaIfNeeded(params: {
   fileBaseName: string;
   contentType?: string | null;
 }) {
-  const { uri, pathPrefix, fileBaseName, contentType } = params;
-  if (!uri?.trim()) return null;
+  let { uri } = params;
+  const { pathPrefix, fileBaseName, contentType } = params;
+  if (!uri || !uri.trim()) return null;
+  uri = uri.trim();
+
   if (isRemoteAssetUrl(uri)) return uri.trim();
   if (!supabase) throw new Error("Supabase nao configurado.");
 
@@ -69,6 +73,7 @@ export async function uploadAppMediaListIfNeeded(params: {
   pathPrefix: string;
   fileBaseName: string;
   contentType?: string | null;
+  bucket?: string;
 }) {
   const results: string[] = [];
 
@@ -78,6 +83,7 @@ export async function uploadAppMediaListIfNeeded(params: {
       pathPrefix: params.pathPrefix,
       fileBaseName: `${params.fileBaseName}_${index + 1}`,
       contentType: params.contentType,
+      bucket: params.bucket,
     });
 
     if (uploaded) {

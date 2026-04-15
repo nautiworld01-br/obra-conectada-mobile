@@ -338,7 +338,7 @@ export function HouseFormScreen() {
 
       for (const employee of employees) {
         const uploadedEmployeePhotoUrl = await uploadAppMediaIfNeeded({
-          uri: employee.photo.trim() || null,
+          uri: employee.photo || null,
           pathPrefix: `projects/${projectId}/employees`,
           fileBaseName: `${employee.full_name.trim().replace(/\s+/g, "_").toLowerCase()}_${employee.id ?? "new"}`,
         });
@@ -1119,6 +1119,3 @@ const styles = StyleSheet.create({
     opacity: 0.82,
   },
 });
-
-
-
