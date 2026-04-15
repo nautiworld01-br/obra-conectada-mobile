@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View, Image } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View, Image } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -23,7 +23,7 @@ export function PresenceScreen() {
   const upsertPresence = useUpsertPresence();
 
   // Estado local para gerenciar as marcações antes de salvar
-  const [localAttendance, setLocalAttendance] = useState<Record<string, AttendanceStatus>>({});
+  const [localAttendance, setLocalAttendance] = useState<Record<string, AttendanceStatus | undefined>>({});
 
   useEffect(() => {
     const mapping: Record<string, AttendanceStatus> = {};
@@ -40,7 +40,7 @@ export function PresenceScreen() {
   const handleStatusChange = (employeeId: string, status: AttendanceStatus) => {
     setLocalAttendance(prev => ({
       ...prev,
-      [employeeId]: prev[employeeId] === status ? (undefined as any) : status
+      [employeeId]: prev[employeeId] === status ? undefined : status
     }));
   };
 
@@ -48,13 +48,8 @@ export function PresenceScreen() {
     if (!project?.id) return;
     
     const records = Object.entries(localAttendance)
-      .filter(([_, status]) => !!status)
+      .filter((entry): entry is [string, AttendanceStatus] => Boolean(entry[1]))
       .map(([employee_id, status]) => ({ employee_id, status }));
-
-    if (records.length === 0) {
-      Alert.alert("Presença", "Nenhuma marcação realizada para salvar.");
-      return;
-    }
 
     try {
       await upsertPresence.mutateAsync({
@@ -62,7 +57,7 @@ export function PresenceScreen() {
         date: dateKey,
         records
       });
-      Alert.alert("Sucesso", "Presença registrada com sucesso.");
+      Alert.alert("Sucesso", records.length ? "Presença registrada com sucesso." : "Lista de chamada limpa para este dia.");
     } catch (error) {
       Alert.alert("Erro", "Não foi possível salvar a presença.");
     }
@@ -75,6 +70,14 @@ export function PresenceScreen() {
   };
 
   const isLoading = loadingTeam || loadingPresence;
+  const summary = useMemo(() => {
+    const statuses = Object.values(localAttendance);
+    return {
+      presente: statuses.filter((status) => status === "presente").length,
+      meioPeriodo: statuses.filter((status) => status === "meio_periodo").length,
+      falta: statuses.filter((status) => status === "falta").length,
+    };
+  }, [localAttendance]);
 
   return (
     <AppScreen title="Presença" subtitle="Controle diário de entrada e saída dos funcionários fixos da casa.">
@@ -89,6 +92,21 @@ export function PresenceScreen() {
         <Pressable style={styles.arrowButton} onPress={() => changeDay(1)}>
           <Text style={styles.arrowText}>›</Text>
         </Pressable>
+      </View>
+
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{summary.presente}</Text>
+          <Text style={styles.summaryLabel}>Presentes</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{summary.meioPeriodo}</Text>
+          <Text style={styles.summaryLabel}>Meio período</Text>
+        </View>
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryValue}>{summary.falta}</Text>
+          <Text style={styles.summaryLabel}>Faltas</Text>
+        </View>
       </View>
 
       <SectionCard title="Lista de chamada" subtitle={`${activeEmployees.length} funcionários ativos na casa.`}>
@@ -154,6 +172,8 @@ export function PresenceScreen() {
           <Text style={styles.saveButtonText}>Salvar Presença</Text>
         )}
       </Pressable>
+
+      <Text style={styles.helperText}>Toque novamente no mesmo status para desmarcar o funcionário antes de salvar.</Text>
     </AppScreen>
   );
 }
@@ -199,6 +219,19 @@ const styles = StyleSheet.create({
   dateDisplay: { alignItems: "center" },
   dateTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   todayBadge: { fontSize: 11, fontWeight: "800", color: colors.primary, marginTop: 2, textTransform: "uppercase" },
+  summaryRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
+  summaryCard: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    gap: 4,
+  },
+  summaryValue: { fontSize: 22, fontWeight: "800", color: colors.text },
+  summaryLabel: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
   list: { gap: 16 },
   employeeRow: {
     flexDirection: "row",
@@ -243,4 +276,5 @@ const styles = StyleSheet.create({
   saveButtonText: { color: colors.surface, fontSize: 16, fontWeight: "800" },
   buttonPressed: { opacity: 0.8 },
   emptyText: { textAlign: "center", color: colors.textMuted, paddingVertical: 20 },
+  helperText: { marginTop: -12, marginBottom: 24, textAlign: "center", color: colors.textMuted, fontSize: 12, lineHeight: 18 },
 });

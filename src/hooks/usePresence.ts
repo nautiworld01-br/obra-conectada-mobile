@@ -51,8 +51,18 @@ export function useUpsertPresence() {
     }) => {
       if (!supabase) throw new Error("Supabase não configurado.");
 
-      // Remove registros existentes para esse dia e projeto para evitar conflitos de unique
-      // Ou utiliza-se o upsert do Supabase se a constraint de UNIQUE(employee_id, date) estiver ativa.
+      const { error: deleteError } = await supabase
+        .from("attendance")
+        .delete()
+        .eq("project_id", payload.projectId)
+        .eq("date", payload.date);
+
+      if (deleteError) throw deleteError;
+
+      if (!payload.records.length) {
+        return;
+      }
+
       const insertData = payload.records.map((rec) => ({
         project_id: payload.projectId,
         date: payload.date,
@@ -60,14 +70,9 @@ export function useUpsertPresence() {
         status: rec.status,
       }));
 
-      const { error } = await supabase
-        .from("attendance")
-        .upsert(insertData, { 
-          onConflict: "employee_id,date",
-          ignoreDuplicates: false 
-        });
+      const { error: insertError } = await supabase.from("attendance").insert(insertData);
 
-      if (error) throw error;
+      if (insertError) throw insertError;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["attendance", variables.projectId, variables.date] });

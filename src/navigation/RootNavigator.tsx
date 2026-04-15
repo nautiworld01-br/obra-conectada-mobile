@@ -7,7 +7,6 @@ import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
 import { useProject } from "../hooks/useProject";
-import { AttendanceScreen } from "../screens/AttendanceScreen";
 import { DashboardScreen } from "../screens/DashboardScreen";
 import { DailyScreen } from "../screens/DailyScreen";
 import { DocumentsScreen } from "../screens/DocumentsScreen";
@@ -15,6 +14,7 @@ import { HouseFormScreen } from "../screens/HouseFormScreen";
 import { LoginScreen } from "../screens/LoginScreen";
 import { MoreScreen } from "../screens/MoreScreen";
 import { PaymentsScreen } from "../screens/PaymentsScreen";
+import { PresenceScreen } from "../screens/PresenceScreen";
 import { ScheduleScreen } from "../screens/ScheduleScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { SignUpScreen } from "../screens/SignUpScreen";
@@ -47,7 +47,7 @@ const appRoutes: AppRoute[] = [
   { key: "atualizacoes", label: "Atualizacoes", menuLabel: "Atualizacoes", icon: "◉", component: UpdatesScreen, inDrawer: true, ownerOnly: true },
   { key: "documentos", label: "Documentos", menuLabel: "Documentos", icon: "□", component: DocumentsScreen, inDrawer: true, ownerOnly: true },
   { key: "equipe", label: "Equipe", menuLabel: "Equipe", icon: "◌", component: TeamScreen, inDrawer: true, ownerOnly: true },
-  { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "✓", component: AttendanceScreen, inDrawer: true, ownerOnly: true },
+  { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "✓", component: PresenceScreen, inDrawer: true, ownerOnly: true },
   { key: "house-config", label: "Casa", menuLabel: "Casa", icon: "⌘", component: HouseFormScreen, ownerOnly: true },
   { key: "config", label: "Configuracoes", menuLabel: "Configuracoes", icon: "•", component: SettingsScreen, inDrawer: true, ownerOnly: true },
 ];
