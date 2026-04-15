@@ -396,7 +396,7 @@ export function DocumentsScreen() {
                       style={styles.filePreviewCard}
                       onPress={() => void handleOpenPickedFile()}
                       onLongPress={() => setConfirmRemovePickedFile(true)}
-                      delayLongPress={3000}
+                      delayLongPress={1500}
                     >
                       <Text style={styles.filePreviewName}>{pickedFile.name}</Text>
                       <Text style={styles.fileHint}>{formatBytes(pickedFile.size ?? null)}</Text>

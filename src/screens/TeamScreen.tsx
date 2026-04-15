@@ -422,7 +422,7 @@ export function TeamScreen() {
                 <Text style={styles.fieldLabel}>Foto</Text>
                 <Pressable style={styles.fieldInput} onPress={() => void handlePickEmployeePhoto()}><Text style={styles.fieldText}>{employeeDraft.photo.trim() ? "Trocar foto" : "Abrir galeria"}</Text></Pressable>
                 {employeeDraft.photo.trim() ? (
-                  <Pressable onPress={() => void handleOpenPreview(employeeDraft.photo)} onLongPress={() => setPendingPreviewRemoval("employee")} delayLongPress={3000}>
+                  <Pressable onPress={() => void handleOpenPreview(employeeDraft.photo)} onLongPress={() => setPendingPreviewRemoval("employee")} delayLongPress={1500}>
                     <Image source={{ uri: employeeDraft.photo.trim() }} style={styles.previewImage} />
                   </Pressable>
                 ) : null}
@@ -458,7 +458,7 @@ export function TeamScreen() {
                 <Text style={styles.fieldLabel}>Foto</Text>
                 <Pressable style={styles.fieldInput} onPress={() => void handlePickWorkCrewPhoto()}><Text style={styles.fieldText}>{workCrewDraft.photo.trim() ? "Trocar foto" : "Abrir galeria"}</Text></Pressable>
                 {workCrewDraft.photo.trim() ? (
-                  <Pressable onPress={() => void handleOpenPreview(workCrewDraft.photo)} onLongPress={() => setPendingPreviewRemoval("workCrew")} delayLongPress={3000}>
+                  <Pressable onPress={() => void handleOpenPreview(workCrewDraft.photo)} onLongPress={() => setPendingPreviewRemoval("workCrew")} delayLongPress={1500}>
                     <Image source={{ uri: workCrewDraft.photo.trim() }} style={styles.previewImage} />
                   </Pressable>
                 ) : null}

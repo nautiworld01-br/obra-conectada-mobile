@@ -157,7 +157,7 @@ export function MoreScreen() {
               <View style={styles.previewBlock}>
                 <Text style={styles.previewLabel}>Preview da foto</Text>
                 {draftAvatar ? (
-                  <Pressable onPress={() => void handleOpenAvatar()} onLongPress={() => setConfirmRemoveAvatar(true)} delayLongPress={3000}>
+                  <Pressable onPress={() => void handleOpenAvatar()} onLongPress={() => setConfirmRemoveAvatar(true)} delayLongPress={1500}>
                     <View style={styles.avatarShellLarge}>
                       <Image source={{ uri: draftAvatar }} style={styles.avatarImage} />
                     </View>

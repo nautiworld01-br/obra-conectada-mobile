@@ -410,7 +410,7 @@ function DailyLogForm({
                           style={styles.mediaItemContainer}
                           onPress={() => void handleOpenMedia(url)}
                           onLongPress={() => handleRequestRemoval("photo", index)}
-                          delayLongPress={3000}
+                          delayLongPress={1500}
                         >
                           <Image source={{ uri: url }} style={styles.mediaThumb} />
                         </Pressable>
@@ -444,7 +444,7 @@ function DailyLogForm({
                           style={styles.mediaItemContainer}
                           onPress={() => void handleOpenMedia(url)}
                           onLongPress={() => handleRequestRemoval("video", index)}
-                          delayLongPress={3000}
+                          delayLongPress={1500}
                         >
                           <View style={styles.videoThumb}>
                             <Text style={styles.videoIcon}>▶</Text>

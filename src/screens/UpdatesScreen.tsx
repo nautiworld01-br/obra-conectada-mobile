@@ -358,7 +358,7 @@ function UpdateFormModal(_: UpdateFormModalProps) {
                           style={styles.mediaThumbWrap}
                           onPress={() => void handleOpenMedia(photo)}
                           onLongPress={() => handleRequestRemoval("photo", index)}
-                          delayLongPress={3000}
+                          delayLongPress={1500}
                         >
                           <Image source={{ uri: photo }} style={styles.mediaThumb} />
                         </Pressable>
@@ -384,7 +384,7 @@ function UpdateFormModal(_: UpdateFormModalProps) {
                           style={styles.videoPreviewCard}
                           onPress={() => void handleOpenMedia(video)}
                           onLongPress={() => handleRequestRemoval("video", index)}
-                          delayLongPress={3000}
+                          delayLongPress={1500}
                         >
                           <Text style={styles.videoPreviewIcon}>▶</Text>
                           <Text numberOfLines={1} style={styles.videoPreviewText}>Video {index + 1}</Text>

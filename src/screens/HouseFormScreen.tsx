@@ -453,7 +453,7 @@ export function HouseFormScreen() {
             {photoUrl.trim() ? (
               <View style={styles.previewBlock}>
                 <Text style={styles.previewLabel}>Pre-visualizacao da casa</Text>
-                <Pressable onPress={() => void handleOpenPreview(photoUrl)} onLongPress={() => setPendingPreviewRemoval("house")} delayLongPress={3000}>
+                <Pressable onPress={() => void handleOpenPreview(photoUrl)} onLongPress={() => setPendingPreviewRemoval("house")} delayLongPress={1500}>
                   <Image source={{ uri: photoUrl.trim() }} style={styles.previewImage} />
                 </Pressable>
               </View>
@@ -566,7 +566,7 @@ export function HouseFormScreen() {
                 {employeeDraft.photo.trim() ? (
                   <View style={styles.previewBlock}>
                     <Text style={styles.previewLabel}>Pre-visualizacao do funcionario</Text>
-                    <Pressable onPress={() => void handleOpenPreview(employeeDraft.photo)} onLongPress={() => setPendingPreviewRemoval("employee")} delayLongPress={3000}>
+                    <Pressable onPress={() => void handleOpenPreview(employeeDraft.photo)} onLongPress={() => setPendingPreviewRemoval("employee")} delayLongPress={1500}>
                       <Image source={{ uri: employeeDraft.photo.trim() }} style={styles.previewImage} />
                     </Pressable>
                   </View>
