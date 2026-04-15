@@ -15,8 +15,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
-import { uploadLocalFileToStorage } from "../lib/storageUpload";
-import { supabase } from "../lib/supabase";
+import { uploadLocalFilesToPublicUrls } from "../lib/storageUpload";
 import {
   DailyLogRow,
   EmployeeRow,
@@ -149,14 +148,8 @@ function DailyLogForm({
     );
   };
 
-  const uploadMediaFiles = async (isPhoto: boolean): Promise<string[]> => {
+  const pickMediaFiles = async (isPhoto: boolean): Promise<string[]> => {
     try {
-      setUploading(true);
-      if (!projectId) {
-        setLocalError("Configure a casa antes de anexar fotos ou videos.");
-        return [];
-      }
-
       const permission = isPhoto 
         ? await ImagePicker.requestMediaLibraryPermissionsAsync()
         : await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -181,53 +174,23 @@ function DailyLogForm({
         return [];
       }
 
-      if (!supabase) {
-        setLocalError("Supabase não configurado.");
-        return [];
-      }
-
-      const uploadedUrls: string[] = [];
-
-      for (const asset of result.assets) {
-        const fileName = asset.fileName || `media_${Date.now()}`;
-        const fileUri = asset.uri;
-        const timestamp = Date.now();
-        const randomId = Math.random().toString(36).substring(2, 9);
-        const filePath = `${projectId}/${timestamp}_${randomId}_${fileName}`;
-
-        await uploadLocalFileToStorage({
-          bucket: "daily-logs",
-          filePath,
-          fileUri,
-          contentType: asset.mimeType ?? (isPhoto ? "image/jpeg" : "video/mp4"),
-        });
-
-        const { data } = supabase.storage.from("daily-logs").getPublicUrl(filePath);
-        if (data?.publicUrl) {
-          uploadedUrls.push(data.publicUrl);
-        }
-      }
-
-      return uploadedUrls;
+      return result.assets.map((asset) => asset.uri).filter(Boolean);
     } catch (error) {
-      console.error("Upload error:", error);
-      console.error("Media upload error:", error);
-      setLocalError(`Erro ao processar arquivo: ${error instanceof Error ? error.message : "erro desconhecido"}`);
+      console.error("Media selection error:", error);
+      setLocalError(`Erro ao selecionar arquivo: ${error instanceof Error ? error.message : "erro desconhecido"}`);
       return [];
-    } finally {
-      setUploading(false);
     }
   };
 
   const handleAddPhoto = async () => {
-    const urls = await uploadMediaFiles(true);
+    const urls = await pickMediaFiles(true);
     if (urls.length) {
       setPhotosUrls((current) => [...current, ...urls]);
     }
   };
 
   const handleAddVideo = async () => {
-    const urls = await uploadMediaFiles(false);
+    const urls = await pickMediaFiles(false);
     if (urls.length) {
       setVideosUrls((current) => [...current, ...urls]);
     }
@@ -282,14 +245,40 @@ function DailyLogForm({
       return;
     }
 
-    await onSave({
-      activities,
-      weather,
-      observations,
-      employeeIds,
-      photosUrls: photosUrls.length > 0 ? photosUrls : undefined,
-      videosUrls: videosUrls.length > 0 ? videosUrls : undefined,
-    });
+    setUploading(true);
+    setLocalError(null);
+
+    try {
+      const uploadedPhotos = await uploadLocalFilesToPublicUrls({
+        bucket: "daily-logs",
+        pathPrefix: `${projectId}/photos`,
+        uris: photosUrls,
+        fileBaseName: "photo",
+        contentType: "image/jpeg",
+      });
+
+      const uploadedVideos = await uploadLocalFilesToPublicUrls({
+        bucket: "daily-logs",
+        pathPrefix: `${projectId}/videos`,
+        uris: videosUrls,
+        fileBaseName: "video",
+        contentType: "video/mp4",
+      });
+
+      await onSave({
+        activities,
+        weather,
+        observations,
+        employeeIds,
+        photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
+        videosUrls: uploadedVideos.length > 0 ? uploadedVideos : undefined,
+      });
+    } catch (error) {
+      console.error("Upload error:", error);
+      setLocalError(`Erro ao enviar arquivos: ${error instanceof Error ? error.message : "erro desconhecido"}`);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleDelete = () => {
