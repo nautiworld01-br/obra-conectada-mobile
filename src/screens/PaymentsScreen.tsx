@@ -41,8 +41,10 @@ const statusOptions: { value: PaymentStatus; label: string }[] = [
   { value: "recusado", label: "Recusado" },
 ];
 
-const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
-const monthLabels = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const monthOptions = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -105,33 +107,38 @@ function getStatusColors(status: PaymentStatus) {
   }
 }
 
-/**
- * Modal de Formulario para Pagamentos com suporte a Anexo de Comprovante.
- */
 function PaymentFormModal(_: any) {
-  const { visible, payment, stages, loading, onClose, onSave } = _;
+  const { visible, payment, projectId, stages, loading, onClose, onSave } = _;
   const [draft, setDraft] = useState({
-    period: "", category: "mao_de_obra_projeto", plannedAmount: "", requestedAmount: "",
-    description: "", percentWork: "", stageId: null, observations: "", dueDate: "", receiptUrl: ""
+    periodMonth: monthOptions[new Date().getMonth()],
+    periodYear: new Date().getFullYear().toString(),
+    category: "mao_de_obra_projeto",
+    requestedAmount: "",
+    description: "",
+    stageId: null,
+    dueDate: "",
+    receiptUrl: ""
   });
+  
   const [localError, setLocalError] = useState<string | null>(null);
   const [categoryOpen, setCategoryOpen] = useState(false);
-  const [stageOpen, setStageOpen] = useState(false);
+  const [monthOpen, setMonthOpen] = useState(false);
   const [dateOpen, setDateOpen] = useState(false);
-  const [datePickerMonth, setDatePickerMonth] = useState(() => new Date());
   const [isUploading, setIsStatusUploading] = useState(false);
 
   useEffect(() => {
     if (visible) {
+      const currentPeriod = payment?.period || "";
+      const parts = currentPeriod.split(" ");
+      const m = parts[0];
+      const y = parts[1];
       setDraft({
-        period: payment?.period ?? "",
+        periodMonth: m || monthOptions[new Date().getMonth()],
+        periodYear: y || new Date().getFullYear().toString(),
         category: payment?.category ?? "mao_de_obra_projeto",
-        plannedAmount: payment?.planned_amount?.toString() ?? "",
         requestedAmount: payment?.requested_amount?.toString() ?? "",
         description: payment?.description ?? "",
-        percentWork: payment?.percent_work?.toString() ?? "",
         stageId: payment?.stage_id ?? null,
-        observations: payment?.observations ?? "",
         dueDate: toDisplayDate(payment?.due_date ?? null),
         receiptUrl: payment?.receipt_url ?? ""
       });
@@ -147,20 +154,23 @@ function PaymentFormModal(_: any) {
   };
 
   const handleSave = async () => {
-    if (!draft.period.trim() || !draft.requestedAmount) { setLocalError("Preencha os campos obrigatorios."); return; }
+    if (!draft.requestedAmount) { setLocalError("Informe o valor."); return; }
     setIsStatusUploading(true);
     try {
       const finalReceiptUrl = await uploadAppMediaIfNeeded({
         uri: draft.receiptUrl,
-        pathPrefix: `projects/${payment?.project_id || "new"}/payments/receipts`,
+        pathPrefix: `projects/${projectId}/payments/receipts`,
         fileBaseName: "receipt"
       });
-      await onSave({ ...draft, receiptUrl: finalReceiptUrl });
+      
+      await onSave({ 
+        ...draft, 
+        period: `${draft.periodMonth} ${draft.periodYear}`,
+        receiptUrl: finalReceiptUrl 
+      });
     } catch (e) { setLocalError("Falha no upload do anexo."); }
     finally { setIsStatusUploading(false); }
   };
-
-  const monthGrid = useMemo(() => buildMonthGrid(datePickerMonth), [datePickerMonth]);
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
@@ -168,11 +178,25 @@ function PaymentFormModal(_: any) {
         <Pressable style={styles.modalCard} onPress={() => undefined}>
           <View style={styles.modalHeader}><Text style={styles.modalTitle}>{payment ? "Editar" : "Novo"} Pagamento</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Periodo *</Text><TextInput style={styles.fieldInput} value={draft.period} onChangeText={v => setDraft(c => ({...c, period: v}))} placeholder="Ex: Abril/2026" /></View>
-            <View style={styles.row}>
-              <View style={[styles.fieldBlock, {flex: 1}]}><Text style={styles.fieldLabel}>Valor Solicitado *</Text><TextInput style={styles.fieldInput} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v}))} keyboardType="numeric" placeholder="0.00" /></View>
-              <View style={[styles.fieldBlock, {flex: 1}]}><Text style={styles.fieldLabel}>Vencimento</Text><Pressable style={styles.dateField} onPress={() => setDateOpen(true)}><Text style={styles.dateFieldText}>{draft.dueDate || "dd/mm/aaaa"}</Text><Text>◫</Text></Pressable></View>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Mês de Referência *</Text>
+              <View style={styles.row}>
+                <Pressable style={[styles.selectField, {flex: 2}]} onPress={() => setMonthOpen(true)}>
+                  <Text style={styles.selectFieldText}>{draft.periodMonth}</Text>
+                  <Text>˅</Text>
+                </Pressable>
+                <TextInput style={[styles.fieldInput, {flex: 1}]} value={draft.periodYear} onChangeText={v => setDraft(c => ({...c, periodYear: v}))} keyboardType="numeric" placeholder="Ano" />
+              </View>
             </View>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Valor Solicitado (R$) *</Text>
+              <View style={styles.currencyInputWrapper}>
+                <Text style={styles.currencyPrefix}>R$</Text>
+                <TextInput style={[styles.fieldInput, {flex: 1, borderLeftWidth: 0, borderTopLeftRadius: 0, borderBottomLeftRadius: 0}]} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v.replace(",", ".")}))} keyboardType="decimal-pad" placeholder="0,00" />
+              </View>
+            </View>
+            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Vencimento</Text><Pressable style={styles.dateField} onPress={() => setDateOpen(true)}><Text style={styles.dateFieldText}>{draft.dueDate || "dd/mm/aaaa"}</Text><Text>◫</Text></Pressable></View>
+            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Descrição / Título *</Text><TextInput style={styles.fieldInput} value={draft.description} onChangeText={v => setDraft(c => ({...c, description: v}))} placeholder="Ex: Adiantamento Quinzena" /></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Comprovante / Nota</Text>
               <Pressable style={styles.mediaButton} onPress={pickReceipt}>
                 {draft.receiptUrl ? <Image source={{ uri: draft.receiptUrl }} style={styles.receiptPreview} /> : <Text style={styles.mediaButtonText}>+ Anexar Foto</Text>}
@@ -186,10 +210,22 @@ function PaymentFormModal(_: any) {
         </Pressable>
       </Pressable>
 
+      <Modal transparent visible={monthOpen} onRequestClose={() => setMonthOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setMonthOpen(false)}>
+          <View style={styles.dropdownModalCard}>
+            <ScrollView style={{maxHeight: 300}}>{monthOptions.map(m => (
+              <Pressable key={m} style={styles.dropdownItem} onPress={() => { setDraft(c => ({...c, periodMonth: m})); setMonthOpen(false); }}>
+                <Text style={styles.dropdownItemText}>{m}</Text>
+              </Pressable>
+            ))}</ScrollView>
+          </View>
+        </Pressable>
+      </Modal>
+
       <Modal transparent visible={dateOpen} onRequestClose={() => setDateOpen(false)}>
         <Pressable style={styles.modalBackdrop} onPress={() => setDateOpen(false)}>
           <View style={styles.calendarModalCard}>
-            <View style={styles.calendarGrid}>{monthGrid.map(cell => (
+            <View style={styles.calendarGrid}>{buildMonthGrid(new Date()).map(cell => (
               <Pressable key={cell.key} style={[styles.calendarDay, toIsoDate(draft.dueDate) === cell.iso && styles.calendarDaySelected]} onPress={() => { setDraft(c => ({...c, dueDate: toDisplayDate(cell.iso)})); setDateOpen(false); }}>
                 <Text style={[styles.calendarDayText, !cell.currentMonth && styles.calendarDayOutside]}>{cell.dayNumber}</Text>
               </Pressable>
@@ -201,11 +237,8 @@ function PaymentFormModal(_: any) {
   );
 }
 
-/**
- * Detalhes do Pagamento com visualização do anexo.
- */
 function PaymentDetailModal(_: any) {
-  const { payment, visible, onClose, onEdit, onApprove, onMarkPaid } = _;
+  const { payment, visible, loading, onClose, onEdit, onDelete, onApprove, onMarkPaid } = _;
   if (!payment) return null;
   const statusStyle = getStatusColors(payment.status);
 
@@ -213,16 +246,15 @@ function PaymentDetailModal(_: any) {
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.detailCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}><Text style={styles.modalTitle}>Detalhe</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
-          <ScrollView contentContainerStyle={styles.modalContent}>
-            <Text style={styles.detailPeriod}>{payment.period}</Text>
-            <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{payment.status.toUpperCase()}</Text></View>
+          <View style={styles.modalHeader}><Text style={styles.modalTitle}>Detalhe do Pagamento</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
+          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.detailRow}><Text style={styles.detailPeriod}>{payment.period}</Text><View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{payment.status.toUpperCase()}</Text></View></View>
             <Text style={styles.detailAmount}>{formatCurrency(Number(payment.requested_amount))}</Text>
-            <Text style={styles.detailLabel}>Descricao: {payment.description}</Text>
+            <Text style={styles.detailLabel}>Referente a: {payment.description}</Text>
             
             {payment.receipt_url && (
               <View style={styles.receiptSection}>
-                <Text style={styles.detailLabel}>Comprovante:</Text>
+                <Text style={styles.detailLabel}>Anexo:</Text>
                 <Pressable onPress={() => Linking.openURL(payment.receipt_url)}>
                   <Image source={{ uri: payment.receipt_url }} style={styles.receiptImageLarge} />
                 </Pressable>
@@ -230,9 +262,13 @@ function PaymentDetailModal(_: any) {
             )}
 
             <View style={styles.detailActionRow}>
-              <Pressable style={styles.editPill} onPress={onEdit}><Text>Editar</Text></Pressable>
+              <Pressable style={styles.editPill} onPress={onEdit}><Text style={styles.editPillText}>Editar</Text></Pressable>
+              <Pressable style={styles.deletePill} onPress={onDelete}><Text style={styles.deletePillText}>Excluir</Text></Pressable>
+            </View>
+
+            <View style={styles.mainActionsRow}>
               {payment.status === "pendente" && <Pressable style={[styles.primaryButton, {flex: 1}]} onPress={onApprove}><Text style={styles.primaryButtonText}>Aprovar</Text></Pressable>}
-              {payment.status === "aprovado" && <Pressable style={[styles.successButton, {flex: 1}]} onPress={onMarkPaid}><Text style={styles.primaryButtonText}>Baixar (Pago)</Text></Pressable>}
+              {payment.status === "aprovado" && <Pressable style={[styles.successButton, {flex: 1}]} onPress={onMarkPaid}><Text style={styles.primaryButtonText}>Confirmar Pagamento</Text></Pressable>}
             </View>
           </ScrollView>
         </Pressable>
@@ -247,6 +283,8 @@ export function PaymentsScreen() {
   const { stages } = useStages();
   const upsertPayment = useUpsertPayment();
   const updateStatus = useUpdatePaymentStatus();
+  const deletePayment = useDeletePayment();
+  
   const [formOpen, setFormOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentRow | null>(null);
   const [editingPayment, setEditingPayment] = useState<PaymentRow | null>(null);
@@ -255,25 +293,23 @@ export function PaymentsScreen() {
     if (!project?.id || !user?.id) return;
     await upsertPayment.mutateAsync({ 
       id: editingPayment?.id, projectId: project.id, userId: user.id, 
-      ...payload, plannedAmount: Number(payload.plannedAmount), 
+      ...payload, plannedAmount: 0, 
       requestedAmount: Number(payload.requestedAmount),
-      percentWork: Number(payload.percentWork)
+      percentWork: 0, stageId: payload.stageId, observations: "",
+      dueDate: toIsoDate(payload.dueDate), receiptUrl: payload.receiptUrl
     });
     setFormOpen(false);
   };
 
-  const handleApprove = async () => {
-    if (selectedPayment && user) {
-      await updateStatus.mutateAsync({ id: selectedPayment.id, projectId: project!.id, userId: user.id, status: "aprovado" });
-      setSelectedPayment(null);
-    }
-  };
-
-  const handleMarkPaid = async () => {
-    if (selectedPayment && user) {
-      await updateStatus.mutateAsync({ id: selectedPayment.id, projectId: project!.id, userId: user.id, status: "pago", paymentDate: isoDate(new Date()) });
-      setSelectedPayment(null);
-    }
+  const handleDelete = async () => {
+    if (!selectedPayment || !project?.id) return;
+    Alert.alert("Excluir?", "Deseja remover este registro financeiro?", [
+      { text: "Cancelar", style: "cancel" },
+      { text: "Excluir", style: "destructive", onPress: async () => {
+        await deletePayment.mutateAsync({ id: selectedPayment.id, projectId: project.id });
+        setSelectedPayment(null);
+      }}
+    ]);
   };
 
   return (
@@ -289,14 +325,15 @@ export function PaymentsScreen() {
             <Pressable key={p.id} style={styles.paymentCard} onPress={() => setSelectedPayment(p)}>
               <View style={styles.paymentCardTop}><Text style={styles.paymentPeriod}>{p.period}</Text><View style={[styles.statusPill, { backgroundColor: getStatusColors(p.status).background }]}><Text style={[styles.statusPillText, { color: getStatusColors(p.status).text }]}>{p.status}</Text></View></View>
               <Text style={styles.paymentAmount}>{formatCurrency(Number(p.requested_amount))}</Text>
-              {p.receipt_url && <Text style={styles.attachmentBadge}>📎 Comprovante anexo</Text>}
+              <Text style={styles.paymentDesc} numberOfLines={1}>{p.description}</Text>
+              {p.receipt_url && <Text style={styles.attachmentBadge}>📎 Anexo</Text>}
             </Pressable>
           ))}
         </ScrollView>
       )}
 
-      <PaymentFormModal visible={formOpen} payment={editingPayment} stages={stages} loading={upsertPayment.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
-      <PaymentDetailModal payment={selectedPayment} visible={Boolean(selectedPayment)} onClose={() => setSelectedPayment(null)} onEdit={() => { setEditingPayment(selectedPayment); setFormOpen(false); setSelectedPayment(null); setTimeout(()=>setFormOpen(true), 300); }} onApprove={handleApprove} onMarkPaid={handleMarkPaid} />
+      <PaymentFormModal visible={formOpen} payment={editingPayment} projectId={project?.id} stages={stages} loading={upsertPayment.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
+      <PaymentDetailModal payment={selectedPayment} visible={Boolean(selectedPayment)} loading={deletePayment.isPending} onClose={() => setSelectedPayment(null)} onEdit={() => { setEditingPayment(selectedPayment); setFormOpen(false); setSelectedPayment(null); setTimeout(()=>setFormOpen(true), 300); }} onDelete={handleDelete} onApprove={() => updateStatus.mutateAsync({ id: selectedPayment!.id, projectId: project!.id, userId: user!.id, status: "aprovado" }).then(()=>setSelectedPayment(null))} onMarkPaid={() => updateStatus.mutateAsync({ id: selectedPayment!.id, projectId: project!.id, userId: user!.id, status: "pago", paymentDate: isoDate(new Date()) }).then(()=>setSelectedPayment(null))} />
     </View>
   );
 }
@@ -308,13 +345,14 @@ const styles = StyleSheet.create({
   newButton: { borderRadius: 12, backgroundColor: "#d97b00", paddingHorizontal: 14, paddingVertical: 12 },
   newButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
   content: { paddingTop: 16, paddingBottom: 32, gap: 10 },
-  paymentCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, gap: 8 },
-  paymentCardTop: { flexDirection: "row", justifyContent: "space-between" },
-  paymentPeriod: { fontSize: 16, fontWeight: "800", color: colors.text },
-  paymentAmount: { fontSize: 20, fontWeight: "800", color: colors.text },
+  paymentCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, gap: 4 },
+  paymentCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  paymentPeriod: { fontSize: 14, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
+  paymentAmount: { fontSize: 22, fontWeight: "800", color: colors.text },
+  paymentDesc: { fontSize: 14, color: colors.textMuted },
   attachmentBadge: { fontSize: 12, color: colors.primary, fontWeight: "700", marginTop: 4 },
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  statusPillText: { fontSize: 11, fontWeight: "800" },
+  statusPillText: { fontSize: 10, fontWeight: "800" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
   modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
   detailCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
@@ -325,23 +363,35 @@ const styles = StyleSheet.create({
   fieldBlock: { gap: 8 },
   fieldLabel: { fontSize: 14, fontWeight: "700" },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted },
+  currencyInputWrapper: { flexDirection: "row", alignItems: "center", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, overflow: "hidden" },
+  currencyPrefix: { paddingLeft: 14, fontSize: 15, fontWeight: "700", color: colors.textMuted },
   dateField: { flexDirection: "row", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
   dateFieldText: { fontSize: 15 },
+  selectField: { flexDirection: "row", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
+  selectFieldText: { fontSize: 15, fontWeight: "600" },
   row: { flexDirection: "row", gap: 10 },
-  mediaButton: { height: 120, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, borderStyle: "dashed", backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  mediaButton: { height: 100, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, borderStyle: "dashed", backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   mediaButtonText: { color: colors.textMuted, fontWeight: "700" },
   receiptPreview: { width: "100%", height: "100%" },
-  receiptImageLarge: { width: "100%", height: 200, borderRadius: 16, marginTop: 10 },
+  receiptImageLarge: { width: "100%", height: 220, borderRadius: 16, marginTop: 10, backgroundColor: "#f0f0f0" },
   receiptSection: { gap: 8, marginTop: 10 },
   primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
   primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
   successButton: { borderRadius: 14, backgroundColor: colors.success, paddingVertical: 16, alignItems: "center" },
-  editPill: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
-  detailActionRow: { flexDirection: "row", gap: 10, marginTop: 20 },
-  detailPeriod: { fontSize: 22, fontWeight: "800" },
-  detailAmount: { fontSize: 28, fontWeight: "900", color: colors.text },
-  detailLabel: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
+  editPill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder, alignItems: "center", justifyContent: "center" },
+  editPillText: { fontWeight: "700", fontSize: 14, color: colors.text, textAlign: "center", lineHeight: 20 },
+  deletePill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#fdeae7", borderWidth: 1, borderColor: "#f1c9c3", alignItems: "center", justifyContent: "center" },
+  deletePillText: { fontWeight: "700", fontSize: 14, color: colors.danger, textAlign: "center", lineHeight: 20 },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  detailPeriod: { fontSize: 18, fontWeight: "700", color: colors.textMuted },
+  detailAmount: { fontSize: 32, fontWeight: "900", color: colors.text, marginBottom: 4 },
+  detailLabel: { fontSize: 15, color: colors.text, lineHeight: 22 },
+  detailActionRow: { flexDirection: "row", gap: 10, marginTop: 24, borderTopWidth: 1, borderTopColor: "#eee", paddingTop: 20 },
+  mainActionsRow: { flexDirection: "row", gap: 10, marginTop: 12 },
   localError: { color: colors.danger, fontSize: 13 },
+  dropdownModalCard: { backgroundColor: "#fff", borderRadius: 16, padding: 10, width: "80%", alignSelf: "center" },
+  dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  dropdownItemText: { fontSize: 16, fontWeight: "600" },
   calendarModalCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, margin: 20 },
   calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
   calendarDay: { width: "14.28%", height: 40, alignItems: "center", justifyContent: "center" },
