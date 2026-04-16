@@ -106,21 +106,20 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
               <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Ex: Fundacao" />
             </View>
             
-            <View style={styles.row}>
-              <View style={{flex: 1}}>
-                <AppDatePicker 
-                  label="Início" 
-                  value={plannedStart} 
-                  onChange={setPlannedStart} 
-                />
-              </View>
-              <View style={{flex: 1}}>
-                <AppDatePicker 
-                  label="Fim" 
-                  value={plannedEnd} 
-                  onChange={setPlannedEnd} 
-                />
-              </View>
+            <View style={styles.fieldBlock}>
+              <AppDatePicker 
+                label="Início Planejado" 
+                value={plannedStart} 
+                onChange={setPlannedStart} 
+              />
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <AppDatePicker 
+                label="Fim Planejado" 
+                value={plannedEnd} 
+                onChange={setPlannedEnd} 
+              />
             </View>
 
             <View style={styles.formActions}>
