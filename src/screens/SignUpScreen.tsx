@@ -26,7 +26,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
 
 /**
  * Tela de Cadastro: Registro de novos usuarios.
- * Diferencia entre Proprietarios (limite de 1 por obra) e Funcionarios.
+ * future_fix: Adicionar validacao de força de senha no frontend.
  */
 export function SignUpScreen({ navigation }: Props) {
   const { signUp, loading, checkOwnerExists } = useAuth();
@@ -38,26 +38,33 @@ export function SignUpScreen({ navigation }: Props) {
   const [ownerExists, setOwnerExists] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [checkingOwner, setCheckingOwner] = useState(true);
 
   /**
    * Verifica se ja existe um proprietario cadastrado para travar a opcao no UI.
-   * future_fix: Adicionar fluxo de convite por código/link para vincular funcionarios automaticamente.
    */
   useEffect(() => {
     const loadOwnerState = async () => {
+      setCheckingOwner(true);
       const exists = await checkOwnerExists();
       setOwnerExists(exists);
-      if (exists && occupation === "owner") {
+      // Se ja existe dono, forca a selecao para funcionario por seguranca.
+      if (exists) {
         setOccupation("employee");
       }
+      setCheckingOwner(false);
     };
     void loadOwnerState();
-  }, [checkOwnerExists, occupation]);
+  }, [checkOwnerExists]);
 
   /**
-   * Envia os dados para criacao de conta no Supabase.
+   * Dispara a criacao de conta no Supabase.
    */
   const handleSubmit = async () => {
+    if (!fullName.trim() || !email.trim() || !password) {
+      setError("Preencha todos os campos.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const result = await signUp({ fullName: fullName.trim(), email: email.trim(), password, occupation });
@@ -82,18 +89,44 @@ export function SignUpScreen({ navigation }: Props) {
 
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>Cadastro</Text>
+            
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Nome completo</Text>
               <TextInput autoCapitalize="words" placeholder="Seu nome" placeholderTextColor={colors.textMuted} style={styles.input} value={fullName} onChangeText={setFullName} />
             </View>
 
+            <Text style={styles.label}>Tipo de Perfil</Text>
             <View style={styles.checkboxRow}>
-              <Pressable onPress={() => !ownerExists && setOccupation("owner")} disabled={ownerExists} style={[styles.checkboxButton, occupation === "owner" && styles.checkboxButtonActive, ownerExists && styles.checkboxButtonDisabled]}>
-                <View style={[styles.checkboxBox, occupation === "owner" && styles.checkboxBoxActive]}>{occupation === "owner" && <Text style={styles.checkboxMark}>✓</Text>}</View>
-                <Text style={[styles.checkboxLabel, ownerExists && styles.checkboxLabelDisabled]}>Proprietário</Text>
+              {/* Opcao Proprietario: Fica desabilitada e cinza se ownerExists for true */}
+              <Pressable 
+                onPress={() => !ownerExists && setOccupation("owner")} 
+                disabled={ownerExists || checkingOwner} 
+                style={[
+                  styles.checkboxButton, 
+                  occupation === "owner" && styles.checkboxButtonActive,
+                  ownerExists && styles.checkboxButtonDisabled
+                ]}
+              >
+                <View style={[
+                  styles.checkboxBox, 
+                  occupation === "owner" && styles.checkboxBoxActive,
+                  ownerExists && styles.checkboxBoxDisabled
+                ]}>
+                  {occupation === "owner" && <Text style={styles.checkboxMark}>✓</Text>}
+                </View>
+                <View>
+                  <Text style={[styles.checkboxLabel, ownerExists && styles.checkboxLabelDisabled]}>Proprietário</Text>
+                  {ownerExists && <Text style={styles.disabledHint}>Já cadastrado</Text>}
+                </View>
               </Pressable>
-              <Pressable onPress={() => setOccupation("employee")} style={[styles.checkboxButton, occupation === "employee" && styles.checkboxButtonActive]}>
-                <View style={[styles.checkboxBox, occupation === "employee" && styles.checkboxBoxActive]}>{occupation === "employee" && <Text style={styles.checkboxMark}>✓</Text>}</View>
+
+              <Pressable 
+                onPress={() => setOccupation("employee")} 
+                style={[styles.checkboxButton, occupation === "employee" && styles.checkboxButtonActive]}
+              >
+                <View style={[styles.checkboxBox, occupation === "employee" && styles.checkboxBoxActive]}>
+                  {occupation === "employee" && <Text style={styles.checkboxMark}>✓</Text>}
+                </View>
                 <Text style={styles.checkboxLabel}>Funcionário</Text>
               </Pressable>
             </View>
@@ -102,6 +135,7 @@ export function SignUpScreen({ navigation }: Props) {
               <Text style={styles.label}>Email</Text>
               <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="voce@email.com" placeholderTextColor={colors.textMuted} style={styles.input} value={email} onChangeText={setEmail} />
             </View>
+
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Senha</Text>
               <View style={styles.passwordRow}>
@@ -111,8 +145,8 @@ export function SignUpScreen({ navigation }: Props) {
             </View>
 
             {error && <Text style={styles.error}>{error}</Text>}
-            <Pressable disabled={loading || submitting} onPress={handleSubmit} style={({ pressed }) => [styles.button, (loading || submitting || pressed) && styles.buttonPressed]}>
-              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Criar conta</Text>}
+            <Pressable disabled={loading || submitting || checkingOwner} onPress={handleSubmit} style={({ pressed }) => [styles.button, (loading || submitting || pressed) && styles.buttonPressed]}>
+              {(submitting || checkingOwner) ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Criar conta</Text>}
             </Pressable>
 
             <View style={styles.secondaryActions}>
@@ -133,19 +167,21 @@ const styles = StyleSheet.create({
   brandBadge: { width: 52, height: 52, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.cardBorder },
   brandBadgeText: { color: colors.primary, fontSize: 19, fontWeight: "800" },
   title: { fontSize: 35, lineHeight: 40, fontWeight: "800", color: colors.text, textAlign: "center" },
-  formCard: { backgroundColor: colors.surface, borderRadius: 28, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 18, paddingVertical: 20, gap: 16, shadowColor: "#8d7159", shadowOpacity: 0.08, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 2 },
+  formCard: { backgroundColor: colors.surface, borderRadius: 28, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 18, paddingVertical: 20, gap: 16 },
   formTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
   fieldGroup: { gap: 8 },
+  label: { fontSize: 13, fontWeight: "700", color: colors.text },
   checkboxRow: { flexDirection: "row", gap: 10 },
   checkboxButton: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, paddingVertical: 14 },
   checkboxButtonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
-  checkboxButtonDisabled: { opacity: 0.5 },
+  checkboxButtonDisabled: { opacity: 0.6, backgroundColor: "#f0f0f0", borderColor: "#ddd" },
   checkboxBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
   checkboxBoxActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  checkboxBoxDisabled: { borderColor: "#ccc", backgroundColor: "#eee" },
   checkboxMark: { color: colors.surface, fontSize: 13, fontWeight: "800" },
-  checkboxLabel: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "600" },
-  checkboxLabelDisabled: { opacity: 0.5 },
-  label: { fontSize: 13, fontWeight: "700", color: colors.text },
+  checkboxLabel: { fontSize: 14, fontWeight: "600", color: colors.text },
+  checkboxLabelDisabled: { color: "#999" },
+  disabledHint: { fontSize: 10, color: colors.danger, fontWeight: "700", textTransform: "uppercase", marginTop: 2 },
   input: { backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: 15, width: "100%" },
   passwordRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   passwordInput: { flex: 1, backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: 15 },

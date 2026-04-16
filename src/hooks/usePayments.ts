@@ -1,60 +1,49 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
-// Definições de estados e categorias para o fluxo financeiro de pagamentos.
-export type PaymentStatus = "pendente" | "em_analise" | "aprovado" | "pago" | "recusado";
-export type PaymentCategory = "mao_de_obra_projeto" | "mao_de_obra_extras" | "insumos_extras";
+// ... tipos ...
 
-export type PaymentRow = {
-  id: string;
-  project_id: string;
-  requested_by: string;
-  period: string;
-  request_date: string;
-  planned_amount: number | null;
-  requested_amount: number;
-  stage_id: string | null;
-  description: string;
-  percent_work: number | null;
-  observations: string | null;
-  status: PaymentStatus;
-  approval_date: string | null;
-  payment_date: string | null;
-  approved_by: string | null;
-  receipt_url: string | null;
-  created_at: string;
-  updated_at: string;
-  due_date: string | null;
-  category: PaymentCategory;
-};
-
-/**
- * Hook para buscar o historico de pagamentos do projeto ativo.
- */
 export function usePayments() {
   const { project } = useProject();
 
-  const query = useQuery({
+  const query = useInfiniteQuery({
     queryKey: ["payments", project?.id],
     enabled: Boolean(project?.id && supabase),
-    queryFn: async (): Promise<PaymentRow[]> => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam = 0 }): Promise<PaymentRow[]> => {
       if (!supabase || !project) return [];
+
+      const pageSize = 10;
+      const from = pageParam * pageSize;
+      const to = from + pageSize - 1;
 
       const { data, error } = await supabase
         .from("payments")
         .select("*")
         .eq("project_id", project.id)
-        .order("request_date", { ascending: false });
+        .order("request_date", { ascending: false })
+        .range(from, to);
 
       if (error) throw error;
       return (data ?? []) as PaymentRow[];
     },
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length === 10 ? allPages.length : undefined;
+    }
   });
+
+  const flatPayments = useMemo(() => {
+    return query.data?.pages.flat() ?? [];
+  }, [query.data]);
 
   return {
     project,
-    payments: query.data ?? [],
+    payments: flatPayments,
+    hasNextPage: query.hasNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
+    fetchNextPage: query.fetchNextPage,
     isLoading: query.isLoading,
     error: query.error,
   };

@@ -215,7 +215,7 @@ function PaymentDetailModal(_: any) {
  */
 export function PaymentsScreen() {
   const { user } = useAuth();
-  const { project, payments, isLoading } = usePayments();
+  const { project, payments, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = usePayments();
   const { stages } = useStages();
   const upsertPayment = useUpsertPayment();
   const updateStatus = useUpdatePaymentStatus();
@@ -257,7 +257,7 @@ export function PaymentsScreen() {
       {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.totalPaidCard}><Text style={styles.totalLabel}>Total Pago/Aprovado</Text><Text style={styles.totalValue}>{formatCurrency(totalPaid)}</Text></View>
-          {filteredStages.length === 0 ? <Text style={styles.emptySearchText}>Nenhum pagamento encontrado.</Text> : filteredPayments.map(p => (
+          {filteredPayments.length === 0 ? <Text style={styles.emptySearchText}>Nenhum pagamento encontrado.</Text> : filteredPayments.map(p => (
             <Pressable key={p.id} style={styles.paymentCard} onPress={() => setSelectedPayment(p)}>
               <View style={styles.paymentCardTop}><Text style={styles.paymentPeriod}>{p.period}</Text><View style={[styles.statusPill, { backgroundColor: getStatusColors(p.status).background }]}><Text style={[styles.statusPillText, { color: getStatusColors(p.status).text }]}>{p.status}</Text></View></View>
               <Text style={styles.paymentAmount}>{formatCurrency(Number(p.requested_amount))}</Text>
@@ -265,6 +265,20 @@ export function PaymentsScreen() {
               {p.receipt_url && <Text style={styles.attachmentBadge}>📎 Comprovante</Text>}
             </Pressable>
           ))}
+
+          {hasNextPage && (
+            <Pressable 
+              style={({ pressed }) => [styles.loadMoreButton, pressed && styles.buttonPressed]} 
+              onPress={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+            >
+              {isFetchingNextPage ? (
+                <ActivityIndicator color={colors.primary} />
+              ) : (
+                <Text style={styles.loadMoreText}>Carregar pagamentos anteriores...</Text>
+              )}
+            </Pressable>
+          )}
         </ScrollView>
       )}
       <PaymentFormModal visible={formOpen} payment={editingPayment} projectId={project?.id} stages={stages} loading={upsertPayment.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />

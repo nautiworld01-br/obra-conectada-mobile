@@ -610,7 +610,7 @@ export function DailyScreen() {
   // Hooks para autenticacao, dados do projeto, logs e equipe.
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
-  const { project, logs, employees, isLoading } = useDailyLogs();
+  const { project, logs, employees, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = useDailyLogs();
   const upsertDailyLog = useUpsertDailyLog();
   const deleteDailyLog = useDeleteDailyLog();
   const [monthDate, setMonthDate] = useState(() => startOfDay(new Date()));
@@ -837,11 +837,39 @@ export function DailyScreen() {
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
                   </Pressable>
                 ))}
+
+                {hasNextPage && (
+                  <Pressable 
+                    style={({ pressed }) => [styles.loadMoreButton, pressed && styles.buttonPressed]} 
+                    onPress={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                  >
+                    {isFetchingNextPage ? (
+                      <ActivityIndicator color={colors.primary} />
+                    ) : (
+                      <Text style={styles.loadMoreText}>Carregar registros anteriores...</Text>
+                    )}
+                  </Pressable>
+                )}
               </View>
             ) : (
               <View style={styles.monthLogEmpty}>
                 <Text style={styles.monthLogEmptyText}>Nenhum registro salvo neste mes.</Text>
               </View>
+            )}
+
+            {hasNextPage && (
+              <Pressable 
+                style={({ pressed }) => [styles.loadMoreButton, pressed && styles.buttonPressed]} 
+                onPress={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <ActivityIndicator color={colors.primary} />
+                ) : (
+                  <Text style={styles.loadMoreText}>Carregar registros anteriores...</Text>
+                )}
+              </Pressable>
             )}
           </View>
         </ScrollView>

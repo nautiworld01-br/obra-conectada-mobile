@@ -1,4 +1,5 @@
-import { ReactNode, createContext, useContext, useEffect, useMemo, useState } from "react";
+import { ReactNode, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { AppState, Platform } from "react-native";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Occupation } from "../hooks/useProfile";
 import { env } from "../lib/env";
@@ -27,14 +28,15 @@ const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 /**
  * Provider global de autenticacao: Gerencia a sessao do Supabase e o estado do usuario logado.
- * future_fix: Adicionar persistencia de sessao extra ou refresh token manual se o Expo Go perder o estado.
+ * future_fix: Adicionar log de auditoria de sessoes para detectar logins suspeitos em multiplos aparelhos.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const appState = useRef(AppState.currentState);
 
-  // Monitora mudancas no estado de autenticacao (login, logout, refresh).
+  // Inicializa a sessao e monitora mudancas de estado (Auth e Ciclo de Vida do App).
   useEffect(() => {
     if (!supabase) {
       setLoading(false);
@@ -43,22 +45,47 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      setLoading(false);
+    // Recupera a sessao inicial do storage local.
+    const initializeSession = async () => {
+      try {
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        
+        if (mounted) {
+          setSession(initialSession);
+          setUser(initialSession?.user ?? null);
+        }
+      } catch (err) {
+        console.error("Auth init error:", err);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
+    void initializeSession();
+
+    // Listener para mudancas no Supabase Auth (Login, Logout, Refresh).
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (mounted) {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        setLoading(false);
+      }
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-      setUser(nextSession?.user ?? null);
-      setLoading(false);
+    // REFORCO: Ao voltar do segundo plano, verifica se a sessao ainda e valida.
+    // Essencial para o Expo Go nao perder o login apos horas de inatividade.
+    const appStateSubscription = AppState.addEventListener("change", (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+        supabase.auth.refreshSession();
+      }
+      appState.current = nextAppState;
     });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
+      appStateSubscription.remove();
     };
   }, []);
 
@@ -68,14 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthContextValue>(() => {
     /**
      * Verifica se ja existe um proprietario no banco de dados para bloquear novos cadastros de 'owner'.
+     * Utiliza uma RPC segura acessivel por usuarios anonimos.
      */
     const checkOwnerExists = async (): Promise<boolean> => {
       if (!supabase) return false;
       try {
-        const { data, error } = await supabase.from("profiles").select("id").eq("is_owner", true).limit(1);
-        if (error) return false;
-        return data && data.length > 0;
-      } catch { return false; }
+        const { data, error } = await supabase.rpc("has_owner_registered");
+        if (error) throw error;
+        return !!data;
+      } catch (err) {
+        console.error("Erro ao verificar dono:", err);
+        return false;
+      }
     };
 
     return {

@@ -69,11 +69,42 @@ export function MoreScreen() {
         pathPrefix: `users/${user.id}/avatar`,
         fileBaseName: "profile_avatar",
       });
+
+      // Sincroniza tambem o full_name no Auth Metadata para consistencia
+      await supabase.auth.updateUser({ data: { full_name: draftName.trim() } });
+      
       await supabase.from("profiles").upsert({ id: user.id, full_name: draftName.trim(), avatar_url: uploadedUrl });
       await queryClient.invalidateQueries({ queryKey: ["profile", user.id] });
       setEditVisible(false);
     } catch (e) { Alert.alert("Erro", "Falha ao salvar perfil."); }
     finally { setSaving(false); }
+  };
+
+  /**
+   * Executa a exclusao definitiva da conta do usuario.
+   * future_fix: Adicionar logica para verificar se o usuario e o UNICO proprietario de uma obra antes de permitir exclusao.
+   */
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Excluir conta?",
+      "Esta acao e IRREVERSIVEL. Todos os seus dados pessoais e acesso a obra serao removidos.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { 
+          text: "Excluir Definitivamente", 
+          style: "destructive", 
+          onPress: async () => {
+            if (!supabase) return;
+            const { error } = await supabase.rpc("delete_user_account");
+            if (error) {
+              Alert.alert("Erro ao excluir", "Nao foi possivel remover sua conta agora. Tente novamente mais tarde.");
+            } else {
+              await signOut();
+            }
+          } 
+        },
+      ]
+    );
   };
 
   return (
@@ -84,7 +115,10 @@ export function MoreScreen() {
             <View style={styles.avatarShell}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}</View>
             <View style={styles.profileCopy}><Text style={styles.name}>{fullName}</Text><Text style={styles.meta}>{user?.email}</Text><Text style={styles.meta}>{occupationLabel}</Text></View>
           </View>
-          <Pressable style={styles.editButton} onPress={() => setEditVisible(true)}><Text style={styles.editButtonText}>Editar perfil</Text></Pressable>
+          <View style={styles.profileActions}>
+            <Pressable style={styles.editButton} onPress={() => setEditVisible(true)}><Text style={styles.editButtonText}>Editar perfil</Text></Pressable>
+            <Pressable style={styles.deleteAccountButton} onPress={handleDeleteAccount}><Text style={styles.deleteAccountText}>Excluir conta</Text></Pressable>
+          </View>
         </SectionCard>
       </AppScreen>
 
@@ -116,8 +150,11 @@ const styles = StyleSheet.create({
   profileCopy: { flex: 1, gap: 4 },
   name: { fontSize: 22, fontWeight: "800", color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted },
-  editButton: { marginTop: 16, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },
+  profileActions: { gap: 10, marginTop: 20 },
+  editButton: { borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },
   editButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
+  deleteAccountButton: { paddingVertical: 10, alignItems: "center" },
+  deleteAccountText: { color: colors.danger, fontSize: 13, fontWeight: "600" },
   modalBackdrop: { flex: 1, backgroundColor: "rgba(31, 28, 23, 0.42)", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   modalCard: { width: "100%", maxWidth: 360, gap: 16, borderRadius: 24, padding: 18, backgroundColor: colors.surface },
   modalTitle: { fontSize: 20, fontWeight: "800", color: colors.text, textAlign: "center" },

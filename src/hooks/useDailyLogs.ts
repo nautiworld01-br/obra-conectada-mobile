@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
@@ -23,20 +24,22 @@ export type EmployeeRow = {
   status: "ativo" | "inativo";
 };
 
-// Hook principal para gerenciar os diários de obra, consolidando logs e funcionários.
+// Hook principal para gerenciar os diários de obra, consolidando logs e funcionários com Paginação.
 export function useDailyLogs() {
   const { project, isLoading: isProjectLoading } = useProject();
 
-  // Busca todos os logs diários vinculados ao projeto atual, incluindo IDs de presença.
-  const logsQuery = useQuery({
+  // Busca logs diários com suporte a rolagem infinita (10 por página).
+  const logsQuery = useInfiniteQuery({
     queryKey: ["daily_logs", project?.id],
     enabled: Boolean(project?.id && supabase),
-    queryFn: async (): Promise<(DailyLogRow & { presenceIds: string[] })[]> => {
-      if (!supabase || !project) {
-        return [];
-      }
+    initialPageParam: 0,
+    queryFn: async ({ pageParam = 0 }): Promise<(DailyLogRow & { presenceIds: string[] })[]> => {
+      if (!supabase || !project) return [];
 
-      // Consulta os logs e faz o join com os IDs dos funcionarios presentes
+      const pageSize = 10;
+      const from = pageParam * pageSize;
+      const to = from + pageSize - 1;
+
       const { data, error } = await supabase
         .from("daily_logs")
         .select(`
@@ -44,27 +47,27 @@ export function useDailyLogs() {
           daily_log_employees ( employee_id )
         `)
         .eq("project_id", project.id)
-        .order("date", { ascending: false });
+        .order("date", { ascending: false })
+        .range(from, to);
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       return (data ?? []).map(log => ({
         ...log,
         presenceIds: (log.daily_log_employees as any[] || []).map(item => item.employee_id)
       }));
     },
+    getNextPageParam: (lastPage, allPages) => {
+      return lastPage.length === 10 ? allPages.length : undefined;
+    }
   });
 
-  // Lista os funcionários ativos vinculados ao projeto para marcação de presença no log.
+  // Lista os funcionários ativos vinculados ao projeto.
   const employeesQuery = useQuery({
     queryKey: ["employees", project?.id, "ativo"],
     enabled: Boolean(project?.id && supabase),
     queryFn: async (): Promise<EmployeeRow[]> => {
-      if (!supabase || !project) {
-        return [];
-      }
+      if (!supabase || !project) return [];
 
       const { data, error } = await supabase
         .from("employees")
@@ -73,17 +76,19 @@ export function useDailyLogs() {
         .eq("status", "ativo")
         .order("full_name", { ascending: true });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return data ?? [];
     },
   });
 
+  const flatLogs = useMemo(() => logsQuery.data?.pages.flat() ?? [], [logsQuery.data]);
+
   return {
     project,
-    logs: logsQuery.data ?? [],
+    logs: flatLogs,
+    hasNextPage: logsQuery.hasNextPage,
+    isFetchingNextPage: logsQuery.isFetchingNextPage,
+    fetchNextPage: logsQuery.fetchNextPage,
     employees: employeesQuery.data ?? [],
     isLoading: isProjectLoading || logsQuery.isLoading || employeesQuery.isLoading,
   };
