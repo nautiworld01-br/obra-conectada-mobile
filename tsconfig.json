@@ -1,5 +1,4 @@
 {
-  "//": "Configurações do TypeScript: Define o rigor da tipagem e regras de compilacao.",
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,

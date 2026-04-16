@@ -17,8 +17,6 @@ const MONTHS_LIST = [
   { id: 11, label: "Dezembro" },
 ];
 
-// Funcoes utilitarias para manipulacao de datas e calculo de semanas do mes.
-// future_fix: centralizar isoDate em um modulo de utilitarios de data para evitar redundancia.
 function isoDate(date: Date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -30,31 +28,32 @@ function displayDate(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(date);
 }
 
-function getCalendarWeekOfMonth(date: Date) {
-  const firstDayOfMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+/**
+ * Calcula a semana do mes baseada no calendario real (Domingo a Sabado).
+ * Garante que dias da mesma semana calendario fiquem na mesma coluna.
+ */
+function getCalendarWeekOfMonth(dateStr: string) {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  const firstDayOfMonth = new Date(year, month - 1, 1);
   const firstDayWeekday = firstDayOfMonth.getDay();
   const offsetDate = date.getDate() + firstDayWeekday - 1;
   return Math.floor(offsetDate / 7) + 1;
 }
 
-// Tela de Relatorio de Presenca, que consolida os dados de frequencia a partir dos Diarios de Obra.
-// Exibe estatisticas diarias, graficos semanais e resumos mensais de assiduidade da equipe.
 export function PresenceScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [summaryMonth, setSummaryMonth] = useState<{ id: number; label: string } | null>(null);
   
-  // Hooks para busca de logs diarios e lista de funcionarios via custom hook useDailyLogs.
   const dateKey = useMemo(() => isoDate(selectedDate), [selectedDate]);
   const { employees, logs, isLoading } = useDailyLogs();
 
   const dailyLog = useMemo(() => logs.find(log => log.date === dateKey), [logs, dateKey]);
   const activeEmployees = useMemo(() => employees.filter(e => e.status === "ativo"), [employees]);
 
-  // Calculo de estatisticas consolidadas para o modal de resumo mensal.
-  // Filtra logs do mes selecionado e calcula presencas e faltas (coletivas) por funcionario.
+  // Estatisticas do resumo mensal
   const monthStats = useMemo(() => {
     if (!summaryMonth) return null;
-    
     const currentYear = new Date().getFullYear();
     const monthLogs = logs.filter(log => {
       const [y, m] = log.date.split("-").map(Number);
@@ -62,12 +61,8 @@ export function PresenceScreen() {
     });
 
     const individualStats = activeEmployees.map(emp => {
-      // Presenca: Aparece no array de presencas do log
       const presences = monthLogs.filter(log => log.presenceIds.includes(emp.id)).length;
-      
-      // Falta: So conta se o log existe mas NINGUEM da equipe foi marcado
       const absences = monthLogs.filter(log => log.presenceIds.length === 0).length;
-      
       return { name: emp.full_name, role: emp.role, presences, absences };
     });
 
@@ -79,8 +74,7 @@ export function PresenceScreen() {
     return { individualStats, totalPresences, totalAbsences, averagePercent };
   }, [summaryMonth, logs, activeEmployees]);
 
-  // Transformacao dos dados de logs em um formato compativel com o grafico de barras da UI.
-  // Agrupa as presencas por semana do mes (S1, S2, etc.) para cada funcionario ativo.
+  // Dados do grafico de barras semanais
   const chartData = useMemo(() => {
     const currentMonth = selectedDate.getMonth();
     const currentYear = selectedDate.getFullYear();
@@ -91,10 +85,9 @@ export function PresenceScreen() {
 
     return [1, 2, 3, 4, 5, 6].map(weekNum => {
       const series = activeEmployees.map(emp => {
-        const value = monthLogs.filter(log => {
-          const d = new Date(log.date + "T12:00:00");
-          return log.presenceIds.includes(emp.id) && getCalendarWeekOfMonth(d) === weekNum;
-        }).length;
+        const value = monthLogs.filter(log => 
+          log.presenceIds.includes(emp.id) && getCalendarWeekOfMonth(log.date) === weekNum
+        ).length;
         return { id: emp.id, color: emp.role === "marinheiro" ? "#2563EB" : "#8B5CF6", value };
       });
       return { label: `S${weekNum}`, series };
@@ -107,24 +100,13 @@ export function PresenceScreen() {
     setSelectedDate(next);
   };
 
-  // Resumo rapido de presentes e faltas para a data selecionada no navegador de datas.
-  // future_fix: tratar casos onde o log existe mas o array presenceIds nao foi inicializado (null-check).
   const summary = useMemo(() => {
     if (!dailyLog) return { presentes: 0, faltas: 0 };
-    
     const presentes = activeEmployees.filter(e => dailyLog.presenceIds.includes(e.id)).length;
-    
-    // Regra: Se tem log mas ninguem marcou presenca, e falta para todos
-    let faltas = 0;
-    if (dailyLog.presenceIds.length === 0) {
-      faltas = activeEmployees.length;
-    }
-
+    let faltas = dailyLog.presenceIds.length === 0 ? activeEmployees.length : 0;
     return { presentes, faltas };
   }, [dailyLog, activeEmployees]);
 
-  // Renderizacao da tela com Navegador de Datas, Cards de Resumo, Grafico Semanal e Listagem da Equipe.
-  // O grafico e construido manualmente usando Views para representar as barras de frequencia.
   return (
     <AppScreen title="Relatório de Presença" subtitle="Frequência baseada no Diário de Obra.">
       
@@ -191,7 +173,6 @@ export function PresenceScreen() {
             {activeEmployees.map((employee) => {
               const isPresent = dailyLog?.presenceIds.includes(employee.id);
               const isGlobalAbsence = dailyLog.presenceIds.length === 0;
-
               return (
                 <View key={employee.id} style={styles.employeeRow}>
                   <View style={styles.employeeInfo}>
@@ -201,19 +182,12 @@ export function PresenceScreen() {
                       <Text style={styles.employeeRole}>{employee.role}</Text>
                     </View>
                   </View>
-                  
                   {isPresent ? (
-                    <View style={styles.statusBadgeSuccess}>
-                      <Text style={styles.statusBadgeText}>Presente</Text>
-                    </View>
+                    <View style={styles.statusBadgeSuccess}><Text style={styles.statusBadgeText}>Presente</Text></View>
                   ) : isGlobalAbsence ? (
-                    <View style={styles.statusBadgeDanger}>
-                      <Text style={styles.statusBadgeText}>Falta</Text>
-                    </View>
+                    <View style={styles.statusBadgeDanger}><Text style={styles.statusBadgeText}>Falta</Text></View>
                   ) : (
-                    <View style={styles.statusBadgeNeutral}>
-                      <Text style={styles.statusBadgeTextNeutral}>—</Text>
-                    </View>
+                    <View style={styles.statusBadgeNeutral}><Text style={styles.statusBadgeTextNeutral}>—</Text></View>
                   )}
                 </View>
               );
@@ -227,15 +201,10 @@ export function PresenceScreen() {
         </View>
       )}
 
-      {/* Lista de Meses para Resumo */}
       <SectionCard title="Resumos Mensais" subtitle="Clique para ver estatísticas consolidadas por mês.">
         <View style={styles.monthsList}>
           {MONTHS_LIST.map((m) => (
-            <Pressable 
-              key={m.id} 
-              style={({ pressed }) => [styles.monthItem, pressed && styles.monthItemPressed]}
-              onPress={() => setSummaryMonth(m)}
-            >
+            <Pressable key={m.id} style={({ pressed }) => [styles.monthItem, pressed && styles.monthItemPressed]} onPress={() => setSummaryMonth(m)}>
               <Text style={styles.monthLabel}>{m.label}</Text>
               <Text style={styles.monthArrow}>›</Text>
             </Pressable>
@@ -243,7 +212,6 @@ export function PresenceScreen() {
         </View>
       </SectionCard>
 
-      {/* Modal de Resumo Mensal */}
       <Modal transparent animationType="slide" visible={Boolean(summaryMonth)} onRequestClose={() => setSummaryMonth(null)}>
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
@@ -251,39 +219,22 @@ export function PresenceScreen() {
               <Text style={styles.modalTitle}>Resumo de {summaryMonth?.label}</Text>
               <Pressable onPress={() => setSummaryMonth(null)}><Text style={styles.closeIcon}>×</Text></Pressable>
             </View>
-
             <ScrollView contentContainerStyle={styles.modalScroll}>
               <View style={styles.modalSummaryRow}>
-                <View style={styles.modalStatCard}>
-                  <Text style={[styles.modalStatValue, { color: colors.success }]}>{monthStats?.totalPresences}</Text>
-                  <Text style={styles.modalStatLabel}>Presenças</Text>
-                </View>
-                <View style={styles.modalStatCard}>
-                  <Text style={[styles.modalStatValue, { color: colors.danger }]}>{monthStats?.totalAbsences}</Text>
-                  <Text style={styles.modalStatLabel}>Faltas Coletivas</Text>
-                </View>
+                <View style={styles.modalStatCard}><Text style={[styles.modalStatValue, { color: colors.success }]}>{monthStats?.totalPresences}</Text><Text style={styles.modalStatLabel}>Presenças</Text></View>
+                <View style={styles.modalStatCard}><Text style={[styles.modalStatValue, { color: colors.danger }]}>{monthStats?.totalAbsences}</Text><Text style={styles.modalStatLabel}>Faltas Coletivas</Text></View>
               </View>
-
               <Text style={styles.sectionTitle}>Estatísticas por Funcionário</Text>
               <View style={styles.individualList}>
                 {monthStats?.individualStats.map((s, i) => (
                   <View key={i} style={styles.individualRow}>
-                    <View style={styles.individualInfo}>
-                      <Text style={styles.individualName}>{s.name}</Text>
-                      <Text style={styles.individualRole}>{s.role}</Text>
-                    </View>
-                    <View style={styles.individualCounters}>
-                      <Text style={styles.countText}><Text style={{ color: colors.success, fontWeight: "800" }}>{s.presences}P</Text> {s.absences > 0 ? <>/ <Text style={{ color: colors.danger, fontWeight: "800" }}>{s.absences}F</Text></> : null}</Text>
-                    </View>
+                    <View style={styles.individualInfo}><Text style={styles.individualName}>{s.name}</Text><Text style={styles.individualRole}>{s.role}</Text></View>
+                    <View style={styles.individualCounters}><Text style={styles.countText}><Text style={{ color: colors.success, fontWeight: "800" }}>{s.presences}P</Text> {s.absences > 0 ? <>/ <Text style={{ color: colors.danger, fontWeight: "800" }}>{s.absences}F</Text></> : null}</Text></View>
                   </View>
                 ))}
               </View>
             </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <Text style={styles.footerLabel}>Assiduidade média da equipe:</Text>
-              <Text style={styles.footerPercent}>{monthStats?.averagePercent}%</Text>
-            </View>
+            <View style={styles.modalFooter}><Text style={styles.footerLabel}>Assiduidade média da equipe:</Text><Text style={styles.footerPercent}>{monthStats?.averagePercent}%</Text></View>
           </View>
         </View>
       </Modal>
