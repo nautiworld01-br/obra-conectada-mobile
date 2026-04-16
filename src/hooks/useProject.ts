@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
@@ -63,4 +63,38 @@ export function useProject() {
     isLoading: query.isLoading,
     error: query.error,
   };
+}
+
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+
+  return useMutation({
+    mutationFn: async (payload: Partial<Omit<MobileProject, "id" | "userRole">>) => {
+      if (!supabase || !user) throw new Error("Supabase ou usuario nao configurado.");
+
+      // Primeiro pegamos o ID do projeto vinculado ao usuario
+      const { data: membership } = await supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!membership?.project_id) throw new Error("Projeto nao encontrado para este usuario.");
+
+      const { data, error } = await supabase
+        .from("projects")
+        .update(payload)
+        .eq("id", membership.project_id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", user?.id] });
+    },
+  });
 }

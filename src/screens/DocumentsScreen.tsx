@@ -25,6 +25,9 @@ const categoryOptions: { value: DocumentCategory | "todos"; label: string }[] = 
   { value: "outro", label: "Outro" },
 ];
 
+const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
+const monthLabels = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+
 function formatDate(value: string | null) {
   if (!value) return "Sem vencimento";
   const [year, month, day] = value.split("-");
@@ -77,12 +80,29 @@ function buildFilePath(projectId: string, category: DocumentCategory, fileName: 
   return `${projectId}/${category}/${Date.now()}_${safeName}`;
 }
 
+function buildMonthGrid(currentMonthDate: Date) {
+  const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
+  const start = new Date(firstDay);
+  start.setDate(firstDay.getDate() - firstDay.getDay());
+  return Array.from({ length: 35 }).map((_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
+      iso: date.toISOString().split("T")[0],
+      dayNumber: date.getDate(),
+      currentMonth: date.getMonth() === currentMonthDate.getMonth(),
+    };
+  });
+}
+
 export function DocumentsScreen() {
   const { user } = useAuth();
   const { project, documents, isLoading } = useDocuments();
   const createDocument = useCreateDocument();
   const deleteDocument = useDeleteDocument();
   const signedUrl = useSignedDocumentUrl();
+  
   const [filter, setFilter] = useState<DocumentCategory | "todos">("todos");
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -91,6 +111,12 @@ export function DocumentsScreen() {
   const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [confirmRemovePickedFile, setConfirmRemovePickedFile] = useState(false);
+  
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [datePickerMonth, setDatePickerMonth] = useState(() => new Date());
+
+  const monthGrid = useMemo(() => buildMonthGrid(datePickerMonth), [datePickerMonth]);
+  const monthLabel = `${monthLabels[datePickerMonth.getMonth()]} ${datePickerMonth.getFullYear()}`;
 
   const filteredDocuments = useMemo(
     () => (filter === "todos" ? documents : documents.filter((item) => item.category === filter)),
@@ -144,7 +170,7 @@ export function DocumentsScreen() {
 
     const expiresAtIso = toIsoDate(expiresAt);
     if (expiresAt.trim() && !expiresAtIso) {
-      setLocalError("Use a data no formato dd/mm/aaaa.");
+      setLocalError("Data de vencimento invalida.");
       return;
     }
 
@@ -183,6 +209,12 @@ export function DocumentsScreen() {
       const message = error instanceof Error ? error.message : "Nao foi possivel salvar o documento.";
       setLocalError(message);
     }
+  };
+
+  const applyCalendarDate = (iso: string) => {
+    const [year, month, day] = iso.split("-");
+    setExpiresAt(`${day}/${month}/${year}`);
+    setCalendarOpen(false);
   };
 
   const handleOpenDocument = async (document: ProjectDocumentRow) => {
@@ -375,13 +407,15 @@ export function DocumentsScreen() {
 
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Vencimento</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={expiresAt}
-                  onChangeText={setExpiresAt}
-                  placeholder="dd/mm/aaaa"
-                  placeholderTextColor={colors.textMuted}
-                />
+                <Pressable 
+                  style={({ pressed }) => [styles.dateField, pressed && styles.buttonPressed]} 
+                  onPress={() => setCalendarOpen(true)}
+                >
+                  <Text style={expiresAt ? styles.dateFieldText : styles.dateFieldPlaceholder}>
+                    {expiresAt || "dd/mm/aaaa"}
+                  </Text>
+                  <Text style={styles.dateFieldIcon}>◫</Text>
+                </Pressable>
               </View>
 
               <View style={styles.fieldBlock}>
@@ -415,6 +449,66 @@ export function DocumentsScreen() {
                 {createDocument.isPending ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>Salvar documento</Text>}
               </Pressable>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Calendario Modal Padronizado */}
+      <Modal transparent animationType="fade" visible={calendarOpen} onRequestClose={() => setCalendarOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCalendarOpen(false)} />
+          <View style={styles.calendarCard}>
+            <View style={styles.calendarHeader}>
+              <Pressable 
+                style={styles.calendarArrow} 
+                onPress={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() - 1, 1))}
+              >
+                <Text style={styles.calendarArrowText}>‹</Text>
+              </Pressable>
+              <Text style={styles.calendarMonth}>{monthLabel}</Text>
+              <Pressable 
+                style={styles.calendarArrow} 
+                onPress={() => setDatePickerMonth(new Date(datePickerMonth.getFullYear(), datePickerMonth.getMonth() + 1, 1))}
+              >
+                <Text style={styles.calendarArrowText}>›</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarWeekHeader}>
+              {weekLabels.map((label) => (
+                <Text key={label} style={styles.calendarWeekLabel}>{label}</Text>
+              ))}
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {monthGrid.map((cell) => {
+                const isSelected = toIsoDate(expiresAt) === cell.iso;
+                return (
+                  <Pressable
+                    key={cell.key}
+                    style={[
+                      styles.calendarDay,
+                      isSelected && styles.calendarDaySelected,
+                    ]}
+                    onPress={() => applyCalendarDate(cell.iso)}
+                  >
+                    <Text style={[
+                      styles.calendarDayText,
+                      !cell.currentMonth && styles.calendarDayOutside,
+                      isSelected && styles.calendarDayTextSelected
+                    ]}>
+                      {cell.dayNumber}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <View style={styles.calendarFooter}>
+              <Pressable onPress={() => { setExpiresAt(""); setCalendarOpen(false); }}>
+                <Text style={styles.clearText}>Limpar</Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -585,4 +679,114 @@ const styles = StyleSheet.create({
   confirmAccept: { flex: 1, borderRadius: 12, backgroundColor: colors.danger, paddingVertical: 12, alignItems: "center" },
   confirmAcceptText: { color: colors.surface, fontWeight: "800" },
   buttonPressed: { opacity: 0.82 },
+  // Estilos padronizados do campo de Data (Schedule Style)
+  dateField: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 52,
+  },
+  dateFieldText: {
+    color: colors.text,
+    fontSize: 15,
+  },
+  dateFieldPlaceholder: {
+    color: colors.textMuted,
+    fontSize: 15,
+  },
+  dateFieldIcon: {
+    color: colors.textMuted,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  // Estilos do Calendario
+  calendarCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 24,
+    backgroundColor: colors.surface,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  calendarHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  calendarArrow: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.surfaceMuted,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  calendarArrowText: {
+    fontSize: 24,
+    color: colors.text,
+  },
+  calendarMonth: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+    textTransform: "capitalize",
+  },
+  calendarWeekHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  calendarWeekLabel: {
+    width: "14.28%",
+    textAlign: "center",
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: "600",
+  },
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    rowGap: 8,
+  },
+  calendarDay: {
+    width: "14.28%",
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 20,
+  },
+  calendarDaySelected: {
+    backgroundColor: colors.primary,
+  },
+  calendarDayText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  calendarDayOutside: {
+    color: "#ccc",
+  },
+  calendarDayTextSelected: {
+    color: colors.surface,
+    fontWeight: "800",
+  },
+  calendarFooter: {
+    marginTop: 16,
+    alignItems: "flex-end",
+    borderTopWidth: 1,
+    borderTopColor: colors.cardBorder,
+    paddingTop: 12,
+  },
+  clearText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: "700",
+  }
 });

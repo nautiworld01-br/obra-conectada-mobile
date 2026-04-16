@@ -27,14 +27,18 @@ export function useDailyLogs() {
   const logsQuery = useQuery({
     queryKey: ["daily_logs", project?.id],
     enabled: Boolean(project?.id && supabase),
-    queryFn: async (): Promise<DailyLogRow[]> => {
+    queryFn: async (): Promise<(DailyLogRow & { presenceIds: string[] })[]> => {
       if (!supabase || !project) {
         return [];
       }
 
+      // Consulta os logs e faz o join com os IDs dos funcionarios presentes
       const { data, error } = await supabase
         .from("daily_logs")
-        .select("id, date, activities, weather, observations, created_by, project_id, photos_urls, videos_urls")
+        .select(`
+          id, date, activities, weather, observations, created_by, project_id, photos_urls, videos_urls,
+          daily_log_employees ( employee_id )
+        `)
         .eq("project_id", project.id)
         .order("date", { ascending: false });
 
@@ -42,7 +46,10 @@ export function useDailyLogs() {
         throw error;
       }
 
-      return data ?? [];
+      return (data ?? []).map(log => ({
+        ...log,
+        presenceIds: (log.daily_log_employees as any[] || []).map(item => item.employee_id)
+      }));
     },
   });
 

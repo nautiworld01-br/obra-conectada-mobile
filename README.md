@@ -143,9 +143,25 @@ Contrato atual da midia:
   - `Configuracoes`
   - `Configurar casa`
 
-## Atualizacoes recentes
+### Relatório de Presença Automático
 
-### Consolidacao de auth e ocupacao
+- A tela de `Presença` não possui mais lançamento manual por parte do proprietário.
+- Os dados de frequência são derivados automaticamente do `Diário de Obra` (`Daily Logs`).
+- **Regras de negócio:**
+  - **Presente**: Funcionário foi selecionado na lista de presença do Diário daquele dia.
+  - **Falta**: O Diário do dia foi preenchido, mas o funcionário não foi incluído.
+  - **Pendente**: O Diário de Obra para a data selecionada ainda não foi preenchido.
+- **Objetivo**: Garantir que o Diário de Obra seja a única "fonte de verdade" operacional, eliminando o erro humano e o retrabalho de marcar presença em dois lugares diferentes.
+
+### Atualizações recentes
+
+#### Automação da Presença
+- Transformação da `PresenceScreen` em um relatório de leitura.
+- Atualização do hook `useDailyLogs` para trazer IDs de presença via join (`daily_log_employees`).
+- Remoção da necessidade de persistência manual na tabela `attendance` para o fluxo diário.
+
+#### Consolidacao de auth e ocupacao
+
 
 - ocupacao removida da tela de login
 - criacao de `useProfile` para centralizar nome, avatar e papel
