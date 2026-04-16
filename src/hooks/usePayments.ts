@@ -3,7 +3,6 @@ import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
 // Definições de estados e categorias para o fluxo financeiro de pagamentos.
-// future_fix: Adicionar tipos de pagamento para impostos e taxas administrativas.
 export type PaymentStatus = "pendente" | "em_analise" | "aprovado" | "pago" | "recusado";
 export type PaymentCategory = "mao_de_obra_projeto" | "mao_de_obra_extras" | "insumos_extras";
 
@@ -30,7 +29,9 @@ export type PaymentRow = {
   category: PaymentCategory;
 };
 
-// Hook para buscar o histórico de pagamentos e solicitações vinculadas ao projeto.
+/**
+ * Hook para buscar o historico de pagamentos do projeto ativo.
+ */
 export function usePayments() {
   const { project } = useProject();
 
@@ -38,22 +39,15 @@ export function usePayments() {
     queryKey: ["payments", project?.id],
     enabled: Boolean(project?.id && supabase),
     queryFn: async (): Promise<PaymentRow[]> => {
-      if (!supabase || !project) {
-        return [];
-      }
+      if (!supabase || !project) return [];
 
       const { data, error } = await supabase
         .from("payments")
-        .select(
-          "id, project_id, requested_by, period, request_date, planned_amount, requested_amount, stage_id, description, percent_work, observations, status, approval_date, payment_date, approved_by, receipt_url, created_at, updated_at, due_date, category",
-        )
+        .select("*")
         .eq("project_id", project.id)
         .order("request_date", { ascending: false });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return (data ?? []) as PaymentRow[];
     },
   });
@@ -66,8 +60,10 @@ export function usePayments() {
   };
 }
 
-// Cria ou atualiza uma solicitação de pagamento, suportando edição de registros existentes.
-// future_fix: Implementar validação de teto orçamentário por etapa antes do upsert.
+/**
+ * Mutation para criar ou atualizar um pagamento, incluindo suporte a anexo (receipt_url).
+ * future_fix: Implementar compressao de imagem para os comprovantes de pagamento.
+ */
 export function useUpsertPayment() {
   const queryClient = useQueryClient();
 
@@ -85,10 +81,9 @@ export function useUpsertPayment() {
       stageId: string | null;
       observations: string;
       dueDate: string | null;
+      receiptUrl: string | null;
     }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
       const paymentPayload = {
         project_id: payload.projectId,
@@ -101,40 +96,15 @@ export function useUpsertPayment() {
         stage_id: payload.stageId,
         observations: payload.observations || null,
         due_date: payload.dueDate,
+        receipt_url: payload.receiptUrl,
       };
 
-      if (payload.id) {
-        const { data, error } = await supabase
-          .from("payments")
-          .update(paymentPayload)
-          .eq("id", payload.id)
-          .select(
-            "id, project_id, requested_by, period, request_date, planned_amount, requested_amount, stage_id, description, percent_work, observations, status, approval_date, payment_date, approved_by, receipt_url, created_at, updated_at, due_date, category",
-          )
-          .single();
+      const query = payload.id
+        ? supabase.from("payments").update(paymentPayload).eq("id", payload.id)
+        : supabase.from("payments").insert({ ...paymentPayload, requested_by: payload.userId });
 
-        if (error) {
-          throw error;
-        }
-
-        return data as PaymentRow;
-      }
-
-      const { data, error } = await supabase
-        .from("payments")
-        .insert({
-          ...paymentPayload,
-          requested_by: payload.userId,
-        })
-        .select(
-          "id, project_id, requested_by, period, request_date, planned_amount, requested_amount, stage_id, description, percent_work, observations, status, approval_date, payment_date, approved_by, receipt_url, created_at, updated_at, due_date, category",
-        )
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
+      const { data, error } = await query.select().single();
+      if (error) throw error;
       return data as PaymentRow;
     },
     onSuccess: (_, variables) => {
@@ -143,7 +113,9 @@ export function useUpsertPayment() {
   });
 }
 
-// Atualiza o status de aprovação ou liquidação de um pagamento (Fluxo de Aprovação).
+/**
+ * Hook para atualizar status de aprovacao ou pagamento.
+ */
 export function useUpdatePaymentStatus() {
   const queryClient = useQueryClient();
 
@@ -155,38 +127,18 @@ export function useUpdatePaymentStatus() {
       status: PaymentStatus;
       paymentDate?: string | null;
     }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
-      const updateData: {
-        status: PaymentStatus;
-        approved_by: string;
-        approval_date: string;
-        payment_date?: string | null;
-      } = {
+      const updateData: any = {
         status: payload.status,
         approved_by: payload.userId,
         approval_date: new Date().toISOString().slice(0, 10),
       };
 
-      if (payload.paymentDate !== undefined) {
-        updateData.payment_date = payload.paymentDate;
-      }
+      if (payload.paymentDate !== undefined) updateData.payment_date = payload.paymentDate;
 
-      const { data, error } = await supabase
-        .from("payments")
-        .update(updateData)
-        .eq("id", payload.id)
-        .select(
-          "id, project_id, requested_by, period, request_date, planned_amount, requested_amount, stage_id, description, percent_work, observations, status, approval_date, payment_date, approved_by, receipt_url, created_at, updated_at, due_date, category",
-        )
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
+      const { data, error } = await supabase.from("payments").update(updateData).eq("id", payload.id).select().single();
+      if (error) throw error;
       return data as PaymentRow;
     },
     onSuccess: (_, variables) => {
@@ -195,21 +147,17 @@ export function useUpdatePaymentStatus() {
   });
 }
 
-// Remove uma solicitação de pagamento específica e sincroniza o estado global.
+/**
+ * Hook para deletar um registro financeiro.
+ */
 export function useDeletePayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (payload: { id: string; projectId: string }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
-
+      if (!supabase) throw new Error("Supabase nao configurado.");
       const { error } = await supabase.from("payments").delete().eq("id", payload.id);
-
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["payments", variables.projectId] });
