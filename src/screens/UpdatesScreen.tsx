@@ -19,10 +19,11 @@ import {
   UpdateRow,
   UpdateStatus,
   useDeleteUpdate,
-  useToggleApprovedUpdate,
+  useUpdateReview,
   useUpdates,
   useUpsertUpdate,
 } from "../hooks/useUpdates";
+import { useProfile } from "../hooks/useProfile";
 import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
 
 const statusOptions: { value: UpdateStatus; label: string }[] = [
@@ -31,129 +32,53 @@ const statusOptions: { value: UpdateStatus; label: string }[] = [
   { value: "atrasado", label: "Atrasado" },
 ];
 
-/**
- * Converte strings separadas por virgula ou quebra de linha em array.
- */
-function parseList(value: string) {
-  return value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
-}
-
-/**
- * Converte array de strings em uma única string separada por virgula.
- */
 function stringifyList(values: string[] | null | undefined) {
   return values && values.length ? values.join(", ") : "";
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "—";
-  const [year, month, day] = value.split("-");
-  return `${day}/${month}/${year}`;
+function parseList(value: string) {
+  return value.split(/\r?\n|,/).map((item) => item.trim()).filter(Boolean);
 }
 
 function getStatusColors(status: UpdateStatus) {
   switch (status) {
     case "adiantado": return { background: "#e8efff", text: "#3566d6" };
     case "atrasado": return { background: "#fdeae7", text: colors.danger };
-    case "no_prazo":
     default: return { background: "#e7f4ec", text: colors.success };
   }
 }
 
-type UpdateDraft = {
-  weekRef: string;
-  summary: string;
-  status: UpdateStatus;
-  servicesCompleted: string;
-  servicesNotCompleted: string;
-  difficulties: string;
-  materialsReceived: string;
-  materialsMissing: string;
-  nextWeekPlan: string;
-  observations: string;
-  photos: string[];
-  videos: string[];
-};
-
-type UpdateFormModalProps = {
-  visible: boolean;
-  update: UpdateRow | null;
-  loading: boolean;
-  onClose: () => void;
-  onSave: (payload: any) => Promise<void>;
-};
-
 /**
- * Formulario de atualizacao semanal (Relatorio do Empreiteiro).
- * future_fix: Adicionar campo de 'Percentual de Conclusao Global' sugerido.
+ * Modal de Formulario para Relatorios Semanais.
  */
-function UpdateFormModal(_: UpdateFormModalProps) {
+function UpdateFormModal(_: any) {
   const { visible, update, loading, onClose, onSave } = _;
-  const [draft, setDraft] = useState<UpdateDraft>({
-    weekRef: "", summary: "", status: "no_prazo",
+  const [draft, setDraft] = useState({
+    weekRef: "", summary: "", status: "no_prazo" as UpdateStatus,
     servicesCompleted: "", servicesNotCompleted: "",
-    difficulties: "", materialsReceived: "",
-    materialsMissing: "", nextWeekPlan: "",
-    observations: "", photos: [], videos: [],
+    photos: [] as string[], videos: [] as string[]
   });
-  const [localError, setLocalError] = useState<string | null>(null);
   const [statusOpen, setStatusOpen] = useState(false);
-  const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
 
-  // Sincroniza estado com dados existentes para edicao.
   useEffect(() => {
-    setDraft({
-      weekRef: update?.week_ref ?? "",
-      summary: update?.summary ?? "",
-      status: update?.status ?? "no_prazo",
-      servicesCompleted: stringifyList(update?.services_completed),
-      servicesNotCompleted: stringifyList(update?.services_not_completed),
-      difficulties: update?.difficulties ?? "",
-      materialsReceived: stringifyList(update?.materials_received),
-      materialsMissing: stringifyList(update?.materials_missing),
-      nextWeekPlan: update?.next_week_plan ?? "",
-      observations: update?.observations ?? "",
-      photos: update?.photos ?? [],
-      videos: update?.videos ?? [],
-    });
-    setLocalError(null);
-    setStatusOpen(false);
-    setPendingRemoval(null);
+    if (visible) {
+      setDraft({
+        weekRef: update?.week_ref ?? "",
+        summary: update?.summary ?? "",
+        status: update?.status ?? "no_prazo",
+        servicesCompleted: stringifyList(update?.services_completed),
+        servicesNotCompleted: stringifyList(update?.services_not_completed),
+        photos: update?.photos ?? [],
+        videos: update?.videos ?? [],
+      });
+    }
   }, [update, visible]);
 
-  /**
-   * Abre a galeria para selecionar fotos ou videos e os adiciona ao rascunho.
-   */
-  const pickMedia = async (mediaType: "images" | "videos") => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { Alert.alert("Galeria", "Permissao necessaria."); return; }
-    
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: [mediaType], allowsEditing: false, 
-      allowsMultipleSelection: true, quality: 0.85,
-    });
-
-    if (!result.canceled && result.assets.length) {
-      const uris = result.assets.map((asset) => asset.uri).filter(Boolean);
-      setDraft((current) => ({
-        ...current,
-        [mediaType === "images" ? "photos" : "videos"]: [...current[mediaType === "images" ? "photos" : "videos"], ...uris],
-      }));
-    }
-  };
-
-  const handleSave = async () => {
-    if (!draft.weekRef.trim()) { setLocalError("Informe a semana."); return; }
-    if (!draft.summary.trim()) { setLocalError("Informe o resumo."); return; }
-    
-    await onSave({
+  const handleSave = () => {
+    onSave({
       ...draft,
-      weekRef: draft.weekRef.trim(),
-      summary: draft.summary.trim(),
       servicesCompleted: parseList(draft.servicesCompleted),
       servicesNotCompleted: parseList(draft.servicesNotCompleted),
-      materialsReceived: parseList(draft.materialsReceived),
-      materialsMissing: parseList(draft.materialsMissing),
     });
   };
 
@@ -161,83 +86,116 @@ function UpdateFormModal(_: UpdateFormModalProps) {
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{update ? "Editar Atualizacao" : "Nova Atualizacao"}</Text>
-            <Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+          <View style={styles.modalHeader}><Text style={styles.modalTitle}>{update ? "Editar" : "Novo"} Relatório</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
+          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.row}>
-              <View style={[styles.fieldBlock, { flex: 1 }]}><Text style={styles.fieldLabel}>Semana *</Text><TextInput style={[styles.fieldInput, styles.primaryInput]} value={draft.weekRef} onChangeText={(v) => setDraft(c => ({...c, weekRef: v}))} placeholder="01/2026" /></View>
-              <View style={[styles.fieldBlock, { flex: 1 }]}><Text style={styles.fieldLabel}>Status</Text><Pressable style={styles.selectField} onPress={() => setStatusOpen(true)}><Text style={styles.selectFieldText}>{statusOptions.find(o => o.value === draft.status)?.label}</Text><Text>˅</Text></Pressable></View>
+              <View style={{flex: 1}}><Text style={styles.fieldLabel}>Semana *</Text><TextInput style={styles.fieldInput} value={draft.weekRef} onChangeText={v => setDraft(c => ({...c, weekRef: v}))} placeholder="01/2026" /></View>
+              <View style={{flex: 1}}><Text style={styles.fieldLabel}>Status</Text><Pressable style={styles.selectField} onPress={() => setStatusOpen(true)}><Text>{statusOptions.find(o => o.value === draft.status)?.label}</Text></Pressable></View>
             </View>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Resumo *</Text><TextInput multiline style={[styles.fieldInput, styles.textArea]} value={draft.summary} onChangeText={(v) => setDraft(c => ({...c, summary: v}))} placeholder="O que aconteceu..." /></View>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Fotos e Videos</Text>
-              <View style={{ flexDirection: "row", gap: 10 }}>
-                <Pressable style={[styles.mediaButton, { flex: 1 }]} onPress={() => void pickMedia("images")}><Text style={styles.mediaButtonText}>+ Fotos</Text></Pressable>
-                <Pressable style={[styles.mediaButton, { flex: 1 }]} onPress={() => void pickMedia("videos")}><Text style={styles.mediaButtonText}>+ Videos</Text></Pressable>
-              </View>
-            </View>
-            {localError && <Text style={styles.localError}>{localError}</Text>}
-            <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={() => void handleSave()}>
-              {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>Salvar Relatorio</Text>}
+            <Text style={styles.fieldLabel}>Resumo das Atividades *</Text>
+            <TextInput multiline style={[styles.fieldInput, styles.textArea]} value={draft.summary} onChangeText={v => setDraft(c => ({...c, summary: v}))} />
+            <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={handleSave}>
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar Relatório</Text>}
             </Pressable>
           </ScrollView>
         </Pressable>
       </Pressable>
-      
-      {/* Modal de Confirmacao de Remocao de Midia */}
-      <Modal transparent visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)}>
-        <View style={styles.confirmBackdrop}>
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Remover item?</Text>
-            <View style={styles.confirmActions}>
-              <Pressable style={styles.confirmCancel} onPress={() => setPendingRemoval(null)}><Text>Nao</Text></Pressable>
-              <Pressable style={styles.confirmAccept} onPress={() => {
-                setDraft(c => ({
-                  ...c,
-                  photos: pendingRemoval?.type === "photo" ? c.photos.filter((_, i) => i !== pendingRemoval.index) : c.photos,
-                  videos: pendingRemoval?.type === "video" ? c.videos.filter((_, i) => i !== pendingRemoval.index) : c.videos,
-                }));
-                setPendingRemoval(null);
-              }}><Text style={{color: "#fff"}}>Sim</Text></Pressable>
-            </View>
+
+      <Modal transparent visible={statusOpen} onRequestClose={() => setStatusOpen(false)}>
+        <Pressable style={styles.modalBackdrop} onPress={() => setStatusOpen(false)}>
+          <View style={styles.dropdownCard}>
+            {statusOptions.map(o => (
+              <Pressable key={o.value} style={styles.dropdownItem} onPress={() => { setDraft(c => ({...c, status: o.value})); setStatusOpen(false); }}>
+                <Text style={styles.dropdownText}>{o.label}</Text>
+              </Pressable>
+            ))}
           </View>
-        </View>
+        </Pressable>
       </Modal>
     </Modal>
   );
 }
 
 /**
- * Modal de detalhes da atualizacao semanal para o proprietario.
- * future_fix: Implementar campo de 'Comentarios do Proprietario' para feedback direto no relatorio.
+ * Detalhes do Relatorio com Interacao (Comentarios do Proprietario).
  */
 function UpdateDetailModal(_: any) {
-  const { update, visible, loading, onClose, onEdit, onDelete, onToggleApproved } = _;
+  const { update, visible, loading, isOwner, onClose, onEdit, onDelete, onReview } = _;
   if (!update) return null;
+  const [comment, setComment] = useState(update.owner_comments || "");
   const statusStyle = getStatusColors(update.status);
+
+  useEffect(() => { setComment(update.owner_comments || ""); }, [update]);
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.detailCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Relatorio Semanal</Text>
-            <Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
-            <View style={styles.detailTopRow}>
-              <Text style={styles.detailWeek}>{update.week_ref}</Text>
-              <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{update.status}</Text></View>
+          <View style={styles.modalHeader}><Text style={styles.modalTitle}>Relatório Semanal</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
+          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailWeek}>Semana {update.week_ref}</Text>
+              <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{update.status.toUpperCase()}</Text></View>
             </View>
             <Text style={styles.detailSummary}>{update.summary}</Text>
-            <View style={styles.detailActionRowTop}>
-              <Pressable style={styles.editPill} onPress={onEdit}><Text style={styles.editPillText}>Editar</Text></Pressable>
+            
+            {/* Seção de Midias */}
+            {(update.photos?.length || update.videos?.length) ? (
+              <View style={styles.mediaSection}>
+                <Text style={styles.sectionTitle}>Mídias da Semana</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10}}>
+                  {update.photos?.map((url: string, i: number) => (
+                    <Pressable key={i} onPress={() => Linking.openURL(url)}><Image source={{ uri: url }} style={styles.mediaThumb} /></Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            <View style={styles.divider} />
+
+            {/* INTERAÇÃO: Comentarios do Proprietario */}
+            <View style={styles.commentSection}>
+              <Text style={styles.sectionTitle}>Feedback do Proprietário</Text>
+              {isOwner ? (
+                <TextInput
+                  multiline
+                  style={styles.commentInput}
+                  placeholder="Escreva sua observação ou orientações aqui..."
+                  value={comment}
+                  onChangeText={setComment}
+                />
+              ) : (
+                <View style={styles.commentBoxReadOnly}>
+                  <Text style={comment ? styles.commentText : styles.commentTextEmpty}>
+                    {comment || "Nenhum comentário do proprietário ainda."}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {isOwner && (
+              <View style={styles.reviewActions}>
+                <Pressable 
+                  style={({ pressed }) => [styles.approveButton, pressed && styles.buttonPressed]} 
+                  onPress={() => onReview(true, comment)}
+                >
+                  <Text style={styles.primaryButtonText}>{update.approved ? "Salvar Alterações" : "Aprovar Relatório"}</Text>
+                </Pressable>
+                {!update.approved && (
+                  <Pressable 
+                    style={({ pressed }) => [styles.rejectButton, pressed && styles.buttonPressed]} 
+                    onPress={() => onReview(false, comment)}
+                  >
+                    <Text style={styles.rejectButtonText}>Recusar / Pedir Ajuste</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
+            <View style={styles.footerActions}>
+              <Pressable style={styles.editPill} onPress={onEdit}><Text style={styles.editPillText}>Editar Relatório</Text></Pressable>
               <Pressable style={styles.deletePill} onPress={onDelete}><Text style={styles.deletePillText}>Excluir</Text></Pressable>
             </View>
-            <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={onToggleApproved}>
-              {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>{update.approved ? "Remover Aprovacao" : "Aprovar Relatorio"}</Text>}
-            </Pressable>
           </ScrollView>
         </Pressable>
       </Pressable>
@@ -245,16 +203,14 @@ function UpdateDetailModal(_: any) {
   );
 }
 
-/**
- * Tela de Atualizacoes Semanais: Canal de comunicacao oficial obra-proprietario.
- * future_fix: Adicionar notificacao push quando uma nova atualizacao for publicada.
- */
 export function UpdatesScreen() {
   const { user } = useAuth();
+  const { isOwner } = useProfile();
   const { project, updates, isLoading } = useUpdates();
   const upsertUpdate = useUpsertUpdate();
   const deleteUpdate = useDeleteUpdate();
-  const toggleApproved = useToggleApprovedUpdate();
+  const updateReview = useUpdateReview();
+  
   const [formOpen, setFormOpen] = useState(false);
   const [selectedUpdate, setSelectedUpdate] = useState<UpdateRow | null>(null);
   const [editingUpdate, setEditingUpdate] = useState<UpdateRow | null>(null);
@@ -262,103 +218,102 @@ export function UpdatesScreen() {
   const handleSave = async (payload: any) => {
     if (!project?.id || !user?.id) return;
     try {
-      // Faz o upload das midias (se houver novas) antes de salvar o registro.
       const uploadedPhotos = await uploadAppMediaListIfNeeded({ uris: payload.photos, pathPrefix: `projects/${project.id}/updates/photos`, fileBaseName: `upd_photo` });
       const uploadedVideos = await uploadAppMediaListIfNeeded({ uris: payload.videos, pathPrefix: `projects/${project.id}/updates/videos`, fileBaseName: `upd_video`, contentType: "video/mp4" });
-      
       await upsertUpdate.mutateAsync({ id: editingUpdate?.id, projectId: project.id, userId: user.id, ...payload, photos: uploadedPhotos, videos: uploadedVideos });
       setFormOpen(false);
-    } catch (e) { Alert.alert("Erro", "Falha ao salvar atualizacao."); }
+    } catch (e) { Alert.alert("Erro", "Falha ao salvar."); }
   };
 
-  const handleToggleApproved = () => {
-    if (!project?.id || !selectedUpdate) return;
-    void toggleApproved.mutateAsync({ id: selectedUpdate.id, projectId: project.id, approved: !selectedUpdate.approved }).then(() => setSelectedUpdate(null));
+  const handleReview = async (approved: boolean, comment: string) => {
+    if (!selectedUpdate || !project?.id) return;
+    try {
+      await updateReview.mutateAsync({ id: selectedUpdate.id, projectId: project.id, approved, ownerComments: comment });
+      setSelectedUpdate(null);
+      Alert.alert("Sucesso", approved ? "Relatório aprovado!" : "Feedback enviado.");
+    } catch (e) { Alert.alert("Erro", "Falha ao processar review."); }
   };
 
-  if (!project) return (<AppScreen title="Atualizacoes" subtitle="Configure a casa primeiro."><View style={styles.emptyState}><Text>$</Text></View></AppScreen>);
+  if (!project) return <AppScreen title="Atualizações"><Text>Configure a casa primeiro.</Text></AppScreen>;
 
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <View style={styles.headerCopy}><Text style={styles.title}>Atualizacoes</Text><Text style={styles.subtitle}>Relatorios do empreiteiro</Text></View>
-        <Pressable style={styles.newButton} onPress={() => { setEditingUpdate(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Nova</Text></Pressable>
+        <View><Text style={styles.title}>Relatórios</Text><Text style={styles.subtitle}>Acompanhamento semanal</Text></View>
+        <Pressable style={styles.newButton} onPress={() => { setEditingUpdate(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable>
       </View>
 
       {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} /> : (
-        <ScrollView contentContainerStyle={styles.content}>
-          {updates.map((update) => (
-            <Pressable key={update.id} style={styles.updateCard} onPress={() => setSelectedUpdate(update)}>
-              <View style={styles.cardTopRow}><Text style={styles.updateWeek}>{update.week_ref}</Text>{update.approved && <Text style={styles.approvedText}>✓</Text>}</View>
-              <Text style={styles.updateSummary} numberOfLines={2}>{update.summary}</Text>
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {updates.map(u => (
+            <Pressable key={u.id} style={styles.updateCard} onPress={() => setSelectedUpdate(u)}>
+              <View style={styles.cardRow}><Text style={styles.cardWeek}>Semana {u.week_ref}</Text>{u.approved && <Text style={styles.approvedIcon}>✓</Text>}</View>
+              <Text style={styles.cardSummary} numberOfLines={2}>{u.summary}</Text>
+              {u.owner_comments && <Text style={styles.commentBadge}>💬 Comentado</Text>}
             </Pressable>
           ))}
         </ScrollView>
       )}
 
       <UpdateFormModal visible={formOpen} update={editingUpdate} loading={upsertUpdate.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
-      <UpdateDetailModal update={selectedUpdate} visible={Boolean(selectedUpdate)} loading={toggleApproved.isPending} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); }} onDelete={() => {}} onToggleApproved={handleToggleApproved} />
+      <UpdateDetailModal update={selectedUpdate} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {}} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 16 },
-  header: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
-  headerCopy: { flex: 1 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
-  subtitle: { marginTop: 2, fontSize: 13, color: colors.textMuted },
+  subtitle: { fontSize: 13, color: colors.textMuted },
   newButton: { borderRadius: 12, backgroundColor: "#d97b00", paddingHorizontal: 14, paddingVertical: 12 },
-  newButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
-  content: { paddingTop: 16, paddingBottom: 32, gap: 10 },
-  updateCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, gap: 10 },
-  cardTopRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
-  updateWeek: { flex: 1, fontSize: 16, fontWeight: "800", color: colors.text },
-  updateSummary: { fontSize: 14, lineHeight: 22, color: colors.textMuted },
-  approvedText: { fontSize: 18, color: colors.success, fontWeight: "700" },
-  statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
-  statusPillText: { fontSize: 12, fontWeight: "700" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(31, 28, 23, 0.42)", alignItems: "center", justifyContent: "flex-end", paddingHorizontal: 8, paddingBottom: 8 },
-  modalCard: { width: "100%", maxHeight: "88%", backgroundColor: colors.surface, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 16 },
-  detailCard: { width: "100%", maxHeight: "88%", backgroundColor: colors.surface, borderRadius: 22, paddingHorizontal: 18, paddingVertical: 16 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  modalTitle: { flex: 1, textAlign: "center", fontSize: 18, fontWeight: "700", color: colors.text },
-  closeIcon: { fontSize: 24, color: colors.textMuted, marginLeft: 12 },
-  modalContent: { gap: 14, paddingBottom: 8 },
+  newButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  content: { paddingTop: 16, paddingBottom: 32, gap: 12 },
+  updateCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 6 },
+  cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardWeek: { fontSize: 16, fontWeight: "800", color: colors.text },
+  cardSummary: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
+  approvedIcon: { fontSize: 18, color: colors.success, fontWeight: "900" },
+  commentBadge: { fontSize: 12, color: colors.primary, fontWeight: "700", marginTop: 4 },
+  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
+  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  detailCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
+  modalTitle: { fontSize: 18, fontWeight: "800" },
+  closeIcon: { fontSize: 24, color: colors.textMuted },
+  modalContent: { gap: 16 },
   row: { flexDirection: "row", gap: 10 },
-  fieldBlock: { gap: 8 },
-  fieldLabel: { fontSize: 15, fontWeight: "600", color: colors.text },
-  fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 12, color: colors.text, fontSize: 15 },
-  primaryInput: { borderWidth: 2, borderColor: "#d97b00" },
-  textArea: { minHeight: 92, textAlignVertical: "top" },
-  selectField: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 12 },
-  selectFieldText: { flex: 1, color: colors.text, fontSize: 15 },
-  mediaButton: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, paddingVertical: 12, alignItems: "center" },
-  mediaButtonText: { color: colors.text, fontSize: 14, fontWeight: "700" },
-  confirmBackdrop: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)" },
-  confirmCard: { width: 280, backgroundColor: "#fff", padding: 20, borderRadius: 16 },
-  confirmTitle: { fontSize: 16, fontWeight: "700", marginBottom: 20, textAlign: "center" },
-  confirmActions: { flexDirection: "row", gap: 10 },
-  confirmCancel: { flex: 1, padding: 12, alignItems: "center" },
-  confirmAccept: { flex: 1, padding: 12, alignItems: "center", backgroundColor: colors.danger, borderRadius: 8 },
-  localError: { color: colors.danger, fontSize: 13 },
-  primaryButton: { borderRadius: 14, backgroundColor: "#d97b00", paddingVertical: 14, alignItems: "center" },
-  primaryButtonText: { color: colors.surface, fontSize: 16, fontWeight: "800" },
-  dropdownModalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.2)", justifyContent: "center", paddingHorizontal: 20 },
-  dropdownModalCard: { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden" },
-  dropdownModalContent: { paddingVertical: 6 },
-  dropdownItem: { padding: 14 },
-  dropdownItemActive: { backgroundColor: "#f0f0f0" },
-  dropdownItemText: { fontSize: 15 },
-  dropdownItemTextActive: { fontWeight: "700" },
-  detailTopRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 10 },
-  detailWeek: { fontSize: 22, fontWeight: "800", color: colors.text },
-  detailSummary: { fontSize: 15, lineHeight: 22, color: colors.text, marginBottom: 20 },
-  detailActionRowTop: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  editPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#eee" },
-  editPillText: { fontSize: 13, fontWeight: "700" },
-  deletePill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, backgroundColor: "#fdeae7" },
-  deletePillText: { fontSize: 13, fontWeight: "700", color: colors.danger },
-  emptyState: { flex: 1, alignItems: "center", justifyContent: "center" },
-  buttonPressed: { opacity: 0.82 },
+  fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text, marginBottom: 4 },
+  fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted },
+  textArea: { minHeight: 100, textAlignVertical: "top" },
+  selectField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
+  primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
+  primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  detailWeek: { fontSize: 22, fontWeight: "800" },
+  statusPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  statusPillText: { fontSize: 11, fontWeight: "800" },
+  detailSummary: { fontSize: 15, lineHeight: 24, color: colors.text },
+  sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text, marginTop: 10, marginBottom: 8 },
+  mediaSection: { marginVertical: 10 },
+  mediaThumb: { width: 100, height: 100, borderRadius: 12, backgroundColor: "#eee" },
+  divider: { height: 1, backgroundColor: "#eee", marginVertical: 15 },
+  commentSection: { gap: 8 },
+  commentInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.primary, padding: 14, minHeight: 80, backgroundColor: "#f8faff", fontSize: 14, textAlignVertical: "top" },
+  commentBoxReadOnly: { padding: 14, borderRadius: 12, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
+  commentText: { fontSize: 14, color: colors.text, lineHeight: 20 },
+  commentTextEmpty: { fontSize: 14, color: colors.textMuted, fontStyle: "italic" },
+  reviewActions: { gap: 10, marginTop: 15 },
+  approveButton: { borderRadius: 14, backgroundColor: colors.success, paddingVertical: 16, alignItems: "center" },
+  rejectButton: { borderRadius: 14, borderWidth: 1, borderColor: colors.danger, paddingVertical: 16, alignItems: "center" },
+  rejectButtonText: { color: colors.danger, fontWeight: "800", fontSize: 15 },
+  footerActions: { flexDirection: "row", gap: 10, marginTop: 25, borderTopWidth: 1, borderTopColor: "#eee", paddingTop: 20 },
+  editPill: { flex: 2, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surfaceMuted, alignItems: "center" },
+  editPillText: { fontWeight: "700", color: colors.text },
+  deletePill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#fdeae7", alignItems: "center" },
+  deletePillText: { fontWeight: "700", color: colors.danger },
+  dropdownCard: { backgroundColor: "#fff", padding: 10, borderRadius: 16, width: "80%", alignSelf: "center" },
+  dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  dropdownText: { fontSize: 16, fontWeight: "600" },
+  buttonPressed: { opacity: 0.8 }
 });

@@ -2,8 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
-// Tipos que representam os relatórios de status semanal da obra.
-// future_fix: Adicionar campo para assinatura digital do responsável técnico.
 export type UpdateStatus = "adiantado" | "no_prazo" | "atrasado";
 
 export type UpdateRow = {
@@ -25,11 +23,14 @@ export type UpdateRow = {
   videos: string[] | null;
   stage_id: string | null;
   approved: boolean | null;
+  owner_comments: string | null;
   created_at: string;
   updated_at: string;
 };
 
-// Hook para buscar e listar todos os relatórios semanais do projeto atual.
+/**
+ * Hook para buscar os relatórios semanais do projeto.
+ */
 export function useUpdates() {
   const { project } = useProject();
 
@@ -37,22 +38,15 @@ export function useUpdates() {
     queryKey: ["updates", project?.id],
     enabled: Boolean(project?.id && supabase),
     queryFn: async (): Promise<UpdateRow[]> => {
-      if (!supabase || !project) {
-        return [];
-      }
+      if (!supabase || !project) return [];
 
       const { data, error } = await supabase
         .from("weekly_updates")
-        .select(
-          "id, project_id, created_by, date, week_ref, summary, services_completed, services_not_completed, difficulties, materials_received, materials_missing, next_week_plan, observations, status, photos, videos, stage_id, approved, created_at, updated_at",
-        )
+        .select("*")
         .eq("project_id", project.id)
         .order("date", { ascending: false });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return (data ?? []) as UpdateRow[];
     },
   });
@@ -65,32 +59,15 @@ export function useUpdates() {
   };
 }
 
-// Gerencia a criação ou atualização de relatórios semanais, incluindo listas de serviços.
-// future_fix: Validar se a data do relatório está dentro da semana de referência informada.
+/**
+ * Mutation para criar ou atualizar um relatório semanal.
+ */
 export function useUpsertUpdate() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: {
-      id?: string;
-      projectId: string;
-      userId: string;
-      weekRef: string;
-      summary: string;
-      status: UpdateStatus;
-      servicesCompleted: string[];
-      servicesNotCompleted: string[];
-      difficulties: string;
-      materialsReceived: string[];
-      materialsMissing: string[];
-      nextWeekPlan: string;
-      observations: string;
-      photos: string[];
-      videos: string[];
-    }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+    mutationFn: async (payload: any) => {
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
       const updatePayload = {
         week_ref: payload.weekRef,
@@ -105,41 +82,15 @@ export function useUpsertUpdate() {
         observations: payload.observations || null,
         photos: payload.photos,
         videos: payload.videos,
+        owner_comments: payload.ownerComments || null,
       };
 
-      if (payload.id) {
-        const { data, error } = await supabase
-          .from("weekly_updates")
-          .update(updatePayload)
-          .eq("id", payload.id)
-          .select(
-            "id, project_id, created_by, date, week_ref, summary, services_completed, services_not_completed, difficulties, materials_received, materials_missing, next_week_plan, observations, status, photos, videos, stage_id, approved, created_at, updated_at",
-          )
-          .single();
+      const query = payload.id
+        ? supabase.from("weekly_updates").update(updatePayload).eq("id", payload.id)
+        : supabase.from("weekly_updates").insert({ ...updatePayload, project_id: payload.projectId, created_by: payload.userId });
 
-        if (error) {
-          throw error;
-        }
-
-        return data as UpdateRow;
-      }
-
-      const { data, error } = await supabase
-        .from("weekly_updates")
-        .insert({
-          ...updatePayload,
-          project_id: payload.projectId,
-          created_by: payload.userId,
-        })
-        .select(
-          "id, project_id, created_by, date, week_ref, summary, services_completed, services_not_completed, difficulties, materials_received, materials_missing, next_week_plan, observations, status, photos, videos, stage_id, approved, created_at, updated_at",
-        )
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
+      const { data, error } = await query.select().single();
+      if (error) throw error;
       return data as UpdateRow;
     },
     onSuccess: (_, variables) => {
@@ -148,21 +99,25 @@ export function useUpsertUpdate() {
   });
 }
 
-// Remove um relatório semanal específico e atualiza o estado das queries relacionadas.
-export function useDeleteUpdate() {
+/**
+ * Hook para o proprietário salvar comentários e aprovar/reprovar o relatório.
+ */
+export function useUpdateReview() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: { id: string; projectId: string }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+    mutationFn: async (payload: { id: string; projectId: string; approved: boolean; ownerComments: string | null }) => {
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
-      const { error } = await supabase.from("weekly_updates").delete().eq("id", payload.id);
+      const { data, error } = await supabase
+        .from("weekly_updates")
+        .update({ approved: payload.approved, owner_comments: payload.ownerComments })
+        .eq("id", payload.id)
+        .select()
+        .single();
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
+      return data as UpdateRow;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["updates", variables.projectId] });
@@ -170,29 +125,31 @@ export function useDeleteUpdate() {
   });
 }
 
-// Permite que o proprietário aprove ou desaprove um relatório semanal enviado pela equipe.
+export function useDeleteUpdate() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { id: string; projectId: string }) => {
+      if (!supabase) throw new Error("Supabase nao configurado.");
+      const { error } = await supabase.from("weekly_updates").delete().eq("id", payload.id);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["updates", variables.projectId] });
+    },
+  });
+}
+
+/**
+ * Hook legado mantido por compatibilidade.
+ * future_fix: Remover e usar useUpdateReview em todas as telas.
+ */
 export function useToggleApprovedUpdate() {
   const queryClient = useQueryClient();
-
   return useMutation({
     mutationFn: async (payload: { id: string; projectId: string; approved: boolean }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
-
-      const { data, error } = await supabase
-        .from("weekly_updates")
-        .update({ approved: payload.approved })
-        .eq("id", payload.id)
-        .select(
-          "id, project_id, created_by, date, week_ref, summary, services_completed, services_not_completed, difficulties, materials_received, materials_missing, next_week_plan, observations, status, photos, videos, stage_id, approved, created_at, updated_at",
-        )
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
+      if (!supabase) throw new Error("Supabase nao configurado.");
+      const { data, error } = await supabase.from("weekly_updates").update({ approved: payload.approved }).eq("id", payload.id).select().single();
+      if (error) throw error;
       return data as UpdateRow;
     },
     onSuccess: (_, variables) => {
