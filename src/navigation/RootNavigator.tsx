@@ -23,6 +23,8 @@ import { UpdatesScreen } from "../screens/UpdatesScreen";
 
 type RootStackParamList = { Login: undefined; SignUp: undefined; App: undefined; };
 
+const Stack = createNativeStackNavigator<RootStackParamList>();
+
 /**
  * Define a estrutura de rota do aplicativo, incluindo regras de visibilidade.
  */
@@ -37,10 +39,6 @@ type AppRoute = {
   ownerOnly?: boolean;
 };
 
-/**
- * Configuracao central de todas as telas do aplicativo.
- * future_fix: Migrar ícones de texto para bibliotecas de icones vetoriais (ex: Lucide ou FontAwesome).
- */
 const appRoutes: AppRoute[] = [
   { key: "inicio", label: "Inicio", menuLabel: "Dashboard", icon: "⌂", component: DashboardScreen, inBottomNav: true, inDrawer: true },
   { key: "dia-a-dia", label: "Dia a Dia", menuLabel: "Dia a Dia", icon: "◫", component: DailyScreen, inBottomNav: true },
@@ -55,9 +53,6 @@ const appRoutes: AppRoute[] = [
   { key: "config", label: "Configuracoes", menuLabel: "Configuracoes", icon: "•", component: SettingsScreen, inDrawer: true, ownerOnly: true },
 ];
 
-/**
- * Tema customizado para o NavigationContainer, integrando com as cores globais.
- */
 const navigationTheme = {
   ...DefaultTheme,
   colors: {
@@ -66,9 +61,6 @@ const navigationTheme = {
   },
 };
 
-/**
- * Componente de Navegacao Inferior (Bottom Tabs) customizado.
- */
 function BottomNav({ routes, currentRouteKey, onNavigate }: any) {
   const insets = useSafeAreaInsets();
   return (
@@ -88,10 +80,6 @@ function BottomNav({ routes, currentRouteKey, onNavigate }: any) {
   );
 }
 
-/**
- * Menu Lateral (Drawer) customizado com animacoes de entrada e saida.
- * future_fix: Adicionar suporte a gestos (swipe) para abrir/fechar o menu.
- */
 function SideMenu(_: any) {
   const { routes, currentRouteKey, houseName, housePhotoUrl, isOwner, isHouseMenuOpen, visible, onClose, onNavigate, onToggleHouseMenu, onSignOut } = _;
   const [isMounted, setIsMounted] = useState(visible);
@@ -150,10 +138,6 @@ function SideMenu(_: any) {
   );
 }
 
-/**
- * Casca principal do app autenticado. Gerencia o estado de navegação interna.
- * future_fix: Persistir a ultima rota acessada para reabrir o app na mesma tela.
- */
 function AppShell() {
   const [currentRouteKey, setCurrentRouteKey] = useState("inicio");
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
@@ -176,17 +160,23 @@ function AppShell() {
       </View>
       <View style={styles.screenArea}><ActiveScreen /></View>
       <BottomNav routes={availableRoutes.filter(r => r.inBottomNav)} currentRouteKey={currentRouteKey} onNavigate={handleNavigate} />
-      <SideMenu routes={availableRoutes.filter(r => r.inDrawer)} currentRouteKey={currentRouteKey} houseName={houseName} housePhotoUrl={project?.photo_url} isOwner={isOwner} isHouseMenuOpen={isHouseMenuOpen} visible={isSideMenuOpen} onClose={() => setIsSideMenuOpen(false)} onNavigate={handleNavigate} onToggleHouseMenu={() => setIsHouseMenuOpen(!isHouseMenuOpen)} onSignOut={signOut} />
+      <SideMenu routes={availableRoutes.filter(r => r.inDrawer)} currentRouteKey={currentRouteKey} houseName={houseName} housePhotoUrl={project?.photo_url} isOwner={isOwner} isHouseMenuOpen={isHouseMenuOpen} visible={isSideMenuOpen} onClose={() => setIsSideMenuOpen(false)} onNavigate={handleNavigate} onToggleHouseMenu={() => setIsHouseMenuOpen(!isHouseMenuOpen)} onSignOut={handleSignOut} />
     </SafeAreaView>
   );
+
+  function handleSignOut() {
+    setIsSideMenuOpen(false);
+    setIsHouseMenuOpen(false);
+    if (Platform.OS === "web") {
+      if (globalThis.confirm("Deseja sair da conta?")) void signOut();
+      return;
+    }
+    Alert.alert("Sair da conta?", "Voce sera desconectado.", [{ text: "Cancelar", style: "cancel" }, { text: "Sair", style: "destructive", onPress: () => void signOut() }]);
+  }
 }
 
-/**
- * Root Navigator: Ponto de decisao entre fluxo de Autenticacao e fluxo de App.
- */
 export function RootNavigator() {
   const { loading, session } = useAuth();
-  const Stack = createNativeStackNavigator();
 
   if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
