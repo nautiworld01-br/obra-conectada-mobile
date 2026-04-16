@@ -288,8 +288,17 @@ function DailyLogForm({
       {
         text: "Excluir",
         style: "destructive",
-        onPress: () => {
-          void onDelete();
+        onPress: async () => {
+          try {
+            await onDelete();
+            Toast.show({
+              type: "success",
+              text1: "Registro excluído",
+              text2: "O log diário foi removido com sucesso.",
+            });
+          } catch (e) {
+            Alert.alert("Erro", "Nao foi possivel excluir o registro.");
+          }
         },
       },
     ]);
@@ -487,7 +496,10 @@ function DailyLogForm({
                 {deleting ? (
                   <ActivityIndicator color={colors.danger} />
                 ) : (
-                  <Text style={styles.deleteButtonText}>Excluir Registro</Text>
+                  <View style={styles.deleteButtonContent}>
+                    <AppIcon name="Trash2" size={18} color={colors.danger} />
+                    <Text style={styles.deleteButtonText}>Excluir Registro</Text>
+                  </View>
                 )}
               </Pressable>
             ) : null}
@@ -931,7 +943,7 @@ const styles = StyleSheet.create({
   },
   todayButton: {
     borderRadius: 14,
-    backgroundColor: "#d97b00",
+    backgroundColor: colors.secondary,
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -986,7 +998,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 18,
     fontWeight: "700",
-    color: "#4c2d12",
+    color: colors.text,
     textTransform: "lowercase",
     textAlign: "center",
   },
@@ -1014,13 +1026,13 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 24,
-    color: "#1d3159",
+    color: colors.text,
   },
   dayOutsideMonth: {
-    color: "#b0b6c1",
+    color: colors.divider,
   },
   dayDisabled: {
-    color: "#c7ccd5",
+    color: colors.divider,
   },
   dayWithLog: {
     color: colors.success,
@@ -1029,19 +1041,19 @@ const styles = StyleSheet.create({
   dayToday: {
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: "#d97b00",
+    borderColor: colors.secondary,
   },
   daySelected: {
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: "#d97b00",
+    borderColor: colors.secondary,
   },
   dayRegistered: {
     borderRadius: 20,
-    backgroundColor: "#eef8f0",
+    backgroundColor: colors.successLight,
   },
   dayTextHighlighted: {
-    color: "#4c2d12",
+    color: colors.text,
   },
   legendRow: {
     flexDirection: "row",
@@ -1061,28 +1073,28 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   legendDotRegistered: {
-    backgroundColor: "#c5f0cf",
+    backgroundColor: colors.successLight,
     borderWidth: 1,
-    borderColor: "#79c98d",
+    borderColor: colors.success,
   },
   legendDotToday: {
     backgroundColor: colors.surface,
     borderWidth: 2,
-    borderColor: "#d97b00",
+    borderColor: colors.secondary,
   },
   legendDotEmpty: {
-    backgroundColor: "#d8dbe0",
+    backgroundColor: colors.cardBorder,
   },
   legendText: {
     fontSize: 13,
-    color: "#5b5d7b",
+    color: colors.textMuted,
   },
   projectHint: {
     marginTop: 18,
     textAlign: "center",
     fontSize: 13,
     lineHeight: 20,
-    color: "#4f6185",
+    color: colors.info,
   },
   monthListSection: {
     marginTop: 22,
@@ -1142,7 +1154,7 @@ const styles = StyleSheet.create({
   },
   modalBackdrop: {
     flex: 1,
-    backgroundColor: "rgba(31, 28, 23, 0.42)",
+    backgroundColor: colors.overlay,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 14,
@@ -1204,8 +1216,8 @@ const styles = StyleSheet.create({
   textAreaLarge: {
     minHeight: 116,
     textAlignVertical: "top",
-    borderColor: "#d97b00",
-    borderWidth: 2,
+    borderColor: colors.secondary,
+    borderWidth: 1,
   },
   textAreaMedium: {
     minHeight: 90,
@@ -1351,7 +1363,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(31, 28, 23, 0.24)",
+    backgroundColor: colors.overlay,
     paddingHorizontal: 20,
   },
   confirmCard: {
@@ -1404,7 +1416,7 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     borderRadius: 14,
-    backgroundColor: "#d97b00",
+    backgroundColor: colors.secondary,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 2,
@@ -1417,11 +1429,16 @@ const styles = StyleSheet.create({
   deleteButton: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#f1c3c3",
-    backgroundColor: "#fff5f5",
+    borderColor: colors.danger,
+    backgroundColor: colors.dangerLight,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 2,
+  },
+  deleteButtonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   deleteButtonText: {
     color: colors.danger,
@@ -1435,5 +1452,13 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.82,
+  },
+  loadMoreButton: {
+    padding: 16,
+    alignItems: "center",
+  },
+  loadMoreText: {
+    color: colors.primary,
+    fontWeight: "700",
   },
 });
