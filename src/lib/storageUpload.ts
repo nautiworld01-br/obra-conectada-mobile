@@ -59,24 +59,21 @@ export async function uploadLocalFileToStorage({
   filePath,
   fileUri,
   contentType,
-  upsert = false,
+  upsert = true, // Padrao sênior: upsert true evita erros 400 de conflito
 }: UploadLocalFileParams) {
   if (!supabase) throw new Error("Supabase nao configurado.");
 
-  const fileName = filePath.split("/").pop() || "file";
-  const fileType = contentType || inferTypeFromUri(fileUri);
-  const formData = new FormData();
+  // Padrao universal: converte URI em Blob (funciona em Web, iOS e Android)
+  const response = await fetch(fileUri);
+  const blob = await response.blob();
   
-  formData.append("file", {
-    uri: Platform.OS === "ios" ? fileUri.replace("file://", "") : fileUri,
-    name: fileName,
-    type: fileType,
-  } as any);
+  const fileType = contentType || inferTypeFromUri(fileUri);
 
   try {
-    const { error } = await supabase.storage.from(bucket).upload(filePath, formData, {
+    const { error } = await supabase.storage.from(bucket).upload(filePath, blob, {
       upsert,
       cacheControl: "3600",
+      contentType: fileType, // Essencial para navegadores
     });
 
     if (error) {
