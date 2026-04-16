@@ -495,6 +495,103 @@ function DailyLogForm({
   );
 }
 
+function DailyLogDetailsModal({
+  date,
+  log,
+  employees,
+  employeeIds,
+  visible,
+  onClose,
+  onEdit,
+}: {
+  date: string;
+  log: DailyLogRow;
+  employees: EmployeeRow[];
+  employeeIds: string[];
+  visible: boolean;
+  onClose: () => void;
+  onEdit: () => void;
+}) {
+  const selectedEmployees = employees.filter((e) => employeeIds.includes(e.id));
+
+  return (
+    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Detalhes do Dia - {displayDate(date)}</Text>
+            <Pressable onPress={onClose}>
+              <Text style={styles.closeIcon}>×</Text>
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Atividades realizadas</Text>
+              <Text style={styles.detailValue}>{log.activities || "Nenhuma atividade descrita."}</Text>
+            </View>
+
+            {log.weather ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Clima</Text>
+                <Text style={styles.detailValue}>{log.weather}</Text>
+              </View>
+            ) : null}
+
+            {log.observations ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Observacoes</Text>
+                <Text style={styles.detailValue}>{log.observations}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Equipe presente ({selectedEmployees.length})</Text>
+              <View style={styles.employeeList}>
+                {selectedEmployees.length > 0 ? (
+                  selectedEmployees.map((e) => (
+                    <View key={e.id} style={styles.employeeChipReadonly}>
+                      <Text style={styles.employeeChipText}>{e.full_name}</Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={styles.detailValueEmpty}>Nenhum funcionario registrado.</Text>
+                )}
+              </View>
+            </View>
+
+            {(log.photos_urls?.length ?? 0) > 0 || (log.videos_urls?.length ?? 0) > 0 ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Midias</Text>
+                <View style={styles.mediaListRow}>
+                  {log.photos_urls?.map((url, i) => (
+                    <Pressable key={`p_${i}`} style={styles.mediaItemContainer} onPress={() => Linking.openURL(url)}>
+                      <Image source={{ uri: url }} style={styles.mediaThumb} />
+                    </Pressable>
+                  ))}
+                  {log.videos_urls?.map((url, i) => (
+                    <Pressable key={`v_${i}`} style={styles.mediaItemContainer} onPress={() => Linking.openURL(url)}>
+                      <View style={styles.videoThumb}>
+                        <Text style={styles.videoIcon}>▶</Text>
+                        <Text style={styles.videoLabel}>Video {i + 1}</Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            <Pressable style={styles.editButton} onPress={onEdit}>
+              <Text style={styles.editButtonText}>Editar Registro</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export function DailyScreen() {
   const { user } = useAuth();
   const { project, logs, employees, isLoading } = useDailyLogs();
@@ -503,6 +600,7 @@ export function DailyScreen() {
   const [monthDate, setMonthDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const logsByDate = useMemo(() => {
     const map: Record<string, DailyLogRow> = {};
@@ -534,8 +632,21 @@ export function DailyScreen() {
       return;
     }
 
-    setSelectedDate(isoDate(normalizedDate));
-    setFormOpen(true);
+    const iso = isoDate(normalizedDate);
+    setSelectedDate(iso);
+    
+    if (logsByDate[iso]) {
+      setDetailsOpen(true);
+    } else {
+      setFormOpen(true);
+    }
+  };
+
+  const handleEditFromDetails = () => {
+    setDetailsOpen(false);
+    setTimeout(() => {
+      setFormOpen(true);
+    }, 300);
   };
 
   const handleSave = async (payload: { 
@@ -686,7 +797,7 @@ export function DailyScreen() {
                     style={({ pressed }) => [styles.monthLogCard, pressed && styles.buttonPressed]}
                     onPress={() => {
                       setSelectedDate(log.date);
-                      setFormOpen(true);
+                      setDetailsOpen(true);
                     }}
                   >
                     <View style={styles.monthLogHeader}>
@@ -708,6 +819,18 @@ export function DailyScreen() {
           </View>
         </ScrollView>
       )}
+
+      {selectedDate && selectedLog ? (
+        <DailyLogDetailsModal
+          date={selectedDate}
+          log={selectedLog}
+          employees={employees}
+          employeeIds={employeeIdsQuery.data ?? []}
+          visible={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
+          onEdit={handleEditFromDetails}
+        />
+      ) : null}
 
       {selectedDate ? (
         <DailyLogForm
@@ -1034,6 +1157,8 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
   },
   employeeList: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   employeeChip: {
@@ -1047,6 +1172,14 @@ const styles = StyleSheet.create({
   employeeChipActive: {
     borderColor: colors.primary,
     backgroundColor: colors.primarySoft,
+  },
+  employeeChipReadonly: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surface,
   },
   employeeChipText: {
     color: colors.text,
@@ -1133,6 +1266,31 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     color: colors.textMuted,
+  },
+  detailValue: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+    backgroundColor: colors.surfaceMuted,
+    padding: 12,
+    borderRadius: 12,
+  },
+  detailValueEmpty: {
+    fontSize: 14,
+    color: colors.textMuted,
+    fontStyle: "italic",
+  },
+  editButton: {
+    borderRadius: 14,
+    backgroundColor: colors.text,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  editButtonText: {
+    color: colors.surface,
+    fontSize: 16,
+    fontWeight: "800",
   },
   confirmBackdrop: {
     flex: 1,

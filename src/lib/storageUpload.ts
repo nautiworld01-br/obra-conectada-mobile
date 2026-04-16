@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
 type UploadLocalFileParams = {
@@ -16,6 +17,11 @@ type UploadLocalFilesToPublicUrlsParams = {
   contentType?: string | null;
 };
 
+/**
+ * Realiza o upload de um arquivo local para o storage do Supabase.
+ * Usamos FormData para que o React Native envie o arquivo em partes (streaming),
+ * evitando erros de memoria e arquivos corrompidos.
+ */
 export async function uploadLocalFileToStorage({
   bucket,
   filePath,
@@ -27,16 +33,49 @@ export async function uploadLocalFileToStorage({
     throw new Error("Supabase nao configurado.");
   }
 
-  const arrayBuffer = await readArrayBufferFromLocalUri(fileUri);
+  const fileName = filePath.split("/").pop() || "file";
+  const fileType = contentType || inferTypeFromUri(fileUri);
 
-  const { error } = await supabase.storage.from(bucket).upload(filePath, arrayBuffer, {
-    contentType: contentType ?? undefined,
-    upsert,
-  });
+  // Criamos um FormData, que e a forma nativa do React Native lidar com uploads de arquivos
+  const formData = new FormData();
+  
+  // O 'append' precisa receber esse objeto especial que o RN reconhece como arquivo
+  formData.append("file", {
+    uri: Platform.OS === "ios" ? fileUri.replace("file://", "") : fileUri,
+    name: fileName,
+    type: fileType,
+  } as any);
 
-  if (error) {
-    throw error;
+  try {
+    // No Supabase, quando enviamos FormData, ele extrai o arquivo automaticamente
+    const { error } = await supabase.storage.from(bucket).upload(filePath, formData, {
+      upsert,
+      cacheControl: "3600",
+      // Importante: nao definimos o contentType aqui para o FormData usar o boundary correto
+    });
+
+    if (error) {
+      console.error("--- ERRO NO SUPABASE STORAGE ---");
+      console.error("Bucket:", bucket);
+      console.error("Path:", filePath);
+      console.error("Erro Detalhado:", error);
+      throw error;
+    }
+  } catch (err) {
+    console.error("Falha fatal no uploadLocalFileToStorage:", err);
+    throw err;
   }
+}
+
+function inferTypeFromUri(uri: string) {
+  const cleanUri = uri.split("?")[0];
+  const ext = cleanUri.split(".").pop()?.toLowerCase();
+  if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+  if (ext === "png") return "image/png";
+  if (ext === "gif") return "image/gif";
+  if (ext === "mp4") return "video/mp4";
+  if (ext === "mov") return "video/quicktime";
+  return "application/octet-stream";
 }
 
 export function isRemoteAssetUrl(uri: string | null | undefined) {
@@ -81,21 +120,4 @@ export async function uploadLocalFilesToPublicUrls({
   }
 
   return uploadedUrls;
-}
-
-function readArrayBufferFromLocalUri(fileUri: string): Promise<ArrayBuffer> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.onload = () => {
-      const blob = xhr.response as Blob;
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as ArrayBuffer);
-      reader.onerror = () => reject(new Error("Nao foi possivel converter o arquivo para upload."));
-      reader.readAsArrayBuffer(blob);
-    };
-    xhr.onerror = () => reject(new Error("Nao foi possivel ler o arquivo local para upload."));
-    xhr.responseType = "blob";
-    xhr.open("GET", fileUri, true);
-    xhr.send();
-  });
 }
