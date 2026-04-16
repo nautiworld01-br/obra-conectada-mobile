@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
+// Estrutura de dados que representa um projeto no contexto do aplicativo mobile.
+// future_fix: Adicionar campos de geolocalização para marcar ponto ou rotas.
 export type MobileProject = {
   id: string;
   name: string;
@@ -15,6 +17,8 @@ export type MobileProject = {
   userRole: string;
 };
 
+// Hook principal para obter os detalhes do projeto ao qual o usuário está vinculado.
+// future_fix: Suportar múltiplos projetos por usuário (atualmente assume apenas um).
 export function useProject() {
   const { user } = useAuth();
 
@@ -65,6 +69,7 @@ export function useProject() {
   };
 }
 
+// Permite atualizar as informações cadastrais do projeto atual do usuário.
 export function useUpdateProject() {
   const queryClient = useQueryClient();
   const { user } = useAuth();

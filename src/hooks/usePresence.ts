@@ -4,6 +4,8 @@ import { useProject } from "./useProject";
 
 const EMPTY_ATTENDANCE: AttendanceRow[] = [];
 
+// Tipos para controle de presença e frequência dos funcionários na obra.
+// future_fix: Adicionar status para justificativas de falta (atestado, folga).
 export type AttendanceStatus = "presente" | "falta" | "meio_periodo";
 
 export type AttendanceRow = {
@@ -15,6 +17,7 @@ export type AttendanceRow = {
   created_at: string;
 };
 
+// Hook para consultar a lista de presença de uma data específica para o projeto.
 export function usePresence(date: string) {
   const { project } = useProject();
 
@@ -42,6 +45,8 @@ export function usePresence(date: string) {
   };
 }
 
+// Gerencia a atualização em lote da presença, limpando registros antigos antes da inserção.
+// future_fix: Otimizar para fazer update em vez de delete/insert para manter IDs originais.
 export function useUpsertPresence() {
   const queryClient = useQueryClient();
 
@@ -82,6 +87,7 @@ export function useUpsertPresence() {
   });
 }
 
+// Remove um registro individual de presença e invalida o cache da data correspondente.
 export function useDeletePresenceRecord() {
   const queryClient = useQueryClient();
 

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+// Tipos que definem o cronograma e os estados de cada etapa da obra.
+// future_fix: Adicionar lógica para cálculo automático de atraso baseado em datas.
 export type StageStatus = "nao_iniciado" | "em_andamento" | "concluido" | "atrasado" | "bloqueado";
 
 export type StageRow = {
@@ -17,6 +19,7 @@ export type StageRow = {
   status: StageStatus;
 };
 
+// Hook para buscar todas as etapas do cronograma vinculadas ao projeto atual.
 export function useStages() {
   const { project, isLoading: isProjectLoading } = useProject();
 
@@ -49,6 +52,8 @@ export function useStages() {
   };
 }
 
+// Gerencia a criação ou atualização de etapas, definindo o progresso inicial por status.
+// future_fix: Permitir edição manual do percent_complete independente do status.
 export function useUpsertStage() {
   const queryClient = useQueryClient();
 
@@ -121,6 +126,7 @@ export function useUpsertStage() {
   });
 }
 
+// Remove uma etapa do cronograma e sincroniza a lista de etapas no frontend.
 export function useDeleteStage() {
   const queryClient = useQueryClient();
 

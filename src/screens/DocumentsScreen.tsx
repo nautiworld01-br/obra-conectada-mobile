@@ -28,6 +28,8 @@ const categoryOptions: { value: DocumentCategory | "todos"; label: string }[] = 
 const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
+// Funcoes utilitarias para formatacao de dados, calculo de status de vencimento e manipulacao de arquivos.
+// future_fix: extrair funcoes de data e bytes para um modulo de utilitarios compartilhado.
 function formatDate(value: string | null) {
   if (!value) return "Sem vencimento";
   const [year, month, day] = value.split("-");
@@ -60,6 +62,8 @@ function formatBytes(value: number | null) {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Determina o status visual do documento com base na proximidade do vencimento.
+// Retorna um label amigavel e um "tom" para aplicacao de cores na UI (success, warning, danger).
 function expiresStatus(expiresAt: string | null) {
   if (!expiresAt) {
     return { label: "Sem vencimento", tone: "neutral" as const };
@@ -96,13 +100,19 @@ function buildMonthGrid(currentMonthDate: Date) {
   });
 }
 
+// Tela de gestao de documentos do projeto (plantas, contratos, notas fiscais, etc).
+// Permite o upload, visualizacao e controle de vencimento de arquivos no Supabase Storage.
 export function DocumentsScreen() {
+  // Hooks para autenticacao e operacoes CRUD de documentos.
+  // useDocuments centraliza a busca da lista de arquivos vinculados a casa/projeto.
   const { user } = useAuth();
   const { project, documents, isLoading } = useDocuments();
   const createDocument = useCreateDocument();
   const deleteDocument = useDeleteDocument();
   const signedUrl = useSignedDocumentUrl();
   
+  // Estados para controle de filtros, abertura de modais e campos do formulario de novo documento.
+  // future_fix: utilizar um estado de objeto unico para o formulario de upload.
   const [filter, setFilter] = useState<DocumentCategory | "todos">("todos");
   const [formOpen, setFormOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -118,6 +128,8 @@ export function DocumentsScreen() {
   const monthGrid = useMemo(() => buildMonthGrid(datePickerMonth), [datePickerMonth]);
   const monthLabel = `${monthLabels[datePickerMonth.getMonth()]} ${datePickerMonth.getFullYear()}`;
 
+  // Filtragem e calculo de resumo (total, vencidos, a vencer) para exibicao no topo da tela.
+  // Memoriza os resultados para evitar recalculas desnecessarios em cada re-render.
   const filteredDocuments = useMemo(
     () => (filter === "todos" ? documents : documents.filter((item) => item.category === filter)),
     [documents, filter],
@@ -129,6 +141,8 @@ export function DocumentsScreen() {
     return { total: documents.length, expiringSoon, expired };
   }, [documents]);
 
+  // Logica para selecao de arquivos do dispositivo usando Expo DocumentPicker.
+  // future_fix: validar o tamanho maximo do arquivo antes do upload para evitar erros de timeout.
   const handlePickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
@@ -152,6 +166,8 @@ export function DocumentsScreen() {
     setConfirmRemovePickedFile(false);
   };
 
+  // Processo de salvamento: primeiro faz o upload do binario para o Storage e depois salva o metadado no DB.
+  // Garante a integridade referencial entre o arquivo fisico e o registro na tabela do Supabase.
   const handleSave = async () => {
     if (!project?.id || !user?.id) {
       Alert.alert("Casa", "Configure a casa antes de cadastrar documentos.");
@@ -217,6 +233,8 @@ export function DocumentsScreen() {
     setCalendarOpen(false);
   };
 
+  // Recupera uma URL assinada (temporaria) para visualizacao segura do documento.
+  // future_fix: implementar cache local de URLs assinadas para evitar chamadas repetidas ao Supabase.
   const handleOpenDocument = async (document: ProjectDocumentRow) => {
     try {
       const url = await signedUrl.mutateAsync({ filePath: document.file_path });
@@ -259,6 +277,8 @@ export function DocumentsScreen() {
     ]);
   };
 
+  // Renderizacao da tela principal com Header, Resumo de status e Listagem de arquivos.
+  // Os documentos sao exibidos em cards com informacoes de categoria, vencimento e tamanho.
   return (
     <AppScreen title="Documentos" subtitle="Upload, consulta e abertura segura de arquivos da casa via Supabase Storage.">
       <View style={styles.summaryRow}>

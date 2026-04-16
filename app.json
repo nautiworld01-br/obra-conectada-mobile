@@ -1,4 +1,5 @@
 {
+  "//": "Configurações Globais do Expo: Define ícones, versão, pacotes Android/iOS e comportamento Web.",
   "expo": {
     "name": "obra-conectada-mobile",
     "slug": "obra-conectada-mobile",
@@ -6,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "//": "future_fix: Desativar newArchEnabled caso note instabilidade em bibliotecas legadas.",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",

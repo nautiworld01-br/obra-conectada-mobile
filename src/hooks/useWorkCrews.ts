@@ -3,6 +3,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+/**
+ * Define a estrutura de um registro de equipe de obra (Empreiteiras/Empresas).
+ */
 export type WorkCrewRow = {
   id: string;
   project_id: string;
@@ -18,6 +21,10 @@ export type WorkCrewRow = {
   observations: string | null;
 };
 
+/**
+ * Hook para listar e monitorar em tempo real as equipes de obra do projeto.
+ * future_fix: Adicionar suporte a paginacao se o numero de empreiteiras for muito grande.
+ */
 export function useWorkCrews() {
   const { project, isLoading: projectLoading } = useProject();
   const queryClient = useQueryClient();
@@ -26,49 +33,32 @@ export function useWorkCrews() {
     queryKey: ["work-crews", project?.id],
     enabled: Boolean(project?.id && supabase),
     queryFn: async (): Promise<WorkCrewRow[]> => {
-      if (!supabase || !project?.id) {
-        return [];
-      }
+      if (!supabase || !project?.id) return [];
 
       const { data, error } = await supabase
         .from("work_crews")
-        .select(
-          "id, project_id, photo, company_name, company_contact, responsible_name, responsible_contact, average_workers, contracted_amount, planned_start_date, planned_end_date, observations",
-        )
+        .select("id, project_id, photo, company_name, company_contact, responsible_name, responsible_contact, average_workers, contracted_amount, planned_start_date, planned_end_date, observations")
         .eq("project_id", project.id)
         .order("planned_start_date", { ascending: true, nullsFirst: false })
         .order("company_name", { ascending: true });
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return (data ?? []) as WorkCrewRow[];
     },
   });
 
+  // Habilita Realtime para atualizar a lista automaticamente quando houver mudanças no banco.
   useEffect(() => {
     if (!project?.id || !supabase) return;
 
     const subscription = supabase
       .channel(`work_crews:${project.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "work_crews",
-          filter: `project_id=eq.${project.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["work-crews", project.id] });
-        }
-      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_crews", filter: `project_id=eq.${project.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["work-crews", project.id] });
+      })
       .subscribe();
 
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => { subscription.unsubscribe(); };
   }, [project?.id, queryClient]);
 
   return {
@@ -78,27 +68,16 @@ export function useWorkCrews() {
   };
 }
 
+/**
+ * Mutation para criar ou atualizar (upsert) uma equipe de obra.
+ * future_fix: Implementar validacao de schema Zod para garantir integridade dos dados numericos.
+ */
 export function useUpsertWorkCrew() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: {
-      id?: string;
-      projectId: string;
-      photo: string | null;
-      companyName: string;
-      companyContact: string | null;
-      responsibleName: string | null;
-      responsibleContact: string | null;
-      averageWorkers: number | null;
-      contractedAmount: number | null;
-      plannedStartDate: string | null;
-      plannedEndDate: string | null;
-      observations: string | null;
-    }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+    mutationFn: async (payload: any) => {
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
       const workCrewPayload = {
         project_id: payload.projectId,
@@ -114,35 +93,12 @@ export function useUpsertWorkCrew() {
         observations: payload.observations,
       };
 
-      if (payload.id) {
-        const { data, error } = await supabase
-          .from("work_crews")
-          .update(workCrewPayload)
-          .eq("id", payload.id)
-          .select(
-            "id, project_id, photo, company_name, company_contact, responsible_name, responsible_contact, average_workers, contracted_amount, planned_start_date, planned_end_date, observations",
-          )
-          .single();
+      const query = payload.id 
+        ? supabase.from("work_crews").update(workCrewPayload).eq("id", payload.id)
+        : supabase.from("work_crews").insert(workCrewPayload);
 
-        if (error) {
-          throw error;
-        }
-
-        return data as WorkCrewRow;
-      }
-
-      const { data, error } = await supabase
-        .from("work_crews")
-        .insert(workCrewPayload)
-        .select(
-          "id, project_id, photo, company_name, company_contact, responsible_name, responsible_contact, average_workers, contracted_amount, planned_start_date, planned_end_date, observations",
-        )
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
+      const { data, error } = await query.select().single();
+      if (error) throw error;
       return data as WorkCrewRow;
     },
     onSuccess: (_, variables) => {
@@ -151,20 +107,18 @@ export function useUpsertWorkCrew() {
   });
 }
 
+/**
+ * Mutation para remover uma equipe de obra do sistema.
+ * future_fix: Adicionar soft-delete ou log de exclusao para auditoria.
+ */
 export function useDeleteWorkCrew() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (payload: { id: string; projectId: string }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
-
+      if (!supabase) throw new Error("Supabase nao configurado.");
       const { error } = await supabase.from("work_crews").delete().eq("id", payload.id);
-
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["work-crews", variables.projectId] });

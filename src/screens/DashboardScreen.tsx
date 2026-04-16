@@ -10,6 +10,8 @@ import { useProfile } from "../hooks/useProfile";
 import { useStages } from "../hooks/useStages";
 import { useUpdates } from "../hooks/useUpdates";
 
+// Funcoes utilitarias para formatacao de dados de exibicao.
+// future_fix: centralizar estas funcoes em um arquivo utils para reutilizacao em todo o app.
 function formatDate(value: string | null) {
   if (!value) {
     return "—";
@@ -28,6 +30,8 @@ function formatCurrency(value: number) {
 }
 
 export function DashboardScreen() {
+  // Inicializacao de hooks de contexto e busca de dados (Supabase).
+  // Carrega informacoes de perfil, logs diarios, etapas, atualizacoes e pagamentos.
   const { user } = useAuth();
   const { isOwner } = useProfile();
   const { logs, isLoading: logsLoading } = useDailyLogs();
@@ -37,6 +41,8 @@ export function DashboardScreen() {
 
   const loading = logsLoading || stagesLoading || updatesLoading || paymentsLoading;
 
+  // Calculo e memorizacao dos dados consolidados para o dashboard.
+  // Filtra logs do usuario logado, calcula progresso das etapas e total financeiro pago.
   const dashboardData = useMemo(() => {
     const now = new Date();
     const month = now.getMonth();
@@ -69,6 +75,7 @@ export function DashboardScreen() {
     };
   }, [logs, payments, stages, user?.id]);
 
+  // Renderizacao do estado de carregamento enquanto os dados sao buscados.
   if (loading) {
     return (
       <View style={styles.loadingWrap}>
@@ -78,6 +85,8 @@ export function DashboardScreen() {
     );
   }
 
+  // Renderizacao especifica para funcionarios (nao proprietarios).
+  // Foca em metricas pessoais de registros realizados.
   if (!isOwner) {
     return (
       <AppScreen title="Inicio" subtitle="Resumo operacional do que voce registrou na obra.">
@@ -117,6 +126,8 @@ export function DashboardScreen() {
     );
   }
 
+  // Renderizacao principal para proprietarios/administradores.
+  // Exibe panorama geral de progresso, metricas globais e situacao da equipe.
   return (
     <AppScreen title="Dashboard" subtitle="Resumo geral da casa, da obra e dos registros operacionais.">
       <SectionCard title="Progresso geral" subtitle="Leitura consolidada das etapas e da operacao.">

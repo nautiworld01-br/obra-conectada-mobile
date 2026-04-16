@@ -2,6 +2,10 @@ import { ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../config/theme";
 
+/**
+ * Propriedades do componente AppScreen.
+ * Define a estrutura base para telas padronizadas do app.
+ */
 type AppScreenProps = {
   title: string;
   subtitle?: string;
@@ -9,6 +13,11 @@ type AppScreenProps = {
   scrollable?: boolean;
 };
 
+/**
+ * Componente de layout base para as telas do aplicativo.
+ * Oferece suporte a scroll opcional e cabecalho padronizado.
+ * future_fix: Adicionar suporte a RefreshControl para facilitar atualizacao de dados nas telas.
+ */
 export function AppScreen({ title, subtitle, children, scrollable = true }: AppScreenProps) {
   const content = (
     <View style={styles.content}>

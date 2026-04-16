@@ -23,6 +23,8 @@ const statusOptions: { value: TeamEmployeeStatus; label: string }[] = [
 const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
+// Funcoes utilitarias para formatacao de dados, geracao de iniciais e grid de calendario.
+// future_fix: mover para um modulo utilitario compartilhado (ex: src/lib/utils.ts).
 function initialsFromName(name: string) {
   const tokens = name.trim().split(/\s+/).filter(Boolean);
   if (!tokens.length) return "EQ";
@@ -87,6 +89,7 @@ function buildMonthGrid(currentMonthDate: Date) {
   });
 }
 
+// Inicializadores de estado "draft" para criacao e edicao de funcionarios e equipes.
 function buildEmployeeDraft(employee?: TeamEmployeeRow | null) {
   return {
     id: employee?.id,
@@ -113,7 +116,10 @@ function buildWorkCrewDraft(workCrew?: WorkCrewRow | null) {
   };
 }
 
+// Tela de Gestao da Equipe e Empreiteiras, permitindo o controle de funcionarios proprios e terceirizados.
+// Gerencia informacoes de contato, funcoes, status e cronograma previsto de atuacao.
 export function TeamScreen() {
+  // Hooks para autenticacao, perfil e operacoes CRUD de funcionarios e equipes (custom hooks).
   const { user } = useAuth();
   const { isOwner } = useProfile();
   const { project, employees, isLoading: employeesLoading } = useTeam();
@@ -122,6 +128,8 @@ export function TeamScreen() {
   const deleteEmployee = useDeleteEmployee();
   const upsertWorkCrew = useUpsertWorkCrew();
   const deleteWorkCrew = useDeleteWorkCrew();
+
+  // Estados locais para filtros, controle de modais de formulario e menus de selecao.
   const [filter, setFilter] = useState<"todos" | TeamEmployeeStatus>("todos");
   const [employeeFormOpen, setEmployeeFormOpen] = useState(false);
   const [roleMenuOpen, setRoleMenuOpen] = useState(false);
@@ -146,6 +154,8 @@ export function TeamScreen() {
     }
   }, [workCrewFormOpen]);
 
+  // Calculo e memorizacao de resumos estatisticos da equipe e das empreiteiras.
+  // Memoriza os totais de ativos, inativos, funcoes e valores contratados para exibicao rapida.
   const summary = useMemo(() => {
     const total = employees.length;
     const active = employees.filter((employee) => employee.status === "ativo").length;

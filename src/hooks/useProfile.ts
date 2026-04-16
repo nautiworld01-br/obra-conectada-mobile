@@ -2,6 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
+// Tipos que definem a ocupação e a estrutura do perfil do usuário.
+// future_fix: Expandir ocupações para incluir 'gestor' ou 'cliente'.
 export type Occupation = "owner" | "employee";
 
 type ProfileRecord = {
@@ -12,6 +14,7 @@ type ProfileRecord = {
   is_employee: boolean;
 };
 
+// Helpers para tradução e conversão de permissões e flags de ocupação.
 export function occupationLabelFromFlags(isOwner: boolean, isEmployee: boolean) {
   if (isOwner) {
     return "Proprietario";
@@ -43,6 +46,8 @@ export function deriveOccupation(isOwner: boolean, isEmployee: boolean): Occupat
   return null;
 }
 
+// Gera as iniciais do nome do usuário para exibição em avatares fallback.
+// future_fix: Tratar nomes com apenas uma letra ou caracteres especiais.
 export function buildInitials(name: string) {
   const tokens = name.trim().split(/\s+/).filter(Boolean);
 
@@ -56,6 +61,8 @@ export function buildInitials(name: string) {
     .join("");
 }
 
+// Hook principal para gerenciar o perfil do usuário logado, integrando Auth e Database.
+// future_fix: Implementar sincronização automática entre metadata do Auth e tabela profiles.
 export function useProfile() {
   const { user } = useAuth();
   const metadata = (user?.user_metadata as {

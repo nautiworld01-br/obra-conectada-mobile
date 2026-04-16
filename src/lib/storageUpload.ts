@@ -1,6 +1,7 @@
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
+// Tipagens para parâmetros de upload de arquivo individual e listas de arquivos.
 type UploadLocalFileParams = {
   bucket: string;
   filePath: string;
@@ -22,6 +23,8 @@ type UploadLocalFilesToPublicUrlsParams = {
  * Usamos FormData para que o React Native envie o arquivo em partes (streaming),
  * evitando erros de memoria e arquivos corrompidos.
  */
+// Gerencia a conversão de URIs locais para uploads binários via FormData.
+// future_fix: Adicionar suporte para abortar uploads longos via AbortController.
 export async function uploadLocalFileToStorage({
   bucket,
   filePath,
@@ -67,6 +70,8 @@ export async function uploadLocalFileToStorage({
   }
 }
 
+// Deduz o tipo MIME do arquivo baseado em sua extensão na URI.
+// future_fix: Sincronizar esta lógica com as extensões suportadas em appMedia.ts.
 function inferTypeFromUri(uri: string) {
   const cleanUri = uri.split("?")[0];
   const ext = cleanUri.split(".").pop()?.toLowerCase();
@@ -78,11 +83,14 @@ function inferTypeFromUri(uri: string) {
   return "application/octet-stream";
 }
 
+// Função utilitária para verificar se uma URI é remota ou local.
 export function isRemoteAssetUrl(uri: string | null | undefined) {
   if (!uri) return false;
   return uri.startsWith("http://") || uri.startsWith("https://");
 }
 
+// Realiza o upload em massa de arquivos locais e retorna suas URLs públicas.
+// future_fix: Melhorar o tratamento de erros individuais sem interromper a fila toda.
 export async function uploadLocalFilesToPublicUrls({
   bucket,
   pathPrefix,

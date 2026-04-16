@@ -24,6 +24,10 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
 
+/**
+ * Tela de Cadastro: Registro de novos usuarios.
+ * Diferencia entre Proprietarios (limite de 1 por obra) e Funcionarios.
+ */
 export function SignUpScreen({ navigation }: Props) {
   const { signUp, loading, checkOwnerExists } = useAuth();
   const [fullName, setFullName] = useState("");
@@ -35,6 +39,10 @@ export function SignUpScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  /**
+   * Verifica se ja existe um proprietario cadastrado para travar a opcao no UI.
+   * future_fix: Adicionar fluxo de convite por código/link para vincular funcionarios automaticamente.
+   */
   useEffect(() => {
     const loadOwnerState = async () => {
       const exists = await checkOwnerExists();
@@ -43,155 +51,72 @@ export function SignUpScreen({ navigation }: Props) {
         setOccupation("employee");
       }
     };
-
     void loadOwnerState();
   }, [checkOwnerExists, occupation]);
 
+  /**
+   * Envia os dados para criacao de conta no Supabase.
+   */
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
-
-    const result = await signUp({
-      fullName: fullName.trim(),
-      email: email.trim(),
-      password,
-      occupation,
-    });
+    const result = await signUp({ fullName: fullName.trim(), email: email.trim(), password, occupation });
 
     if (result.error) {
       setError(result.error);
       setSubmitting(false);
       return;
     }
-
     navigation.replace("Login");
     setSubmitting(false);
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardShell}
-      >
-        <ScrollView
-          bounces={false}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardShell}>
+        <ScrollView bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.brandBlock}>
-            <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>OC</Text>
-            </View>
+            <View style={styles.brandBadge}><Text style={styles.brandBadgeText}>OC</Text></View>
             <Text style={styles.title}>Criar conta</Text>
           </View>
 
           <View style={styles.formCard}>
             <Text style={styles.formTitle}>Cadastro</Text>
-
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Nome completo</Text>
-              <TextInput
-                autoCapitalize="words"
-                placeholder="Seu nome"
-                placeholderTextColor={colors.textMuted}
-                style={styles.input}
-                value={fullName}
-                onChangeText={setFullName}
-              />
+              <TextInput autoCapitalize="words" placeholder="Seu nome" placeholderTextColor={colors.textMuted} style={styles.input} value={fullName} onChangeText={setFullName} />
             </View>
 
             <View style={styles.checkboxRow}>
-              <Pressable
-                onPress={() => {
-                  if (!ownerExists) {
-                    setOccupation("owner");
-                  }
-                }}
-                disabled={ownerExists}
-                style={({ pressed }) => [
-                  styles.checkboxButton,
-                  occupation === "owner" && styles.checkboxButtonActive,
-                  ownerExists && styles.checkboxButtonDisabled,
-                  pressed && !ownerExists && styles.checkboxButtonPressed,
-                ]}
-              >
-                <View style={[styles.checkboxBox, occupation === "owner" && styles.checkboxBoxActive, ownerExists && styles.checkboxBoxDisabled]}>
-                  {occupation === "owner" ? <Text style={styles.checkboxMark}>✓</Text> : null}
-                </View>
+              <Pressable onPress={() => !ownerExists && setOccupation("owner")} disabled={ownerExists} style={[styles.checkboxButton, occupation === "owner" && styles.checkboxButtonActive, ownerExists && styles.checkboxButtonDisabled]}>
+                <View style={[styles.checkboxBox, occupation === "owner" && styles.checkboxBoxActive]}>{occupation === "owner" && <Text style={styles.checkboxMark}>✓</Text>}</View>
                 <Text style={[styles.checkboxLabel, ownerExists && styles.checkboxLabelDisabled]}>Proprietário</Text>
               </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  setOccupation("employee");
-                }}
-                style={({ pressed }) => [
-                  styles.checkboxButton,
-                  occupation === "employee" && styles.checkboxButtonActive,
-                  pressed && styles.checkboxButtonPressed,
-                ]}
-              >
-                <View style={[styles.checkboxBox, occupation === "employee" && styles.checkboxBoxActive]}>
-                  {occupation === "employee" ? <Text style={styles.checkboxMark}>✓</Text> : null}
-                </View>
+              <Pressable onPress={() => setOccupation("employee")} style={[styles.checkboxButton, occupation === "employee" && styles.checkboxButtonActive]}>
+                <View style={[styles.checkboxBox, occupation === "employee" && styles.checkboxBoxActive]}>{occupation === "employee" && <Text style={styles.checkboxMark}>✓</Text>}</View>
                 <Text style={styles.checkboxLabel}>Funcionário</Text>
               </Pressable>
             </View>
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Email</Text>
-              <TextInput
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="email-address"
-                placeholder="voce@email.com"
-                placeholderTextColor={colors.textMuted}
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-              />
+              <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="voce@email.com" placeholderTextColor={colors.textMuted} style={styles.input} value={email} onChangeText={setEmail} />
             </View>
-
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Senha</Text>
               <View style={styles.passwordRow}>
-                <TextInput
-                  placeholder="Crie uma senha"
-                  placeholderTextColor={colors.textMuted}
-                  secureTextEntry={!showPassword}
-                  style={styles.passwordInput}
-                  value={password}
-                  onChangeText={setPassword}
-                />
-                <Pressable style={({ pressed }) => [styles.passwordToggle, pressed && styles.buttonPressed]} onPress={() => setShowPassword((value) => !value)}>
-                  <Text style={styles.passwordToggleText}>{showPassword ? "Ocultar" : "Ver"}</Text>
-                </Pressable>
+                <TextInput placeholder="Crie uma senha" placeholderTextColor={colors.textMuted} secureTextEntry={!showPassword} style={styles.passwordInput} value={password} onChangeText={setPassword} />
+                <Pressable style={({ pressed }) => [styles.passwordToggle, pressed && styles.buttonPressed]} onPress={() => setShowPassword((v) => !v)}><Text style={styles.passwordToggleText}>{showPassword ? "Ocultar" : "Ver"}</Text></Pressable>
               </View>
             </View>
 
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-
-            <Pressable
-              disabled={loading || submitting}
-              onPress={handleSubmit}
-              style={({ pressed }) => [
-                styles.button,
-                (loading || submitting || pressed) && styles.buttonPressed,
-              ]}
-            >
-              {submitting ? (
-                <ActivityIndicator color={colors.surface} />
-              ) : (
-                <Text style={styles.buttonText}>Criar conta</Text>
-              )}
+            {error && <Text style={styles.error}>{error}</Text>}
+            <Pressable disabled={loading || submitting} onPress={handleSubmit} style={({ pressed }) => [styles.button, (loading || submitting || pressed) && styles.buttonPressed]}>
+              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Criar conta</Text>}
             </Pressable>
 
             <View style={styles.secondaryActions}>
-              <Pressable onPress={() => navigation.goBack()}>
-                <Text style={styles.secondaryLink}>Voltar para entrar</Text>
-              </Pressable>
+              <Pressable onPress={() => navigation.goBack()}><Text style={styles.secondaryLink}>Voltar para entrar</Text></Pressable>
             </View>
           </View>
         </ScrollView>
@@ -201,199 +126,35 @@ export function SignUpScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  keyboardShell: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 36,
-    paddingBottom: 28,
-    gap: 24,
-  },
-  brandBlock: {
-    gap: 10,
-    alignItems: "center",
-  },
-  brandBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: colors.primarySoft,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  brandBadgeText: {
-    color: colors.primary,
-    fontSize: 19,
-    fontWeight: "800",
-  },
-  title: {
-    fontSize: 35,
-    lineHeight: 40,
-    fontWeight: "800",
-    color: colors.text,
-    textAlign: "center",
-  },
-  formCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: 18,
-    paddingVertical: 20,
-    gap: 16,
-    shadowColor: "#8d7159",
-    shadowOpacity: 0.08,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 10 },
-    elevation: 2,
-  },
-  formTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  fieldGroup: {
-    gap: 8,
-  },
-  checkboxRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  checkboxButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-  },
-  checkboxButtonActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  checkboxButtonPressed: {
-    opacity: 0.85,
-  },
-  checkboxButtonDisabled: {
-    opacity: 0.5,
-  },
-  checkboxBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    borderWidth: 1.5,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.surface,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxBoxActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  checkboxBoxDisabled: {
-    opacity: 0.5,
-  },
-  checkboxMark: {
-    color: colors.surface,
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  checkboxLabel: {
-    flex: 1,
-    color: colors.text,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  checkboxLabelDisabled: {
-    opacity: 0.5,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  input: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: colors.text,
-    fontSize: 15,
-    width: "100%",
-  },
-  passwordRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  passwordInput: {
-    flex: 1,
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: colors.text,
-    fontSize: 15,
-  },
-  passwordToggle: {
-    minWidth: 72,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 12,
-    paddingVertical: 14,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.surface,
-  },
-  passwordToggleText: {
-    color: colors.text,
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  button: {
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    paddingVertical: 16,
-    alignItems: "center",
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  buttonText: {
-    color: colors.surface,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  error: {
-    color: colors.danger,
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  secondaryActions: {
-    paddingTop: 4,
-    alignItems: "center",
-  },
-  secondaryLink: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "700",
-  },
+  safeArea: { flex: 1, backgroundColor: colors.background },
+  keyboardShell: { flex: 1 },
+  scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 36, paddingBottom: 28, gap: 24 },
+  brandBlock: { gap: 10, alignItems: "center" },
+  brandBadge: { width: 52, height: 52, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.cardBorder },
+  brandBadgeText: { color: colors.primary, fontSize: 19, fontWeight: "800" },
+  title: { fontSize: 35, lineHeight: 40, fontWeight: "800", color: colors.text, textAlign: "center" },
+  formCard: { backgroundColor: colors.surface, borderRadius: 28, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 18, paddingVertical: 20, gap: 16, shadowColor: "#8d7159", shadowOpacity: 0.08, shadowRadius: 22, shadowOffset: { width: 0, height: 10 }, elevation: 2 },
+  formTitle: { fontSize: 20, fontWeight: "700", color: colors.text },
+  fieldGroup: { gap: 8 },
+  checkboxRow: { flexDirection: "row", gap: 10 },
+  checkboxButton: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, paddingVertical: 14 },
+  checkboxButtonActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  checkboxButtonDisabled: { opacity: 0.5 },
+  checkboxBox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: colors.cardBorder, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
+  checkboxBoxActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  checkboxMark: { color: colors.surface, fontSize: 13, fontWeight: "800" },
+  checkboxLabel: { flex: 1, color: colors.text, fontSize: 14, fontWeight: "600" },
+  checkboxLabelDisabled: { opacity: 0.5 },
+  label: { fontSize: 13, fontWeight: "700", color: colors.text },
+  input: { backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: 15, width: "100%" },
+  passwordRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  passwordInput: { flex: 1, backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: 15 },
+  passwordToggle: { minWidth: 72, alignItems: "center", justifyContent: "center", paddingHorizontal: 12, paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface },
+  passwordToggleText: { color: colors.text, fontSize: 13, fontWeight: "700" },
+  button: { borderRadius: 16, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
+  buttonPressed: { opacity: 0.8 },
+  buttonText: { color: colors.surface, fontSize: 15, fontWeight: "700" },
+  error: { color: colors.danger, fontSize: 13, lineHeight: 20 },
+  secondaryActions: { paddingTop: 4, alignItems: "center" },
+  secondaryLink: { color: colors.primary, fontSize: 14, fontWeight: "700" },
 });

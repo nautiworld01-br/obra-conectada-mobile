@@ -17,6 +17,8 @@ const MONTHS_LIST = [
   { id: 11, label: "Dezembro" },
 ];
 
+// Funcoes utilitarias para manipulacao de datas e calculo de semanas do mes.
+// future_fix: centralizar isoDate em um modulo de utilitarios de data para evitar redundancia.
 function isoDate(date: Date) {
   const year = date.getFullYear();
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -35,17 +37,21 @@ function getCalendarWeekOfMonth(date: Date) {
   return Math.floor(offsetDate / 7) + 1;
 }
 
+// Tela de Relatorio de Presenca, que consolida os dados de frequencia a partir dos Diarios de Obra.
+// Exibe estatisticas diarias, graficos semanais e resumos mensais de assiduidade da equipe.
 export function PresenceScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [summaryMonth, setSummaryMonth] = useState<{ id: number; label: string } | null>(null);
   
+  // Hooks para busca de logs diarios e lista de funcionarios via custom hook useDailyLogs.
   const dateKey = useMemo(() => isoDate(selectedDate), [selectedDate]);
   const { employees, logs, isLoading } = useDailyLogs();
 
   const dailyLog = useMemo(() => logs.find(log => log.date === dateKey), [logs, dateKey]);
   const activeEmployees = useMemo(() => employees.filter(e => e.status === "ativo"), [employees]);
 
-  // Estatisticas do modal de resumo mensal
+  // Calculo de estatisticas consolidadas para o modal de resumo mensal.
+  // Filtra logs do mes selecionado e calcula presencas e faltas (coletivas) por funcionario.
   const monthStats = useMemo(() => {
     if (!summaryMonth) return null;
     
@@ -73,6 +79,8 @@ export function PresenceScreen() {
     return { individualStats, totalPresences, totalAbsences, averagePercent };
   }, [summaryMonth, logs, activeEmployees]);
 
+  // Transformacao dos dados de logs em um formato compativel com o grafico de barras da UI.
+  // Agrupa as presencas por semana do mes (S1, S2, etc.) para cada funcionario ativo.
   const chartData = useMemo(() => {
     const currentMonth = selectedDate.getMonth();
     const currentYear = selectedDate.getFullYear();
@@ -99,6 +107,8 @@ export function PresenceScreen() {
     setSelectedDate(next);
   };
 
+  // Resumo rapido de presentes e faltas para a data selecionada no navegador de datas.
+  // future_fix: tratar casos onde o log existe mas o array presenceIds nao foi inicializado (null-check).
   const summary = useMemo(() => {
     if (!dailyLog) return { presentes: 0, faltas: 0 };
     
@@ -113,6 +123,8 @@ export function PresenceScreen() {
     return { presentes, faltas };
   }, [dailyLog, activeEmployees]);
 
+  // Renderizacao da tela com Navegador de Datas, Cards de Resumo, Grafico Semanal e Listagem da Equipe.
+  // O grafico e construido manualmente usando Views para representar as barras de frequencia.
   return (
     <AppScreen title="Relatório de Presença" subtitle="Frequência baseada no Diário de Obra.">
       

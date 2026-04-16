@@ -13,11 +13,19 @@ import { usePayments } from "../hooks/usePayments";
 import { useUpdates } from "../hooks/useUpdates";
 import { useTeam } from "../hooks/useTeam";
 
+/**
+ * Formata valores numericos para moeda Real (BRL).
+ * Exibe 'Nao informado' se o valor for nulo ou invalido.
+ */
 function formatMoney(value: number | null) {
   if (typeof value !== "number" || Number.isNaN(value)) return "Nao informado";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
 }
 
+/**
+ * Modal de edicao dos dados do projeto (nome, endereco, valor e inicio).
+ * future_fix: Adicionar seletor de data (calendario) para o campo de Inicio.
+ */
 function EditProjectModal({
   project,
   visible,
@@ -36,6 +44,7 @@ function EditProjectModal({
   const [value, setValue] = useState(project?.total_contract_value?.toString() ?? "");
   const [startDate, setStartDate] = useState(project?.start_date ?? "");
 
+  // Sincroniza o estado local quando o modal abre ou o projeto muda.
   useEffect(() => {
     if (visible && project) {
       setName(project.name ?? "");
@@ -132,6 +141,10 @@ function EditProjectModal({
   );
 }
 
+/**
+ * Tela de Configuracoes: Dashboard operacional e ambiente técnico.
+ * Exibe resumo de todos os modulos e permite edicao do projeto ao proprietario.
+ */
 export function SettingsScreen() {
   const { signOut, isConfigured, user } = useAuth();
   const { fullName, occupationLabel, avatarUrl, isOwner } = useProfile();
@@ -145,6 +158,7 @@ export function SettingsScreen() {
 
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+  // Consolida contadores de todos os modulos para o resumo.
   const activeEmployees = employees.filter((employee) => employee.status === "ativo").length;
   const pendingPayments = payments.filter((payment) => payment.status === "pendente" || payment.status === "em_analise").length;
   const openStages = stages.filter((stage) => stage.status !== "concluido").length;
@@ -165,6 +179,10 @@ export function SettingsScreen() {
     ]);
   };
 
+  /**
+   * Dispara a mutation de atualizacao do projeto no Supabase.
+   * future_fix: Adicionar feedback visual de 'Sucesso' alem de apenas fechar o modal.
+   */
   const handleUpdateProject = async (payload: any) => {
     try {
       await updateProject.mutateAsync(payload);

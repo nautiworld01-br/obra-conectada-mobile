@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+// Definições de cargos e estados para os membros da equipe (funcionários).
+// future_fix: Expandir a lista de cargos conforme a demanda de novos projetos.
 export type TeamEmployeeRole = "empregada domestica" | "marinheiro";
 export type TeamEmployeeStatus = "ativo" | "inativo";
 
@@ -15,6 +17,8 @@ export type TeamEmployeeRow = {
   status: TeamEmployeeStatus;
 };
 
+// Hook para gerenciar a listagem da equipe, incluindo sincronização em tempo real.
+// future_fix: Avaliar impacto de performance do Realtime em equipes muito grandes.
 export function useTeam() {
   const { project, isLoading: projectLoading } = useProject();
   const queryClient = useQueryClient();
@@ -42,6 +46,7 @@ export function useTeam() {
     },
   });
 
+  // Configura a escuta de mudanças (INSERT, UPDATE, DELETE) na tabela de funcionários.
   useEffect(() => {
     if (!project?.id || !supabase) return;
 
@@ -74,6 +79,7 @@ export function useTeam() {
   };
 }
 
+// Gerencia a adição ou edição de membros da equipe no banco de dados.
 export function useUpsertEmployee() {
   const queryClient = useQueryClient();
 
@@ -132,6 +138,7 @@ export function useUpsertEmployee() {
   });
 }
 
+// Remove um funcionário da base de dados e invalida os caches relacionados.
 export function useDeleteEmployee() {
   const queryClient = useQueryClient();
 

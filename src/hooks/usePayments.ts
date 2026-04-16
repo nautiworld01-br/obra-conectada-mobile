@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+// Definições de estados e categorias para o fluxo financeiro de pagamentos.
+// future_fix: Adicionar tipos de pagamento para impostos e taxas administrativas.
 export type PaymentStatus = "pendente" | "em_analise" | "aprovado" | "pago" | "recusado";
 export type PaymentCategory = "mao_de_obra_projeto" | "mao_de_obra_extras" | "insumos_extras";
 
@@ -28,6 +30,7 @@ export type PaymentRow = {
   category: PaymentCategory;
 };
 
+// Hook para buscar o histórico de pagamentos e solicitações vinculadas ao projeto.
 export function usePayments() {
   const { project } = useProject();
 
@@ -63,6 +66,8 @@ export function usePayments() {
   };
 }
 
+// Cria ou atualiza uma solicitação de pagamento, suportando edição de registros existentes.
+// future_fix: Implementar validação de teto orçamentário por etapa antes do upsert.
 export function useUpsertPayment() {
   const queryClient = useQueryClient();
 
@@ -138,6 +143,7 @@ export function useUpsertPayment() {
   });
 }
 
+// Atualiza o status de aprovação ou liquidação de um pagamento (Fluxo de Aprovação).
 export function useUpdatePaymentStatus() {
   const queryClient = useQueryClient();
 
@@ -189,6 +195,7 @@ export function useUpdatePaymentStatus() {
   });
 }
 
+// Remove uma solicitação de pagamento específica e sincroniza o estado global.
 export function useDeletePayment() {
   const queryClient = useQueryClient();
 

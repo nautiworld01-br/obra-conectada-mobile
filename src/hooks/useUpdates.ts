@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+// Tipos que representam os relatórios de status semanal da obra.
+// future_fix: Adicionar campo para assinatura digital do responsável técnico.
 export type UpdateStatus = "adiantado" | "no_prazo" | "atrasado";
 
 export type UpdateRow = {
@@ -27,6 +29,7 @@ export type UpdateRow = {
   updated_at: string;
 };
 
+// Hook para buscar e listar todos os relatórios semanais do projeto atual.
 export function useUpdates() {
   const { project } = useProject();
 
@@ -62,6 +65,8 @@ export function useUpdates() {
   };
 }
 
+// Gerencia a criação ou atualização de relatórios semanais, incluindo listas de serviços.
+// future_fix: Validar se a data do relatório está dentro da semana de referência informada.
 export function useUpsertUpdate() {
   const queryClient = useQueryClient();
 
@@ -143,6 +148,7 @@ export function useUpsertUpdate() {
   });
 }
 
+// Remove um relatório semanal específico e atualiza o estado das queries relacionadas.
 export function useDeleteUpdate() {
   const queryClient = useQueryClient();
 
@@ -164,6 +170,7 @@ export function useDeleteUpdate() {
   });
 }
 
+// Permite que o proprietário aprove ou desaprove um relatório semanal enviado pela equipe.
 export function useToggleApprovedUpdate() {
   const queryClient = useQueryClient();
 

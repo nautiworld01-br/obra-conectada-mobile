@@ -1,3 +1,8 @@
+/**
+ * Configuração da paleta de cores global do aplicativo.
+ * Define a identidade visual baseada no design do Obra Conectada.
+ * future_fix: Adicionar suporte a dark mode via Hook useColorScheme para acessibilidade.
+ */
 export const colors = {
   background: "#f4f1ea",
   surface: "#ffffff",

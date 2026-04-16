@@ -1,5 +1,8 @@
+-- Extensao para geracao de UUIDs
 create extension if not exists pgcrypto;
 
+-- Tabela de Equipes de Obra (Empreiteiras e Empresas terceirizadas)
+-- Armazena dados de contato, financeiros e prazos de contrato.
 create table if not exists public.work_crews (
   id uuid primary key default gen_random_uuid(),
   project_id uuid not null references public.projects(id) on delete cascade,
@@ -17,7 +20,11 @@ create table if not exists public.work_crews (
   updated_at timestamptz not null default now()
 );
 
+-- Habilita RLS para controle de acesso granular.
 alter table public.work_crews enable row level security;
+
+-- Politicas de Acesso: Restringe visualizacao e gestao apenas ao Proprietario da obra.
+-- future_fix: Permitir visualizacao (select) tambem para membros com role 'funcionario' se necessario.
 
 drop policy if exists "Owners can view work crews" on public.work_crews;
 create policy "Owners can view work crews"

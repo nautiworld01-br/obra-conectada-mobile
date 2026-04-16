@@ -49,6 +49,8 @@ const monthLabels = [
   "dezembro",
 ];
 
+// Funcoes utilitarias para manipulacao de datas e geracao da grade do calendario.
+// future_fix: mover para src/lib/dateUtils.ts para evitar duplicacao de logica de calendario.
 function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
@@ -89,6 +91,8 @@ function buildMonthGrid(currentMonthDate: Date) {
   });
 }
 
+// Componente de formulario para criacao e edicao de registros diarios.
+// Gerencia estados complexos de campos de texto, selecao de funcionarios e upload de midia.
 function DailyLogForm({
   projectId,
   date,
@@ -121,6 +125,8 @@ function DailyLogForm({
   }) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
+  // Estados locais para controle dos campos do formulario e lista de midias (fotos/videos).
+  // future_fix: considerar o uso de react-hook-form para reduzir a quantidade de estados manuais.
   const [activities, setActivities] = useState(existingLog?.activities ?? "");
   const [weather, setWeather] = useState(existingLog?.weather ?? "");
   const [observations, setObservations] = useState(existingLog?.observations ?? "");
@@ -148,11 +154,13 @@ function DailyLogForm({
     );
   };
 
+  // Logica de selecao de arquivos da galeria utilizando Expo ImagePicker.
+  // Suporta selecao multipla de fotos e videos com controle de permissao.
   const pickMediaFiles = async (isPhoto: boolean): Promise<string[]> => {
     try {
       const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!granted) {
-        Alert.alert("Permissão", `Permita o acesso a galeria para escolher ${isPhoto ? "fotos" : "vídeos"}.`);
+        Alert.alert("Permissao", `Permita o acesso a galeria para escolher ${isPhoto ? "fotos" : "videos"}.`);
         return [];
       }
 
@@ -231,6 +239,8 @@ function DailyLogForm({
     onClose();
   };
 
+  // Processo de salvamento do registro, incluindo o upload de midias para o Supabase Storage.
+  // future_fix: implementar barra de progresso para uploads de videos grandes.
   const handleSave = async () => {
     if (!activities.trim()) {
       setLocalError("Descreva ao menos as atividades realizadas no dia.");
@@ -495,6 +505,8 @@ function DailyLogForm({
   );
 }
 
+// Modal de visualizacao detalhada de um registro diario ja existente.
+// Exibe textos, lista de equipe presente e galeria de midias anexadas.
 function DailyLogDetailsModal({
   date,
   log,
@@ -592,7 +604,11 @@ function DailyLogDetailsModal({
   );
 }
 
+// Tela principal do modulo "Dia a Dia", exibindo um calendario mensal de registros.
+// Controla a navegacao entre meses e a abertura de modais de criacao/detalhes.
 export function DailyScreen() {
+  // Hooks para autenticacao, dados do projeto, logs e equipe.
+  // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
   const { project, logs, employees, isLoading } = useDailyLogs();
   const upsertDailyLog = useUpsertDailyLog();
@@ -602,6 +618,8 @@ export function DailyScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
+  // Mapeamento dos logs por data para facilitar a verificacao de registros no calendario.
+  // Otimiza a performance de renderizacao da grade mensal (O(1) para cada dia).
   const logsByDate = useMemo(() => {
     const map: Record<string, DailyLogRow> = {};
     logs.forEach((log) => {
@@ -612,6 +630,9 @@ export function DailyScreen() {
 
   const selectedLog = selectedDate ? logsByDate[selectedDate] ?? null : null;
   const employeeIdsQuery = useDailyLogDetail(selectedLog?.id ?? null);
+  
+  // Calculo e memorizacao da grade de dias do mes atual e labels de exibicao.
+  // monthGrid gera uma lista de objetos DayCell para renderizar no calendario.
   const monthGrid = useMemo(() => buildMonthGrid(monthDate), [monthDate]);
   const monthLabel = `${monthLabels[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
   const today = startOfDay(new Date());
@@ -621,6 +642,8 @@ export function DailyScreen() {
     [logs, monthDate],
   );
 
+  // Manipulador para abertura de um dia especifico no calendario.
+  // Decide se deve abrir o formulario de criacao ou o modal de detalhes (se ja houver log).
   const handleOpenDate = (date: Date) => {
     const normalizedDate = startOfDay(date);
 
@@ -649,6 +672,8 @@ export function DailyScreen() {
     }, 300);
   };
 
+  // Funcao para salvar (criar ou atualizar) um registro diario no Supabase.
+  // Chama a mutation do hook useUpsertDailyLog e fecha o formulario em caso de sucesso.
   const handleSave = async (payload: { 
     activities: string; 
     weather: string; 
@@ -689,6 +714,8 @@ export function DailyScreen() {
     setFormOpen(false);
   };
 
+  // Renderizacao do componente principal com Header, Calendario e Listagem mensal.
+  // O calendario utiliza pressables para cada dia da grade gerada.
   return (
     <View style={styles.screen}>
       <View style={styles.dailyHeader}>

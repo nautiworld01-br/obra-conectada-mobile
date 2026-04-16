@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+// Tipos que representam a estrutura de dados dos registros diários e funcionários.
+// future_fix: Avaliar a necessidade de tipos compartilhados em um arquivo centralizado.
 export type DailyLogRow = {
   id: string;
   date: string;
@@ -21,9 +23,11 @@ export type EmployeeRow = {
   status: "ativo" | "inativo";
 };
 
+// Hook principal para gerenciar os diários de obra, consolidando logs e funcionários.
 export function useDailyLogs() {
   const { project, isLoading: isProjectLoading } = useProject();
 
+  // Busca todos os logs diários vinculados ao projeto atual, incluindo IDs de presença.
   const logsQuery = useQuery({
     queryKey: ["daily_logs", project?.id],
     enabled: Boolean(project?.id && supabase),
@@ -53,6 +57,7 @@ export function useDailyLogs() {
     },
   });
 
+  // Lista os funcionários ativos vinculados ao projeto para marcação de presença no log.
   const employeesQuery = useQuery({
     queryKey: ["employees", project?.id, "ativo"],
     enabled: Boolean(project?.id && supabase),
@@ -84,6 +89,8 @@ export function useDailyLogs() {
   };
 }
 
+// Busca detalhada dos funcionários associados a um registro diário específico.
+// future_fix: Considerar cache compartilhado para evitar múltiplas requisições.
 export function useDailyLogDetail(logId: string | null) {
   return useQuery({
     queryKey: ["daily_log_employees", logId],
@@ -107,6 +114,8 @@ export function useDailyLogDetail(logId: string | null) {
   });
 }
 
+// Gerencia a criação ou atualização (upsert) de um log diário e suas presenças relacionadas.
+// future_fix: Transacionalidade do upsert e delete/insert de presenças deve ser garantida via RPC se possível.
 export function useUpsertDailyLog() {
   const queryClient = useQueryClient();
 
@@ -173,6 +182,7 @@ export function useUpsertDailyLog() {
   });
 }
 
+// Remove um log diário específico e invalida as queries relacionadas para atualizar a UI.
 export function useDeleteDailyLog() {
   const queryClient = useQueryClient();
 

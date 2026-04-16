@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
+// Tipos que definem a estrutura e categorização de documentos de um projeto.
+// future_fix: Adicionar novas categorias conforme a evolução do sistema (ex: ART, RRT).
 export type DocumentCategory = "contrato" | "alvara" | "laudo" | "nota_fiscal" | "outro";
 
 export type ProjectDocumentRow = {
@@ -21,6 +23,7 @@ export type ProjectDocumentRow = {
 
 const EMPTY_DOCUMENTS: ProjectDocumentRow[] = [];
 
+// Hook para buscar e listar todos os documentos vinculados ao projeto atual.
 export function useDocuments() {
   const { project } = useProject();
 
@@ -54,6 +57,8 @@ export function useDocuments() {
   };
 }
 
+// Registra um novo documento no banco de dados após o upload físico do arquivo.
+// future_fix: Validar integridade entre a entrada na tabela e o arquivo no storage.
 export function useCreateDocument() {
   const queryClient = useQueryClient();
 
@@ -101,6 +106,7 @@ export function useCreateDocument() {
   });
 }
 
+// Remove o documento do banco de dados e apaga o arquivo correspondente no bucket de storage.
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
 
@@ -128,6 +134,8 @@ export function useDeleteDocument() {
   });
 }
 
+// Gera uma URL temporária assinada para visualização segura de documentos privados.
+// future_fix: Aumentar o tempo de expiração se necessário para visualização de PDFs longos.
 export function useSignedDocumentUrl() {
   return useMutation({
     mutationFn: async (payload: { filePath: string }) => {

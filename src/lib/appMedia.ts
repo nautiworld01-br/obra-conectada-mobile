@@ -1,24 +1,31 @@
 import { uploadLocalFileToStorage } from "./storageUpload";
 import { supabase } from "./supabase";
 
+// Configurações padrão para o armazenamento de mídia do aplicativo.
 const DEFAULT_BUCKET = "app-media";
 
+// Verifica se uma URI já é um link remoto (http/https).
+// future_fix: Adicionar validação de formato de URL mais robusta se necessário.
 export function isRemoteAssetUrl(uri: string | null | undefined) {
   if (!uri) return false;
   const trimmed = uri.trim();
   return trimmed.startsWith("http://") || trimmed.startsWith("https://");
 }
 
+// Remove caracteres especiais de nomes de arquivos para evitar erros no Storage.
 function sanitizeFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+// Extrai a extensão do arquivo a partir de sua URI ou caminho.
 function inferExtension(uri: string) {
   const cleanUri = uri.split("?")[0] ?? uri;
   const match = cleanUri.match(/\.([a-zA-Z0-9]+)$/);
   return match ? `.${match[1].toLowerCase()}` : "";
 }
 
+// Mapeia extensões comuns para seus respectivos tipos MIME de mídia.
+// future_fix: Expandir suporte para outros formatos de documentos se necessário.
 function inferContentType(uri: string) {
   const extension = inferExtension(uri);
   switch (extension) {
@@ -53,6 +60,8 @@ function inferContentType(uri: string) {
   }
 }
 
+// Gerencia o upload de um arquivo local para o Supabase Storage se ele ainda não for remoto.
+// Retorna a URL pública do arquivo após o upload bem-sucedido.
 export async function uploadAppMediaIfNeeded(params: {
   uri: string | null | undefined;
   pathPrefix: string;
@@ -84,6 +93,8 @@ export async function uploadAppMediaIfNeeded(params: {
   return data.publicUrl;
 }
 
+// Processa uma lista de URIs, realizando o upload de cada uma que for local.
+// future_fix: Implementar processamento em lote ou fila para melhorar a performance.
 export async function uploadAppMediaListIfNeeded(params: {
   uris: string[];
   pathPrefix: string;
