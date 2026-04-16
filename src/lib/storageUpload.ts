@@ -1,7 +1,6 @@
 import { Platform } from "react-native";
 import { supabase } from "./supabase";
 
-// Tipagens para parâmetros de upload de arquivo individual e listas de arquivos.
 type UploadLocalFileParams = {
   bucket: string;
   filePath: string;
@@ -19,12 +18,42 @@ type UploadLocalFilesToPublicUrlsParams = {
 };
 
 /**
- * Realiza o upload de um arquivo local para o storage do Supabase.
- * Usamos FormData para que o React Native envie o arquivo em partes (streaming),
- * evitando erros de memoria e arquivos corrompidos.
+ * Extrai o path do arquivo de uma URL publica do Supabase.
+ * Ex: https://xxx.supabase.co/storage/v1/object/public/bucket/pasta/foto.jpg -> pasta/foto.jpg
  */
-// Gerencia a conversão de URIs locais para uploads binários via FormData.
-// future_fix: Adicionar suporte para abortar uploads longos via AbortController.
+export function extractPathFromSupabaseUrl(url: string | null | undefined): string | null {
+  if (!url || !url.includes("/public/")) return null;
+  try {
+    const parts = url.split("/public/");
+    if (parts.length < 2) return null;
+    
+    // Pega tudo após o nome do bucket
+    const pathWithBucket = parts[1];
+    const firstSlashIndex = pathWithBucket.indexOf("/");
+    if (firstSlashIndex === -1) return null;
+    
+    return pathWithBucket.substring(firstSlashIndex + 1);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Remove um arquivo fisicamente do Storage.
+ * future_fix: Adicionar log de erro se a delecao falhar mas o registro no banco continuar.
+ */
+export async function deleteFileFromStorage(bucket: string, url: string | null | undefined) {
+  if (!supabase || !url) return;
+  const path = extractPathFromSupabaseUrl(url);
+  if (!path) return;
+
+  try {
+    await supabase.storage.from(bucket).remove([path]);
+  } catch (err) {
+    console.error("Falha ao limpar arquivo antigo do storage:", err);
+  }
+}
+
 export async function uploadLocalFileToStorage({
   bucket,
   filePath,
@@ -32,17 +61,12 @@ export async function uploadLocalFileToStorage({
   contentType,
   upsert = false,
 }: UploadLocalFileParams) {
-  if (!supabase) {
-    throw new Error("Supabase nao configurado.");
-  }
+  if (!supabase) throw new Error("Supabase nao configurado.");
 
   const fileName = filePath.split("/").pop() || "file";
   const fileType = contentType || inferTypeFromUri(fileUri);
-
-  // Criamos um FormData, que e a forma nativa do React Native lidar com uploads de arquivos
   const formData = new FormData();
   
-  // O 'append' precisa receber esse objeto especial que o RN reconhece como arquivo
   formData.append("file", {
     uri: Platform.OS === "ios" ? fileUri.replace("file://", "") : fileUri,
     name: fileName,
@@ -50,28 +74,20 @@ export async function uploadLocalFileToStorage({
   } as any);
 
   try {
-    // No Supabase, quando enviamos FormData, ele extrai o arquivo automaticamente
     const { error } = await supabase.storage.from(bucket).upload(filePath, formData, {
       upsert,
       cacheControl: "3600",
-      // Importante: nao definimos o contentType aqui para o FormData usar o boundary correto
     });
 
     if (error) {
-      console.error("--- ERRO NO SUPABASE STORAGE ---");
-      console.error("Bucket:", bucket);
-      console.error("Path:", filePath);
-      console.error("Erro Detalhado:", error);
+      console.error("Supabase Storage Error:", error);
       throw error;
     }
   } catch (err) {
-    console.error("Falha fatal no uploadLocalFileToStorage:", err);
     throw err;
   }
 }
 
-// Deduz o tipo MIME do arquivo baseado em sua extensão na URI.
-// future_fix: Sincronizar esta lógica com as extensões suportadas em appMedia.ts.
 function inferTypeFromUri(uri: string) {
   const cleanUri = uri.split("?")[0];
   const ext = cleanUri.split(".").pop()?.toLowerCase();
@@ -79,18 +95,14 @@ function inferTypeFromUri(uri: string) {
   if (ext === "png") return "image/png";
   if (ext === "gif") return "image/gif";
   if (ext === "mp4") return "video/mp4";
-  if (ext === "mov") return "video/quicktime";
   return "application/octet-stream";
 }
 
-// Função utilitária para verificar se uma URI é remota ou local.
 export function isRemoteAssetUrl(uri: string | null | undefined) {
   if (!uri) return false;
   return uri.startsWith("http://") || uri.startsWith("https://");
 }
 
-// Realiza o upload em massa de arquivos locais e retorna suas URLs públicas.
-// future_fix: Melhorar o tratamento de erros individuais sem interromper a fila toda.
 export async function uploadLocalFilesToPublicUrls({
   bucket,
   pathPrefix,
@@ -98,34 +110,20 @@ export async function uploadLocalFilesToPublicUrls({
   fileBaseName,
   contentType,
 }: UploadLocalFilesToPublicUrlsParams) {
-  if (!supabase) {
-    throw new Error("Supabase nao configurado.");
-  }
-
+  if (!supabase) throw new Error("Supabase nao configurado.");
   const uploadedUrls: string[] = [];
 
   for (const [index, uri] of uris.entries()) {
     if (!uri?.trim()) continue;
-
     if (isRemoteAssetUrl(uri)) {
       uploadedUrls.push(uri.trim());
       continue;
     }
 
     const filePath = `${pathPrefix}/${Date.now()}_${fileBaseName}_${index + 1}`;
-
-    await uploadLocalFileToStorage({
-      bucket,
-      filePath,
-      fileUri: uri,
-      contentType,
-    });
-
+    await uploadLocalFileToStorage({ bucket, filePath, fileUri: uri, contentType });
     const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-    if (data?.publicUrl) {
-      uploadedUrls.push(data.publicUrl);
-    }
+    if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
   }
-
   return uploadedUrls;
 }

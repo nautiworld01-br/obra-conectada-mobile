@@ -8,6 +8,7 @@ import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { buildInitials, useProfile } from "../hooks/useProfile";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
+import { deleteFileFromStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
 
 /**
@@ -58,6 +59,11 @@ export function MoreScreen() {
     if (!draftName.trim()) { Alert.alert("Perfil", "Informe o nome."); return; }
     setSaving(true);
     try {
+      // Se a foto mudou, deletamos a antiga antes de subir a nova para economizar espaco.
+      if (draftAvatar !== avatarUrl) {
+        await deleteFileFromStorage("app-media", avatarUrl);
+      }
+
       const uploadedUrl = await uploadAppMediaIfNeeded({
         uri: draftAvatar.trim() || null,
         pathPrefix: `users/${user.id}/avatar`,
