@@ -10,10 +10,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import { colors } from "../config/theme";
 import { Validator } from "../lib/validation";
 import { StageRow, StageStatus, useDeleteStage, useStages, useUpsertStage } from "../hooks/useStages";
-import { ScheduleStatusScreen } from "./ScheduleStatusScreen";
+import { AppIcon } from "../components/AppIcon";
+import { AppDatePicker } from "../components/AppDatePicker";
 
 /**
  * Opções de status permitidas para as etapas da obra.
@@ -31,11 +33,11 @@ const statusOptions: { value: StageStatus; label: string }[] = [
  */
 function getStageStatusColors(status: StageStatus) {
   switch (status) {
-    case "concluido": return { cardBackground: "#edf8f0", pillBackground: "#d7efdf", pillText: colors.success };
-    case "em_andamento": return { cardBackground: "#eef2ff", pillBackground: "#dde6ff", pillText: "#4169e1" };
-    case "atrasado": return { cardBackground: "#fff0eb", pillBackground: "#ffdcd1", pillText: colors.danger };
-    case "bloqueado": return { cardBackground: "#f1efe9", pillBackground: "#e1ddd4", pillText: colors.textMuted };
-    default: return { cardBackground: colors.surface, pillBackground: "#f3efe8", pillText: colors.textMuted };
+    case "concluido": return { cardBackground: colors.successLight, pillBackground: colors.successLight, pillText: colors.success };
+    case "em_andamento": return { cardBackground: colors.infoLight, pillBackground: colors.infoLight, pillText: colors.info };
+    case "atrasado": return { cardBackground: colors.dangerLight, pillBackground: colors.dangerLight, pillText: colors.danger };
+    case "bloqueado": return { cardBackground: colors.surfaceMuted, pillBackground: colors.divider, pillText: colors.textMuted };
+    default: return { cardBackground: colors.surface, pillBackground: colors.surfaceMuted, pillText: colors.textMuted };
   }
 }
 
@@ -49,33 +51,7 @@ function toDisplayDate(value: string | null) {
 }
 
 /**
- * Converte data brasileira para formato de banco ISO.
- */
-function toIsoDate(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split("/");
-  if (parts.length !== 3) return null;
-  return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
-}
-
-/**
- * Gera a grade de dias para o componente de calendario customizado.
- */
-function buildMonthGrid(currentMonthDate: Date) {
-  const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
-  const start = new Date(firstDay);
-  start.setDate(firstDay.getDate() - firstDay.getDay());
-  return Array.from({ length: 35 }).map((_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return { key: `${date.getTime()}`, iso: date.toISOString().split("T")[0], dayNumber: date.getDate(), currentMonth: date.getMonth() === currentMonthDate.getMonth() };
-  });
-}
-
-/**
  * Formulario de Etapa: Criacao e edicao de marcos do cronograma.
- * future_fix: Migrar para seletor de status via BottomSheet para melhor UX em mobile.
  */
 function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelete }: any) {
   const [name, setName] = useState("");
@@ -84,8 +60,6 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
   const [status, setStatus] = useState<StageStatus>("nao_iniciado");
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedEnd, setPlannedEnd] = useState("");
-  const [dateOpen, setDateOpen] = useState(false);
-  const [activeField, setActiveField] = useState<"start" | "end" | null>(null);
 
   // Sincroniza o rascunho com os dados reais ao abrir para edicao.
   useEffect(() => {
@@ -94,8 +68,8 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
       setCategory(stage?.category ?? "");
       setResponsible(stage?.responsible ?? "");
       setStatus(stage?.status ?? "nao_iniciado");
-      setPlannedStart(stage?.planned_start ? toDisplayDate(stage.planned_start) : "");
-      setPlannedEnd(stage?.planned_end ? toDisplayDate(stage.planned_end) : "");
+      setPlannedStart(stage?.planned_start ?? "");
+      setPlannedEnd(stage?.planned_end ?? "");
     }
   }, [stage, visible]);
 
@@ -105,21 +79,50 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
   const handleInternalSave = () => {
     const nameVal = Validator.required(name, "nome");
     if (!nameVal.isValid) { Alert.alert("Erro", nameVal.error!); return; }
-    onSave({ name: name.trim(), category, responsible, status, plannedStart: toIsoDate(plannedStart), plannedEnd: toIsoDate(plannedEnd), percentComplete: stage?.percent_complete ?? 0 });
+    onSave({ 
+      name: name.trim(), 
+      category, 
+      responsible, 
+      status, 
+      plannedStart: plannedStart || null, 
+      plannedEnd: plannedEnd || null, 
+      percentComplete: stage?.percent_complete ?? 0 
+    });
   };
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
       <Pressable style={styles.modalBackdrop} onPress={onClose}>
         <Pressable style={styles.modalCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}><Text style={styles.modalTitle}>{stage ? "Editar" : "Nova"} Etapa</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{stage ? "Editar" : "Nova"} Etapa</Text>
+            <Pressable onPress={onClose}>
+              <AppIcon name="X" size={24} color={colors.textMuted} />
+            </Pressable>
+          </View>
           <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <Text style={styles.fieldLabel}>Nome da Etapa *</Text>
-            <TextInput style={styles.fieldInput} value={name} onChangeText={setName} />
-            <View style={styles.row}>
-              <View style={{flex: 1}}><Text style={styles.fieldLabel}>Início</Text><Pressable style={styles.dateField} onPress={() => { setActiveField("start"); setDateOpen(true); }}><Text>{plannedStart || "dd/mm/aaaa"}</Text></Pressable></View>
-              <View style={{flex: 1}}><Text style={styles.fieldLabel}>Fim</Text><Pressable style={styles.dateField} onPress={() => { setActiveField("end"); setDateOpen(true); }}><Text>{plannedEnd || "dd/mm/aaaa"}</Text></Pressable></View>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Nome da Etapa *</Text>
+              <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Ex: Fundacao" />
             </View>
+            
+            <View style={styles.row}>
+              <View style={{flex: 1}}>
+                <AppDatePicker 
+                  label="Início" 
+                  value={plannedStart} 
+                  onChange={setPlannedStart} 
+                />
+              </View>
+              <View style={{flex: 1}}>
+                <AppDatePicker 
+                  label="Fim" 
+                  value={plannedEnd} 
+                  onChange={setPlannedEnd} 
+                />
+              </View>
+            </View>
+
             <View style={styles.formActions}>
               <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={handleInternalSave}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar Etapa</Text>}
@@ -133,7 +136,6 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
           </ScrollView>
         </Pressable>
       </Pressable>
-      <Modal transparent visible={dateOpen}><Pressable style={styles.modalBackdrop} onPress={() => setDateOpen(false)}><View style={styles.calendarModalCard}><View style={styles.calendarGrid}>{buildMonthGrid(new Date()).map(cell => (<Pressable key={cell.key} style={styles.calendarDay} onPress={() => { if (activeField === "start") setPlannedStart(toDisplayDate(cell.iso)); else setPlannedEnd(toDisplayDate(cell.iso)); setDateOpen(false); }}><Text>{cell.dayNumber}</Text></Pressable>))}</View></View></Pressable></Modal>
     </Modal>
   );
 }
@@ -185,7 +187,15 @@ export function ScheduleScreen() {
       <View style={styles.header}><Text style={styles.title}>Cronograma</Text><Pressable style={styles.newButton} onPress={() => { setSelectedStage(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Nova</Text></Pressable></View>
 
       <View style={styles.filterSection}>
-        <View style={styles.searchBar}><Text>🔍</Text><TextInput style={styles.searchInput} placeholder="Buscar etapa..." value={searchQuery} onChangeText={setSearchQuery} />{searchQuery !== "" && <Pressable onPress={() => setSearchQuery("")}><Text style={styles.clearSearch}>×</Text></Pressable>}</View>
+        <View style={styles.searchBar}>
+          <AppIcon name="Search" size={18} color={colors.textMuted} />
+          <TextInput style={styles.searchInput} placeholder="Buscar etapa..." value={searchQuery} onChangeText={setSearchQuery} />
+          {searchQuery !== "" && (
+            <Pressable onPress={() => setSearchQuery("")}>
+              <AppIcon name="XCircle" size={18} color={colors.textMuted} />
+            </Pressable>
+          )}
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
           {[{value: "todos", label: "Todos"}, ...statusOptions].map(opt => (<Pressable key={opt.value} style={[styles.chip, statusFilter === opt.value && styles.chipActive]} onPress={() => setStatusFilter(opt.value as any)}><Text style={[styles.chipText, statusFilter === opt.value && styles.chipTextActive]}>{opt.label}</Text></Pressable>))}
         </ScrollView>
@@ -212,7 +222,18 @@ export function ScheduleScreen() {
         </ScrollView>
       )}
 
-      <StageForm stage={selectedStage} visible={formOpen} loading={upsertStage.isPending} deleting={deleteStage.isPending} onClose={() => setFormOpen(false)} onSave={(p: any) => upsertStage.mutateAsync({ id: selectedStage?.id, projectId: stages[0]?.project_id, ...p }).then(()=>setFormOpen(false))} onDelete={handleDelete} />
+      <StageForm 
+        stage={selectedStage} 
+        visible={formOpen} 
+        loading={upsertStage.isPending} 
+        deleting={deleteStage.isPending} 
+        onClose={() => setFormOpen(false)} 
+        onSave={(p: any) => upsertStage.mutateAsync({ id: selectedStage?.id, projectId: stages[0]?.project_id, ...p }).then(() => {
+          setFormOpen(false);
+          Toast.show({ type: "success", text1: "Etapa salva", text2: "O cronograma foi atualizado." });
+        })} 
+        onDelete={handleDelete} 
+      />
     </View>
   );
 }
@@ -221,24 +242,23 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 16 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12 },
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
-  newButton: { borderRadius: 12, backgroundColor: "#d97b00", paddingHorizontal: 14, paddingVertical: 12 },
-  newButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  newButton: { borderRadius: 12, backgroundColor: colors.secondary, paddingHorizontal: 14, paddingVertical: 12 },
+  newButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
   filterSection: { marginBottom: 16, gap: 10 },
-  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
-  clearSearch: { fontSize: 18, color: colors.textMuted, paddingHorizontal: 8 },
+  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.text },
   filterChips: { gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.cardBorder },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.cardBorder },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: colors.surface },
   content: { paddingBottom: 32, gap: 12 },
   progressCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, gap: 10 },
   progressHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  progressTitle: { fontSize: 14, fontWeight: "700" },
-  progressPercent: { fontSize: 14, fontWeight: "800" },
-  progressTrack: { height: 8, borderRadius: 999, backgroundColor: "#efe6dc", overflow: "hidden" },
-  progressFill: { height: "100%", backgroundColor: "#d8a16f" },
+  progressTitle: { fontSize: 14, fontWeight: "700", color: colors.text },
+  progressPercent: { fontSize: 14, fontWeight: "800", color: colors.text },
+  progressTrack: { height: 8, borderRadius: 999, backgroundColor: colors.cardBorder, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: colors.primary },
   stageCard: { borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 10 },
   stageHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   stageName: { fontSize: 18, fontWeight: "700", color: colors.text },
@@ -246,24 +266,20 @@ const styles = StyleSheet.create({
   stageStatusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   stageStatusText: { fontSize: 10, fontWeight: "800" },
   stageProgressTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.05)", overflow: "hidden" },
-  stageProgressFill: { height: "100%", backgroundColor: "#d8a16f" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  stageProgressFill: { height: "100%", backgroundColor: colors.primary },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "800" },
-  closeIcon: { fontSize: 24, color: colors.textMuted },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
   modalContent: { gap: 16 },
-  fieldLabel: { fontSize: 14, fontWeight: "700", marginBottom: 4 },
-  fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted },
-  dateField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
+  fieldBlock: { gap: 4 },
+  fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
+  fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
   row: { flexDirection: "row", gap: 10 },
   formActions: { gap: 10, marginTop: 10 },
   primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
-  primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  primaryButtonText: { color: colors.surface, fontWeight: "800", fontSize: 15 },
   deleteButton: { borderRadius: 14, borderWidth: 1, borderColor: colors.danger, paddingVertical: 16, alignItems: "center" },
   deleteButtonText: { color: colors.danger, fontWeight: "800", fontSize: 15 },
-  calendarModalCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, margin: 20 },
-  calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calendarDay: { width: "14.28%", height: 40, alignItems: "center", justifyContent: "center" },
   buttonPressed: { opacity: 0.8 }
 });

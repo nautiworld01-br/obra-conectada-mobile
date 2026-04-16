@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 WhatsApp Image 2026-04-15 at 03.14.24.jpeg
+
+.gemini/
+gha-creds-*.json

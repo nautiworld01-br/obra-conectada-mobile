@@ -1,19 +1,35 @@
 /**
  * Configuração da paleta de cores global do aplicativo.
  * Define a identidade visual baseada no design do Obra Conectada.
- * future_fix: Adicionar suporte a dark mode via Hook useColorScheme para acessibilidade.
  */
 export const colors = {
-  background: "#f4f1ea",
-  surface: "#ffffff",
-  surfaceMuted: "#f7f4ef",
-  cardBorder: "#e6ded2",
-  text: "#1f1c17",
-  textMuted: "#746d63",
-  primary: "#b2603a",
-  primarySoft: "#f2dfd3",
-  success: "#3d7a57",
-  warning: "#a46d1f",
-  danger: "#a83e33",
+  // Cores de Marca
+  primary: "#b2603a",     // Marrom/Laranja terra (Principal)
+  primarySoft: "#f2dfd3", // Fundo suave para destaques
+  secondary: "#d97b00",   // Laranja vibrante para botões de ação
+  
+  // Cores de Sistema
+  background: "#f4f1ea",  // Bege muito claro (Fundo do app)
+  surface: "#ffffff",     // Branco (Cards e modais)
+  surfaceMuted: "#f7f4ef", // Cinza/Bege para campos de input
+  
+  // Neutros e Bordas
+  text: "#1f1c17",        // Preto quase puro
+  textMuted: "#746d63",   // Cinza para descrições
+  cardBorder: "#e6ded2",  // Cor suave para bordas de cards
+  divider: "#eeeeee",     // Linhas de separação finas
+  
+  // Cores de Status (Unificadas)
+  success: "#3d7a57",     // Verde (Concluído/Pago)
+  successLight: "#e7f4ec",
+  warning: "#a46d1f",     // Ocre (Pendente/Em análise)
+  warningLight: "#fff3df",
+  danger: "#a83e33",      // Vermelho (Atrasado/Recusado)
+  dangerLight: "#fdeae7",
+  info: "#3566d6",        // Azul (Aprovado/Em andamento)
+  infoLight: "#e6f0ff",
+  
+  // Navegação
   tabInactive: "#8a8378",
+  overlay: "rgba(31, 28, 23, 0.42)",
 };

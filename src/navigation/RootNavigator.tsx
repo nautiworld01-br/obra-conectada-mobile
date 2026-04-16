@@ -1,7 +1,7 @@
 import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ComponentType, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,6 +20,7 @@ import { SettingsScreen } from "../screens/SettingsScreen";
 import { SignUpScreen } from "../screens/SignUpScreen";
 import { TeamScreen } from "../screens/TeamScreen";
 import { UpdatesScreen } from "../screens/UpdatesScreen";
+import { AppIcon, IconName } from "../components/AppIcon";
 
 type RootStackParamList = { Login: undefined; SignUp: undefined; App: undefined; };
 
@@ -32,7 +33,7 @@ type AppRoute = {
   key: string;
   label: string;
   menuLabel: string;
-  icon: string;
+  icon: IconName;
   component: ComponentType;
   inDrawer?: boolean;
   inBottomNav?: boolean;
@@ -40,17 +41,17 @@ type AppRoute = {
 };
 
 const appRoutes: AppRoute[] = [
-  { key: "inicio", label: "Inicio", menuLabel: "Dashboard", icon: "⌂", component: DashboardScreen, inBottomNav: true, inDrawer: true },
-  { key: "dia-a-dia", label: "Dia a Dia", menuLabel: "Dia a Dia", icon: "◫", component: DailyScreen, inBottomNav: true },
-  { key: "crono", label: "Crono", menuLabel: "Crono", icon: "◷", component: ScheduleScreen, inBottomNav: true },
-  { key: "pagtos", label: "Pagtos", menuLabel: "Pagamentos", icon: "$", component: PaymentsScreen, inDrawer: true, ownerOnly: true },
-  { key: "mais", label: "Perfil", menuLabel: "Perfil", icon: "+", component: MoreScreen, inBottomNav: true },
-  { key: "atualizacoes", label: "Atualizacoes", menuLabel: "Atualizacoes", icon: "◉", component: UpdatesScreen, inDrawer: true, ownerOnly: true },
-  { key: "documentos", label: "Documentos", menuLabel: "Documentos", icon: "□", component: DocumentsScreen, inDrawer: true, ownerOnly: true },
-  { key: "equipe", label: "Equipe", menuLabel: "Equipe", icon: "◌", component: TeamScreen, inDrawer: true, ownerOnly: true },
-  { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "✓", component: PresenceScreen, inDrawer: true, ownerOnly: true },
-  { key: "house-config", label: "Casa", menuLabel: "Casa", icon: "⌘", component: HouseFormScreen, ownerOnly: true },
-  { key: "config", label: "Configuracoes", menuLabel: "Configuracoes", icon: "•", component: SettingsScreen, inDrawer: true, ownerOnly: true },
+  { key: "inicio", label: "Inicio", menuLabel: "Dashboard", icon: "Home", component: DashboardScreen, inBottomNav: true, inDrawer: true },
+  { key: "dia-a-dia", label: "Dia a Dia", menuLabel: "Dia a Dia", icon: "LayoutList", component: DailyScreen, inBottomNav: true },
+  { key: "crono", label: "Crono", menuLabel: "Crono", icon: "CalendarDays", component: ScheduleScreen, inBottomNav: true },
+  { key: "pagtos", label: "Pagtos", menuLabel: "Pagamentos", icon: "CircleDollarSign", component: PaymentsScreen, inDrawer: true, ownerOnly: true },
+  { key: "mais", label: "Perfil", menuLabel: "Perfil", icon: "User", component: MoreScreen, inBottomNav: true },
+  { key: "atualizacoes", label: "Atualizacoes", menuLabel: "Atualizacoes", icon: "Camera", component: UpdatesScreen, inDrawer: true, ownerOnly: true },
+  { key: "documentos", label: "Documentos", menuLabel: "Documentos", icon: "FileText", component: DocumentsScreen, inDrawer: true, ownerOnly: true },
+  { key: "equipe", label: "Equipe", menuLabel: "Equipe", icon: "Users", component: TeamScreen, inDrawer: true, ownerOnly: true },
+  { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "UserCheck", component: PresenceScreen, inDrawer: true, ownerOnly: true },
+  { key: "house-config", label: "Casa", menuLabel: "Casa", icon: "Home", component: HouseFormScreen, ownerOnly: true },
+  { key: "config", label: "Configuracoes", menuLabel: "Configuracoes", icon: "Settings", component: SettingsScreen, inDrawer: true, ownerOnly: true },
 ];
 
 const navigationTheme = {
@@ -70,7 +71,12 @@ function BottomNav({ routes, currentRouteKey, onNavigate }: any) {
           const active = route.key === currentRouteKey;
           return (
             <Pressable key={route.key} style={styles.bottomNavItem} onPress={() => onNavigate(route.key)}>
-              <Text style={[styles.bottomNavIcon, active && styles.bottomNavIconActive]}>{route.icon}</Text>
+              <AppIcon 
+                name={route.icon} 
+                size={22} 
+                color={active ? colors.primary : colors.tabInactive} 
+                strokeWidth={active ? 2.5 : 2}
+              />
               <Text style={[styles.bottomNavLabel, active && styles.bottomNavLabelActive]}>{route.label}</Text>
             </Pressable>
           );
@@ -110,27 +116,57 @@ function SideMenu(_: any) {
         <Animated.View style={[styles.drawerAnimatedLayer, { transform: [{ translateX }] }]}>
           <SafeAreaView style={styles.drawerContainer} edges={["top", "bottom"]}>
             <View style={styles.drawerContent}>
-              <View style={styles.drawerHeader}><Text style={styles.drawerEyebrow}>Menu lateral</Text><Text style={styles.drawerTitle}>Obra Conectada</Text></View>
+              <View style={styles.drawerHeader}>
+                <View style={styles.drawerHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.drawerEyebrow}>Menu lateral</Text>
+                    <Text style={styles.drawerTitle}>Obra Conectada</Text>
+                  </View>
+                  <Pressable onPress={onClose} style={styles.drawerCloseButton}>
+                    <AppIcon name="X" size={24} color={colors.textMuted} />
+                  </Pressable>
+                </View>
+              </View>
               <View style={styles.drawerHouseArea}>
                 <Pressable style={styles.drawerHouseButton} onPress={onToggleHouseMenu}>
                   <View style={styles.drawerHouseAvatar}>{housePhotoUrl ? <Image source={{ uri: housePhotoUrl }} style={styles.drawerHouseAvatarImage} /> : <Text style={styles.drawerHouseAvatarText}>OC</Text>}</View>
                   <View style={styles.drawerHouseCopy}><Text numberOfLines={1} style={styles.drawerHouseName}>{houseName}</Text><Text style={styles.drawerHouseHint}>{isOwner ? "Ver ou configurar" : "Ver casa"}</Text></View>
+                  <AppIcon name={isHouseMenuOpen ? "ChevronUp" : "ChevronDown"} size={16} color={colors.textMuted} />
                 </Pressable>
                 {isHouseMenuOpen && (
                   <View style={styles.drawerHousePopover}>
-                    {isOwner && <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("house-config")}><Text style={styles.drawerHouseMenuTitle}>Configurar</Text></Pressable>}
-                    <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("inicio")}><Text style={styles.drawerHouseMenuTitle}>Ver casa</Text></Pressable>
+                    {isOwner && (
+                      <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("house-config")}>
+                        <AppIcon name="Home" size={16} color={colors.primary} />
+                        <Text style={styles.drawerHouseMenuTitle}>Configurar</Text>
+                      </Pressable>
+                    )}
+                    <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("inicio")}>
+                      <AppIcon name="Eye" size={16} color={colors.primary} />
+                      <Text style={styles.drawerHouseMenuTitle}>Ver casa</Text>
+                    </Pressable>
                   </View>
                 )}
               </View>
               <View style={styles.drawerDivider} />
-              <View style={styles.drawerSection}>
-                {routes.map((route: any) => (
-                  <Pressable key={route.key} style={styles.drawerItem} onPress={() => onNavigate(route.key)}><Text style={[styles.drawerItemText, route.key === currentRouteKey && styles.drawerItemTextActive]}>{route.menuLabel}</Text></Pressable>
-                ))}
-              </View>
+              <ScrollView style={styles.drawerSection} showsVerticalScrollIndicator={false}>
+                {routes.map((route: any) => {
+                  const active = route.key === currentRouteKey;
+                  return (
+                    <Pressable key={route.key} style={styles.drawerItem} onPress={() => onNavigate(route.key)}>
+                      <AppIcon name={route.icon} size={20} color={active ? colors.primary : colors.textMuted} />
+                      <Text style={[styles.drawerItemText, active && styles.drawerItemTextActive]}>{route.menuLabel}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
-            <View style={styles.drawerFooter}><Pressable style={styles.signOutButton} onPress={onSignOut}><Text style={styles.signOutButtonText}>Sair</Text></Pressable></View>
+            <View style={styles.drawerFooter}>
+              <Pressable style={styles.signOutButton} onPress={onSignOut}>
+                <AppIcon name="LogOut" size={18} color={colors.surface} />
+                <Text style={styles.signOutButtonText}>Sair da Conta</Text>
+              </Pressable>
+            </View>
           </SafeAreaView>
         </Animated.View>
       </View>
@@ -155,7 +191,9 @@ function AppShell() {
   return (
     <SafeAreaView style={styles.shellSafeArea} edges={["top"]}>
       <View style={styles.topBar}>
-        <Pressable style={styles.iconButton} onPress={() => setIsSideMenuOpen(true)}><Text style={styles.iconText}>≡</Text></Pressable>
+        <Pressable style={styles.iconButton} onPress={() => setIsSideMenuOpen(true)}>
+          <AppIcon name="Menu" size={24} color={colors.text} />
+        </Pressable>
         <Text style={styles.screenLabel}>{appRoutes.find(r => r.key === currentRouteKey)?.label}</Text>
       </View>
       <View style={styles.screenArea}><ActiveScreen /></View>
@@ -212,7 +250,9 @@ const styles = StyleSheet.create({
   drawerBackdrop: { flex: 1, backgroundColor: "rgba(31, 28, 23, 0.2)" },
   drawerContainer: { flex: 1, width: 296, paddingHorizontal: 18, paddingVertical: 18, backgroundColor: colors.surface, borderRightWidth: 1, borderRightColor: colors.cardBorder },
   drawerContent: { flex: 1 },
-  drawerHeader: { gap: 4 },
+  drawerHeader: { gap: 4, marginBottom: 12 },
+  drawerHeaderRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  drawerCloseButton: { padding: 4, marginRight: -8, marginTop: -4 },
   drawerEyebrow: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", color: colors.textMuted },
   drawerTitle: { fontSize: 24, fontWeight: "800", color: colors.text },
   drawerHouseArea: { position: "relative", zIndex: 20 },
@@ -224,14 +264,14 @@ const styles = StyleSheet.create({
   drawerHouseName: { fontSize: 14, fontWeight: "800", color: colors.text },
   drawerHouseHint: { fontSize: 12, color: colors.textMuted },
   drawerHousePopover: { position: "absolute", top: 58, left: 18, right: 8, gap: 6, padding: 8, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, elevation: 3 },
-  drawerHouseMenuItem: { gap: 2, padding: 8, borderRadius: 12 },
+  drawerHouseMenuItem: { flexDirection: "row", alignItems: "center", gap: 10, padding: 8, borderRadius: 12 },
   drawerHouseMenuTitle: { fontSize: 14, fontWeight: "800", color: colors.text },
   drawerDivider: { height: 1, backgroundColor: colors.cardBorder, marginTop: 18, marginBottom: 4 },
-  drawerSection: { flex: 1, gap: 10, paddingTop: 16 },
-  drawerItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  drawerSection: { flex: 1, paddingTop: 16 },
+  drawerItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, marginBottom: 4 },
   drawerItemText: { fontSize: 15, fontWeight: "600", color: colors.text },
   drawerItemTextActive: { color: colors.primary, fontWeight: "800" },
   drawerFooter: { paddingTop: 20, backgroundColor: colors.surface },
-  signOutButton: { borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.text },
+  signOutButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.text },
   signOutButtonText: { fontSize: 15, fontWeight: "700", color: colors.surface },
 });

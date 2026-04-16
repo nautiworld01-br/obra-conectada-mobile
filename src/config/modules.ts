@@ -1,13 +1,20 @@
+import { IconName } from "../components/AppIcon";
+
+export interface AppModule {
+  key: string;
+  label: string;
+  icon: IconName;
+}
+
 /**
  * Configuração dos módulos principais do aplicativo.
  * Define os itens de navegação rápida com ícones e rótulos para o dashboard.
- * future_fix: Migrar para um sistema de ícones vetoriais em vez de emojis para melhor consistência visual.
  */
-export const primaryModules = [
-  { key: "dashboard", label: "Dashboard", emoji: "📊" },
-  { key: "updates", label: "Atualizacoes", emoji: "📸" },
-  { key: "payments", label: "Pagamentos", emoji: "💳" },
-  { key: "documents", label: "Documentos", emoji: "📁" },
-  { key: "team", label: "Equipe", emoji: "👷" },
-  { key: "attendance", label: "Presenca", emoji: "✅" },
+export const primaryModules: AppModule[] = [
+  { key: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
+  { key: "updates", label: "Atualizacoes", icon: "Camera" },
+  { key: "payments", label: "Pagamentos", icon: "CreditCard" },
+  { key: "documents", label: "Documentos", icon: "FileText" },
+  { key: "team", label: "Equipe", icon: "Users" },
+  { key: "attendance", label: "Presenca", icon: "UserCheck" },
 ];

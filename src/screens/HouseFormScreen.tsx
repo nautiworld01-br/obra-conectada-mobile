@@ -1,19 +1,24 @@
 import * as ImagePicker from "expo-image-picker";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   Modal,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+import DraggableFlatList, {
+  RenderItemParams,
+  ScaleDecorator,
+} from "react-native-draggable-flatlist";
+import Toast from "react-native-toast-message";
 import { AppScreen } from "../components/AppScreen";
+import { AppIcon } from "../components/AppIcon";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
@@ -43,8 +48,7 @@ function initialsFromName(name: string) {
 }
 
 /**
- * Tela de Configuração da Casa (Refatorada para RPC).
- * future_fix: Adicionar compressao de imagem para economizar storage no upload da capa.
+ * Tela de Configuração da Casa (Refatorada para RPC e Drag & Drop).
  */
 export function HouseFormScreen() {
   const queryClient = useQueryClient();
@@ -110,13 +114,11 @@ export function HouseFormScreen() {
 
   /**
    * SALVAMENTO UNIFICADO VIA RPC (Database Transaction).
-   * Envia projeto, comodos e funcionarios em uma única chamada.
    */
   const handleSaveAll = async () => {
     if (!isOwner || !user || !supabase) return;
     setSaving(true);
     try {
-      // 1. Limpeza e Upload da foto da capa se mudou
       if (photoUrl !== project?.photo_url) {
         await deleteFileFromStorage("app-media", project?.photo_url);
       }
@@ -127,9 +129,7 @@ export function HouseFormScreen() {
         fileBaseName: "house_cover"
       });
 
-      // 2. Upload das fotos dos funcionários que mudaram
       const processedEmployees = await Promise.all(employees.map(async (emp) => {
-        // Encontra a foto antiga para deletar se ela mudou
         const oldEmp = (employeesQuery.data as any[])?.find(e => e.id === emp.id);
         if (emp.photo !== oldEmp?.photo) {
           await deleteFileFromStorage("app-media", oldEmp?.photo);
@@ -143,7 +143,6 @@ export function HouseFormScreen() {
         return { ...emp, photo: upPhoto };
       }));
 
-      // 3. Chamada RPC Unificada (Tudo ou Nada)
       const { data: newProjectId, error } = await supabase.rpc("upsert_full_project", {
         p_project_id: project?.id || null,
         p_user_id: user.id,
@@ -158,7 +157,11 @@ export function HouseFormScreen() {
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["project"] });
-      Alert.alert("Sucesso", "Configurações da casa salvas com segurança.");
+      Toast.show({
+        type: "success",
+        text1: "Configurações salvas",
+        text2: "Os dados da casa e equipe foram sincronizados.",
+      });
     } catch (e) {
       console.error(e);
       Alert.alert("Erro", "Falha ao sincronizar dados da casa.");
@@ -166,6 +169,29 @@ export function HouseFormScreen() {
       setSaving(false);
     }
   };
+
+  const renderRoomItem = useCallback(({ item, drag, isActive }: RenderItemParams<RoomItem>) => {
+    return (
+      <ScaleDecorator>
+        <Pressable
+          onLongPress={drag}
+          disabled={isActive}
+          style={[
+            styles.roomListItem,
+            isActive && { backgroundColor: colors.primarySoft, borderColor: colors.primary }
+          ]}
+        >
+          <View style={styles.roomItemInfo}>
+            <AppIcon name="GripVertical" size={20} color={colors.textMuted} />
+            <Text style={styles.roomItemText}>{item.name}</Text>
+          </View>
+          <Pressable onPress={() => setRooms(c => c.filter(r => r.name !== item.name))}>
+            <AppIcon name="Trash2" size={18} color={colors.danger} />
+          </Pressable>
+        </Pressable>
+      </ScaleDecorator>
+    );
+  }, []);
 
   if (projectLoading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
 
@@ -181,11 +207,31 @@ export function HouseFormScreen() {
           <View style={styles.field}><Text style={styles.label}>Endereço</Text><TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Rua, Numero, Bairro" /></View>
         </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Cômodos e Áreas</Text>
-          <View style={styles.roomList}>
-            {rooms.map((r, i) => (<View key={i} style={styles.chip}><Text style={styles.chipText}>{r.name}</Text><Pressable onPress={() => setRooms(c => c.filter((_, idx) => idx !== i))}><Text style={styles.chipClose}>×</Text></Pressable></View>))}
-            <Pressable style={styles.addChip} onPress={() => setRoomModalVisible(true)}><Text style={styles.addChipText}>+ Comodo</Text></Pressable>
+        <View style={[styles.card, { paddingBottom: 8 }]}>
+          <View style={styles.cardHeaderRow}>
+            <Text style={styles.cardTitle}>Cômodos e Áreas</Text>
+            <Text style={styles.helperTextSmall}>Segure para ordenar</Text>
+          </View>
+          
+          <View style={styles.roomContainer}>
+            {rooms.length > 0 ? (
+              <View style={{ maxHeight: 300 }}>
+                <DraggableFlatList
+                  data={rooms}
+                  onDragEnd={({ data }) => setRooms(data)}
+                  keyExtractor={(item) => item.name}
+                  renderItem={renderRoomItem}
+                  scrollEnabled={false}
+                />
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>Nenhum cômodo adicionado.</Text>
+            )}
+            
+            <Pressable style={styles.addRoomBtn} onPress={() => setRoomModalVisible(true)}>
+              <AppIcon name="Plus" size={18} color={colors.primary} />
+              <Text style={styles.addRoomBtnText}>Adicionar Cômodo</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -195,7 +241,9 @@ export function HouseFormScreen() {
             <View key={i} style={styles.empRow}>
               <View style={styles.empAvatar}>{e.photo ? <Image source={{ uri: e.photo }} style={styles.img} /> : <Text>{initialsFromName(e.full_name)}</Text>}</View>
               <View style={{flex: 1}}><Text style={styles.empName}>{e.full_name}</Text><Text style={styles.empRole}>{e.role}</Text></View>
-              <Pressable onPress={() => setEmployees(c => c.filter((_, idx) => idx !== i))}><Text style={styles.dangerText}>Remover</Text></Pressable>
+              <Pressable onPress={() => setEmployees(c => c.filter((_, idx) => idx !== i))}>
+                <AppIcon name="UserMinus" size={18} color={colors.danger} />
+              </Pressable>
             </View>
           ))}
           {!employeeFormVisible ? (
@@ -207,7 +255,10 @@ export function HouseFormScreen() {
                 <Pressable style={[styles.roleBtn, employeeDraft.role === "marinheiro" && styles.roleBtnActive]} onPress={() => setEmployeeDraft(c => ({...c, role: "marinheiro"}))}><Text style={employeeDraft.role === "marinheiro" && {color: "#fff"}}>Marinheiro</Text></Pressable>
                 <Pressable style={[styles.roleBtn, employeeDraft.role === "empregada domestica" && styles.roleBtnActive]} onPress={() => setEmployeeDraft(c => ({...c, role: "empregada domestica"}))}><Text style={employeeDraft.role === "empregada domestica" && {color: "#fff"}}>Empregada</Text></Pressable>
               </View>
-              <Pressable style={styles.confirmBtn} onPress={() => { if (employeeDraft.full_name) { setEmployees(c => [...c, employeeDraft]); setEmployeeFormVisible(false); setEmployeeDraft({full_name: "", role: "empregada domestica", photo: ""}); } }}><Text style={styles.confirmBtnText}>Confirmar</Text></Pressable>
+              <View style={styles.row}>
+                <Pressable style={styles.cancelBtn} onPress={() => setEmployeeFormVisible(false)}><Text>Cancelar</Text></Pressable>
+                <Pressable style={[styles.confirmBtn, { flex: 1 }]} onPress={() => { if (employeeDraft.full_name) { setEmployees(c => [...c, employeeDraft]); setEmployeeFormVisible(false); setEmployeeDraft({full_name: "", role: "empregada domestica", photo: ""}); } }}><Text style={styles.confirmBtnText}>Confirmar</Text></Pressable>
+              </View>
             </View>
           )}
         </View>
@@ -221,9 +272,9 @@ export function HouseFormScreen() {
         <View style={styles.modalBg}>
           <View style={styles.popup}>
             <Text style={styles.popupTitle}>Nome do Cômodo</Text>
-            <TextInput style={styles.input} value={roomDraft} onChangeText={setRoomDraft} autoFocus />
+            <TextInput style={styles.input} value={roomDraft} onChangeText={setRoomDraft} autoFocus placeholder="Ex: Sala de Estar" />
             <View style={styles.row}>
-              <Pressable style={styles.cancelBtn} onPress={() => setRoomModalVisible(false)}><Text>Cancelar</Text></Pressable>
+              <Pressable style={styles.cancelBtn} onPress={() => { setRoomModalVisible(false); setRoomDraft(""); }}><Text>Cancelar</Text></Pressable>
               <Pressable style={styles.confirmBtn} onPress={() => { if (roomDraft) { setRooms(c => [...c, { name: roomDraft.trim() }]); setRoomDraft(""); setRoomModalVisible(false); } }}><Text style={styles.confirmBtnText}>Adicionar</Text></Pressable>
             </View>
           </View>
@@ -236,6 +287,7 @@ export function HouseFormScreen() {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: "center", justifyContent: "center" },
   card: { backgroundColor: "#fff", borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder, gap: 12 },
+  cardHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   houseThumb: { width: 64, height: 64, borderRadius: 16, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", overflow: "hidden" },
   img: { width: "100%", height: "100%" },
@@ -246,17 +298,39 @@ const styles = StyleSheet.create({
   field: { gap: 6 },
   label: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
   input: { backgroundColor: colors.surfaceMuted, borderRadius: 12, padding: 14, fontSize: 15, borderWidth: 1, borderColor: colors.cardBorder },
-  roomList: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  chip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: colors.surfaceMuted, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder },
-  chipText: { fontSize: 14, fontWeight: "600" },
-  chipClose: { fontSize: 18, color: colors.danger, marginLeft: 4 },
-  addChip: { backgroundColor: colors.primarySoft, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
-  addChipText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
-  empRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  roomContainer: { gap: 12 },
+  roomListItem: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    justifyContent: "space-between", 
+    backgroundColor: colors.surfaceMuted, 
+    padding: 12, 
+    borderRadius: 14, 
+    borderWidth: 1, 
+    borderColor: colors.cardBorder,
+    marginBottom: 8
+  },
+  roomItemInfo: { flexDirection: "row", alignItems: "center", gap: 10 },
+  roomItemText: { fontSize: 15, fontWeight: "600", color: colors.text },
+  addRoomBtn: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    justifyContent: "center", 
+    gap: 8, 
+    backgroundColor: colors.primarySoft, 
+    padding: 12, 
+    borderRadius: 14,
+    borderStyle: "dashed",
+    borderWidth: 1,
+    borderColor: colors.primary
+  },
+  addRoomBtnText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
+  emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 14, paddingVertical: 10 },
+  helperTextSmall: { fontSize: 11, color: colors.textMuted },
+  empRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
   empAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#eee", alignItems: "center", justifyContent: "center", overflow: "hidden" },
   empName: { fontWeight: "700", fontSize: 14 },
   empRole: { fontSize: 12, color: colors.textMuted },
-  dangerText: { color: colors.danger, fontSize: 13, fontWeight: "600" },
   addLink: { marginTop: 8 },
   empForm: { backgroundColor: "#f9f9f9", padding: 12, borderRadius: 16, gap: 10, marginTop: 10 },
   row: { flexDirection: "row", gap: 10 },
@@ -264,7 +338,7 @@ const styles = StyleSheet.create({
   roleBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   confirmBtn: { backgroundColor: colors.primary, padding: 12, borderRadius: 12, alignItems: "center" },
   confirmBtnText: { color: "#fff", fontWeight: "800" },
-  cancelBtn: { flex: 1, padding: 12, alignItems: "center" },
+  cancelBtn: { flex: 1, padding: 12, alignItems: "center", justifyContent: "center" },
   saveBtn: { backgroundColor: colors.primary, borderRadius: 18, paddingVertical: 16, alignItems: "center", marginTop: 10, marginBottom: 30 },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "800" },
   btnPressed: { opacity: 0.8 },

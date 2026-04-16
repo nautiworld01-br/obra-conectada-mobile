@@ -27,6 +27,7 @@ import {
 } from "../hooks/usePayments";
 import { StageRow, useStages } from "../hooks/useStages";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
+import { AppIcon } from "../components/AppIcon";
 
 /**
  * Opções de categoria para classificação financeira.
@@ -98,11 +99,11 @@ function buildMonthGrid(currentMonthDate: Date) {
  */
 function getStatusColors(status: PaymentStatus) {
   switch (status) {
-    case "pago": return { background: "#e7f4ec", text: colors.success };
-    case "aprovado": return { background: "#e6f0ff", text: "#3566d6" };
-    case "em_analise": return { background: "#ece9ff", text: "#6a56d2" };
-    case "recusado": return { background: "#fdeae7", text: colors.danger };
-    default: return { background: "#fff3df", text: colors.warning };
+    case "pago": return { background: colors.successLight, text: colors.success };
+    case "aprovado": return { background: colors.infoLight, text: colors.info };
+    case "em_analise": return { background: colors.warningLight, text: colors.warning };
+    case "recusado": return { background: colors.dangerLight, text: colors.danger };
+    default: return { background: colors.warningLight, text: colors.warning };
   }
 }
 
@@ -249,7 +250,15 @@ export function PaymentsScreen() {
     <View style={styles.screen}>
       <View style={styles.header}><View><Text style={styles.title}>Financeiro</Text></View><Pressable style={styles.newButton} onPress={() => { setEditingPayment(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable></View>
       <View style={styles.filterSection}>
-        <View style={styles.searchBar}><Text>🔍</Text><TextInput style={styles.searchInput} placeholder="Buscar..." value={searchQuery} onChangeText={setSearchQuery} />{searchQuery !== "" && <Pressable onPress={() => setSearchQuery("")}><Text style={styles.clearSearch}>×</Text></Pressable>}</View>
+        <View style={styles.searchBar}>
+          <AppIcon name="Search" size={18} color={colors.textMuted} />
+          <TextInput style={styles.searchInput} placeholder="Buscar..." value={searchQuery} onChangeText={setSearchQuery} />
+          {searchQuery !== "" && (
+            <Pressable onPress={() => setSearchQuery("")}>
+              <AppIcon name="XCircle" size={18} color={colors.textMuted} />
+            </Pressable>
+          )}
+        </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
           {statusOptions.map(opt => (<Pressable key={opt.value} style={[styles.chip, statusFilter === opt.value && styles.chipActive]} onPress={() => setStatusFilter(opt.value)}><Text style={[styles.chipText, statusFilter === opt.value && styles.chipTextActive]}>{opt.label}</Text></Pressable>))}
         </ScrollView>
@@ -291,42 +300,39 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 16 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12 },
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
-  newButton: { borderRadius: 12, backgroundColor: "#d97b00", paddingHorizontal: 14, paddingVertical: 12 },
-  newButtonText: { color: "#fff", fontSize: 15, fontWeight: "800" },
+  newButton: { borderRadius: 12, backgroundColor: colors.secondary, paddingHorizontal: 14, paddingVertical: 12 },
+  newButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
   filterSection: { marginBottom: 16, gap: 10 },
-  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: "#fff", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
-  searchInput: { flex: 1, marginLeft: 8, fontSize: 14 },
-  clearSearch: { fontSize: 18, color: colors.textMuted, paddingHorizontal: 8 },
+  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.text },
   filterChips: { gap: 8 },
-  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.cardBorder },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.cardBorder },
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
-  chipTextActive: { color: "#fff" },
+  chipTextActive: { color: colors.surface },
   content: { paddingBottom: 32, gap: 10 },
   totalPaidCard: { backgroundColor: colors.primary, borderRadius: 16, padding: 16, marginBottom: 6 },
   totalLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
-  totalValue: { color: "#fff", fontSize: 24, fontWeight: "900" },
-  paymentCard: { backgroundColor: "#fff", borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 4 },
+  totalValue: { color: colors.surface, fontSize: 24, fontWeight: "900" },
+  paymentCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 4 },
   paymentCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   paymentPeriod: { fontSize: 13, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
   paymentAmount: { fontSize: 20, fontWeight: "800", color: colors.text },
   paymentDesc: { fontSize: 14, color: colors.textMuted },
-  attachmentBadge: { fontSize: 11, color: colors.primary, fontWeight: "800", marginTop: 2 },
+  attachmentRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 },
+  attachmentBadge: { fontSize: 11, color: colors.primary, fontWeight: "800" },
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   statusPillText: { fontSize: 10, fontWeight: "800" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)", justifyContent: "flex-end" },
-  modalCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
-  detailCard: { backgroundColor: "#fff", borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
+  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  detailCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: "800" },
-  closeIcon: { fontSize: 24, color: colors.textMuted },
+  modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
   modalContent: { gap: 16 },
   fieldBlock: { gap: 6 },
-  fieldLabel: { fontSize: 14, fontWeight: "700" },
-  fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted },
+  fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
+  fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
   selectField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
-  dateField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
-  dateFieldText: { fontSize: 15, color: colors.text },
   selectFieldText: { fontSize: 15, fontWeight: "600", color: colors.text },
   row: { flexDirection: "row", gap: 10 },
   mediaButton: { height: 100, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, borderStyle: "dashed", backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", overflow: "hidden" },
@@ -334,11 +340,11 @@ const styles = StyleSheet.create({
   receiptPreview: { width: "100%", height: "100%" },
   receiptImageLarge: { width: "100%", height: 200, borderRadius: 16, marginTop: 10 },
   primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
-  primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  primaryButtonText: { color: colors.surface, fontWeight: "800", fontSize: 15 },
   successButton: { borderRadius: 14, backgroundColor: colors.success, paddingVertical: 16, alignItems: "center" },
   editPill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surfaceMuted, alignItems: "center" },
   editPillText: { fontWeight: "700", color: colors.text },
-  deletePill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: "#fdeae7", alignItems: "center" },
+  deletePill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.dangerLight, alignItems: "center" },
   deletePillText: { color: colors.danger, fontWeight: "700" },
   detailRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   detailPeriod: { fontSize: 16, fontWeight: "700", color: colors.textMuted },
@@ -347,15 +353,11 @@ const styles = StyleSheet.create({
   detailActionRow: { flexDirection: "row", gap: 10, marginTop: 20 },
   mainActionsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
   localError: { color: colors.danger, fontSize: 13 },
-  dropdownModalCard: { backgroundColor: "#fff", borderRadius: 16, padding: 10, width: "80%", alignSelf: "center" },
-  dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: "#eee" },
-  dropdownItemText: { fontSize: 16, fontWeight: "600" },
-  calendarModalCard: { backgroundColor: "#fff", padding: 20, borderRadius: 20, margin: 20 },
-  calendarGrid: { flexDirection: "row", flexWrap: "wrap" },
-  calendarDay: { width: "14.28%", height: 40, alignItems: "center", justifyContent: "center" },
-  calendarDaySelected: { backgroundColor: colors.primary, borderRadius: 20 },
-  calendarDayText: { fontSize: 14 },
-  calendarDayOutside: { color: "#ccc" },
+  dropdownModalCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 10, width: "80%", alignSelf: "center" },
+  dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  dropdownItemText: { fontSize: 16, fontWeight: "600", color: colors.text },
   emptySearchText: { textAlign: "center", paddingVertical: 40, color: colors.textMuted },
-  buttonPressed: { opacity: 0.8 }
+  buttonPressed: { opacity: 0.8 },
+  loadMoreButton: { padding: 16, alignItems: "center" },
+  loadMoreText: { color: colors.primary, fontWeight: "700" }
 });

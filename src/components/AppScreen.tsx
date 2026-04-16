@@ -8,6 +8,7 @@ import { colors } from "../config/theme";
  */
 type AppScreenProps = {
   title: string;
+  titleColor?: string; // Nova propriedade para debug e personalização
   subtitle?: string;
   children: ReactNode;
   scrollable?: boolean;
@@ -18,11 +19,11 @@ type AppScreenProps = {
  * Oferece suporte a scroll opcional e cabecalho padronizado.
  * future_fix: Adicionar suporte a RefreshControl para facilitar atualizacao de dados nas telas.
  */
-export function AppScreen({ title, subtitle, children, scrollable = true }: AppScreenProps) {
+export function AppScreen({ title, titleColor, subtitle, children, scrollable = true }: AppScreenProps) {
   const content = (
     <View style={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {children}

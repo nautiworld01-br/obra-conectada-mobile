@@ -34,6 +34,9 @@
     },
     "experiments": {
       "baseUrl": "/obra-conectada-mobile"
-    }
+    },
+    "plugins": [
+      "@react-native-community/datetimepicker"
+    ]
   }
 }

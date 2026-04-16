@@ -125,6 +125,26 @@ export function useUpdateReview() {
   });
 }
 
+/**
+ * Hook para sugerir resumo automático baseado em logs e cronograma.
+ */
+export function useSuggestSummary() {
+  return useMutation({
+    mutationFn: async (payload: { projectId: string; weekStart: string; weekEnd: string }) => {
+      if (!supabase) throw new Error("Supabase nao configurado.");
+
+      const { data, error } = await supabase.rpc("suggest_weekly_summary", {
+        p_project_id: payload.projectId,
+        p_week_start: payload.weekStart,
+        p_week_end: payload.weekEnd,
+      });
+
+      if (error) throw error;
+      return data as string;
+    },
+  });
+}
+
 export function useDeleteUpdate() {
   const queryClient = useQueryClient();
   return useMutation({

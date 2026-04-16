@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import Toast from "react-native-toast-message";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
+import { AppIcon } from "../components/AppIcon";
+import { AppDatePicker } from "../components/AppDatePicker";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { primaryModules } from "../config/modules";
@@ -24,7 +27,6 @@ function formatMoney(value: number | null) {
 
 /**
  * Modal de edicao dos dados do projeto (nome, endereco, valor e inicio).
- * future_fix: Adicionar seletor de data (calendario) para o campo de Inicio.
  */
 function EditProjectModal({
   project,
@@ -76,7 +78,7 @@ function EditProjectModal({
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Configurar Obra</Text>
             <Pressable onPress={onClose}>
-              <Text style={styles.closeIcon}>×</Text>
+              <AppIcon name="X" size={24} color={colors.textMuted} />
             </Pressable>
           </View>
 
@@ -116,15 +118,11 @@ function EditProjectModal({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Data de Inicio (AAAA-MM-DD)</Text>
-              <TextInput
-                placeholder="Ex: 2024-05-20"
-                placeholderTextColor={colors.textMuted}
-                style={styles.fieldInput}
+              <AppDatePicker
+                label="Data de Inicio"
                 value={startDate}
-                onChangeText={setStartDate}
+                onChange={setStartDate}
               />
-              <Text style={styles.helperTextSmall}>Use o formato Ano-Mes-Dia para que o calendario funcione corretamente.</Text>
             </View>
 
             <Pressable
@@ -181,12 +179,16 @@ export function SettingsScreen() {
 
   /**
    * Dispara a mutation de atualizacao do projeto no Supabase.
-   * future_fix: Adicionar feedback visual de 'Sucesso' alem de apenas fechar o modal.
    */
   const handleUpdateProject = async (payload: any) => {
     try {
       await updateProject.mutateAsync(payload);
       setEditModalOpen(false);
+      Toast.show({
+        type: "success",
+        text1: "Projeto atualizado",
+        text2: "As alterações foram salvas com sucesso.",
+      });
     } catch (error) {
       Alert.alert("Erro ao atualizar", error instanceof Error ? error.message : "Erro desconhecido");
     }
@@ -197,7 +199,7 @@ export function SettingsScreen() {
       <SectionCard title="Conta ativa" subtitle="Informacoes da sessao autenticada neste aparelho.">
         <View style={styles.accountRow}>
           <View style={styles.avatar}>
-            {avatarUrl ? <Text style={styles.avatarText}>{buildInitials(fullName)}</Text> : <Text style={styles.avatarText}>{buildInitials(fullName)}</Text>}
+            <Text style={styles.avatarText}>{buildInitials(fullName)}</Text>
           </View>
           <View style={styles.accountCopy}>
             <Text style={styles.accountName}>{fullName}</Text>
@@ -254,7 +256,7 @@ export function SettingsScreen() {
         <View style={styles.moduleList}>
           {primaryModules.map((module) => (
             <View key={module.key} style={styles.moduleListRow}>
-              <Text style={styles.moduleListEmoji}>{module.emoji}</Text>
+              <AppIcon name={module.icon} size={18} color={colors.primary} />
               <Text style={styles.moduleListLabel}>{module.label}</Text>
             </View>
           ))}
