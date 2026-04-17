@@ -78,36 +78,23 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
   }, [stage, visible]);
 
   /**
-   * Executa a validacao e dispara o salvamento da etapa com calculo automatico de status.
+   * Executa a validacao e dispara o salvamento da etapa.
+   * Removida a sugestao automatica de status que sobrescrevia a escolha do usuario.
    */
   const handleInternalSave = () => {
     const nameVal = Validator.required(name, "nome");
     if (!nameVal.isValid) { Alert.alert("Erro", nameVal.error!); return; }
 
-    // Inteligencia de Status: Calcula o status ideal baseado nas datas se nao for um estado terminal.
-    let finalStatus: StageStatus = status;
-    const todayStr = new Date().toISOString().split("T")[0];
-
-    if (status !== "concluido" && status !== "bloqueado") {
-      if (plannedEnd && todayStr > plannedEnd) {
-        finalStatus = "atrasado";
-      } else if (plannedStart && todayStr >= plannedStart) {
-        finalStatus = "em_andamento";
-      } else {
-        finalStatus = "nao_iniciado";
-      }
-    }
-
-    // Sincroniza Porcentagem com o Status
+    // Sincroniza Porcentagem com o Status Concluido
     let finalPercent = percentComplete;
-    if (finalStatus === "concluido") finalPercent = 100;
-    if (finalStatus === "nao_iniciado") finalPercent = 0;
+    if (status === "concluido") finalPercent = 100;
+    if (status === "nao_iniciado" && finalPercent === 100) finalPercent = 0;
 
     onSave({ 
       name: name.trim(), 
       category, 
       responsible, 
-      status: finalStatus, 
+      status, 
       plannedStart: plannedStart || null, 
       plannedEnd: plannedEnd || null, 
       percentComplete: finalPercent

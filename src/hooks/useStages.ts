@@ -62,24 +62,20 @@ export function useUpsertStage() {
       id?: string;
       projectId: string;
       name: string;
-      category: string;
-      responsible: string;
+      category?: string | null;
+      responsible?: string | null;
       plannedStart: string | null;
       plannedEnd: string | null;
-      observations: string;
+      observations?: string | null;
       status: StageStatus;
+      percentComplete?: number | null;
     }) => {
       if (!supabase) {
         throw new Error("Supabase nao configurado.");
       }
 
-      const percentByStatus: Record<StageStatus, number> = {
-        nao_iniciado: 0,
-        em_andamento: 50,
-        concluido: 100,
-        atrasado: 0,
-        bloqueado: 0,
-      };
+      // Se for concluído, força 100%. Caso contrário, usa o valor enviado ou mantém o atual.
+      const finalPercent = payload.status === "concluido" ? 100 : (payload.percentComplete ?? 0);
 
       const stagePayload = {
         project_id: payload.projectId,
@@ -90,7 +86,7 @@ export function useUpsertStage() {
         planned_end: payload.plannedEnd,
         observations: payload.observations || null,
         status: payload.status,
-        percent_complete: percentByStatus[payload.status],
+        percent_complete: finalPercent,
       };
 
       if (payload.id) {
