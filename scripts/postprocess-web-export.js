@@ -18,14 +18,14 @@ for (const relativePath of targets) {
   const original = fs.readFileSync(filePath, "utf8");
   /**
    * Corrige atributos de camelCase para o padrao HTML e limpa tags obsoletas do IE.
-   * future_fix: Adicionar logica para injetar automaticamente o baseUrl se o app.json mudar.
+   * Injeta o link para o manifesto PWA.
    */
   const next = original
     .replace(/httpEquiv=/g, "http-equiv=")
     .replace(/\s*<meta http-equiv="X-UA-Compatible" content="IE=edge"\s*\/>\r?\n?/i, "\n")
     .replace(/<\/style>\s*<meta /i, "</style>\n    <meta ")
     .replace(/">\s*<link /i, '">\n    <link ')
-    .replace(/\/><\/head>/i, "/>\n  </head>")
+    .replace(/\/><\/head>/i, "/>\n    <link rel=\"manifest\" href=\"/obra-conectada-mobile/manifest.json\">\n  </head>")
     .replace(/<\/div>\s*<script /i, '</div>\n    <script ')
     .replace(/<\/script>\s*<\/body>/i, "</script>\n  </body>");
 
