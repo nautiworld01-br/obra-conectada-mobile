@@ -304,6 +304,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text, marginTop: 10 },
   individualList: { gap: 12 },
   individualRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 14, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder },
+  individualInfo: { flex: 1, gap: 2 },
   individualName: { fontSize: 14, fontWeight: "700", color: colors.text },
   individualRole: { fontSize: 12, color: colors.textMuted },
   individualCounters: { alignItems: "flex-end" },

@@ -1445,4 +1445,17 @@ const styles = StyleSheet.create({
   buttonPressed: {
     opacity: 0.82,
   },
+  loadMoreButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  loadMoreText: {
+    color: colors.primary,
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });

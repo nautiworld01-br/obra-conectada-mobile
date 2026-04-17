@@ -38,7 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Inicializa a sessao e monitora mudancas de estado (Auth e Ciclo de Vida do App).
   useEffect(() => {
-    if (!supabase) {
+    const client = supabase;
+
+    if (!client) {
       setLoading(false);
       return;
     }
@@ -48,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Recupera a sessao inicial do storage local.
     const initializeSession = async () => {
       try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        const { data: { session: initialSession }, error } = await client.auth.getSession();
         if (error) throw error;
         
         if (mounted) {
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void initializeSession();
 
     // Listener para mudancas no Supabase Auth (Login, Logout, Refresh).
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, nextSession) => {
       if (mounted) {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
@@ -77,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Essencial para o Expo Go nao perder o login apos horas de inatividade.
     const appStateSubscription = AppState.addEventListener("change", (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === "active") {
-        supabase.auth.refreshSession();
+        void client.auth.refreshSession();
       }
       appState.current = nextAppState;
     });

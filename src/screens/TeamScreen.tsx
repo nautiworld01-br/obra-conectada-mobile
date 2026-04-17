@@ -268,8 +268,9 @@ export function TeamScreen() {
                     <Pressable style={styles.secondaryAction} onPress={() => { setWorkCrewDraft(buildWorkCrewDraft(workCrew)); setWorkCrewFormOpen(true); }}><Text style={styles.secondaryActionText}>Editar</Text></Pressable>
                     <Pressable style={styles.secondaryAction} onPress={() => {
                       const performDelete = async () => {
+                        if (!project?.id) return;
                         try {
-                          await deleteWorkCrew.mutateAsync({ id: workCrew.id, projectId: project?.id });
+                          await deleteWorkCrew.mutateAsync({ id: workCrew.id, projectId: project.id });
                           Toast.show({ type: "success", text1: "Equipe removida" });
                         } catch (e) { Alert.alert("Erro", "Falha ao remover."); }
                       };

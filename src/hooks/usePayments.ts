@@ -3,7 +3,31 @@ import { useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
-// ... tipos ...
+export type PaymentCategory = "mao_de_obra_projeto" | "mao_de_obra_extras" | "insumos_extras";
+export type PaymentStatus = "pendente" | "em_analise" | "aprovado" | "pago" | "recusado";
+
+export type PaymentRow = {
+  id: string;
+  project_id: string;
+  requested_by: string;
+  period: string;
+  category: PaymentCategory;
+  planned_amount: number | string | null;
+  requested_amount: number | string;
+  description: string;
+  percent_work: number | string | null;
+  stage_id: string | null;
+  observations: string | null;
+  due_date: string | null;
+  receipt_url: string | null;
+  status: PaymentStatus;
+  approved_by: string | null;
+  approval_date: string | null;
+  payment_date: string | null;
+  request_date: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
 
 export function usePayments() {
   const { project } = useProject();

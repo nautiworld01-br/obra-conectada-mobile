@@ -24,7 +24,7 @@ Principio de produto atual:
 - `TypeScript`
 - `@tanstack/react-query`
 - `Supabase Auth + Database + Storage`
-- `PWA/web exportada manualmente`
+- `PWA/web exportada via GitHub Pages`
 - `Expo Go` para preview local durante o desenvolvimento
 
 ## Estrutura principal
@@ -178,8 +178,8 @@ Contrato atual da midia:
 
 - branch principal: `main`
 - `master` removida
-- publicacao web feita manualmente a partir do build exportado
-- `GitHub Pages` deve apontar para `main /docs`
+- publicacao web feita a partir do artefato gerado em `dist/`
+- `GitHub Pages` deve usar o workflow de Actions deste repositório
 - preview mobile feito localmente com `Expo Go`
 - este repositorio nao usa mais `EAS Update`
 
@@ -217,12 +217,14 @@ Gerar o build web:
 npm run export:web
 ```
 
-Depois copiar o conteudo de `dist/` para `docs/` e fazer commit da pasta `docs`.
+O export gera o site final em `dist/`, incluindo:
 
-No GitHub Pages, usar:
+- `index.html`
+- `manifest.json`
+- `sw.js`
+- assets estaticos copiados de `public/`
 
-- branch `main`
-- folder `/docs`
+No deploy automatizado, o GitHub Pages publica diretamente `dist/` via workflow em `.github/workflows/deploy-pages.yml`.
 
 ### Banco
 

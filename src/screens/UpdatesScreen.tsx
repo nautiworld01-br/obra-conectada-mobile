@@ -406,11 +406,11 @@ export function UpdatesScreen() {
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {updates.length === 0 ? (
-            <Text style={styles.emptyText}>Nenhum relatório semanal registrado ainda.</Text>
+            <Text style={styles.emptySearchText}>Nenhum relatório semanal registrado ainda.</Text>
           ) : updates.map(u => (
             <Pressable 
               key={u.id} 
-              style={u.updateCard} 
+              style={styles.updateCard} 
               onPress={() => {
                 // Pequeno delay para estabilizar renderizacao no React 19
                 setTimeout(() => setSelectedUpdate(u), 10);
@@ -430,8 +430,9 @@ export function UpdatesScreen() {
       <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} loading={upsertUpdate.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
       <UpdateDetailModal update={selectedUpdate} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
         const performDelete = async () => {
+          if (!selectedUpdate || !project?.id) return;
           try {
-            await deleteUpdate.mutateAsync({ id: selectedUpdate!.id, projectId: project.id });
+            await deleteUpdate.mutateAsync({ id: selectedUpdate.id, projectId: project.id });
             setSelectedUpdate(null);
             Toast.show({ type: "success", text1: "Relatório removido" });
           } catch (e) {
@@ -514,5 +515,6 @@ const styles = StyleSheet.create({
   dropdownTitle: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 15, textAlign: "center" },
   dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.divider, borderRadius: 12 },
   dropdownText: { fontSize: 15, fontWeight: "600", color: colors.text },
+  emptySearchText: { textAlign: "center", paddingVertical: 40, color: colors.textMuted },
   buttonPressed: { opacity: 0.8 }
 });

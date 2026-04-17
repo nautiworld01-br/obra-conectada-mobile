@@ -17,7 +17,7 @@ import { supabase } from "../lib/supabase";
  */
 export function MoreScreen() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { fullName, avatarUrl, occupationLabel, initials } = useProfile();
   const [editVisible, setEditVisible] = useState(false);
   const [draftName, setDraftName] = useState("");
