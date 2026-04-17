@@ -8,7 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "export:web": "expo export --platform web && node scripts/postprocess-web-export.js"
+    "export:web": "expo export --platform web && cp web/manifest.json dist/manifest.json && node scripts/postprocess-web-export.js"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",
