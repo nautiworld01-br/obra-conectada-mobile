@@ -52,7 +52,7 @@ const appRoutes: AppRoute[] = [
   { key: "documentos", label: "Documentos", menuLabel: "Documentos", icon: "FileText", component: DocumentsScreen, inDrawer: true, ownerOnly: true },
   { key: "equipe", label: "Equipe", menuLabel: "Equipe", icon: "Users", component: TeamScreen, inDrawer: true, ownerOnly: true },
   { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "UserCheck", component: PresenceScreen, inDrawer: true, ownerOnly: true },
-  { key: "house-config", label: "Casa", menuLabel: "Casa", icon: "Home", component: HouseFormScreen, ownerOnly: true },
+  { key: "house-config", label: "Obra", menuLabel: "Dados da Obra", icon: "Home", component: HouseFormScreen, ownerOnly: true },
   { key: "config", label: "Configuracoes", menuLabel: "Configuracoes", icon: "Settings", component: SettingsScreen, inDrawer: true, ownerOnly: true },
 ];
 
@@ -145,7 +145,7 @@ function SideMenu(_: any) {
                   <View style={styles.drawerHousePopover}>
                     <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("house-config")}>
                       <AppIcon name="Settings2" size={16} color={colors.primary} />
-                      <Text style={styles.drawerHouseMenuTitle}>Configurar Casa</Text>
+                      <Text style={styles.drawerHouseMenuTitle}>Configurar Obra</Text>
                     </Pressable>
                   </View>
                 )}
@@ -197,7 +197,7 @@ function AppShell() {
   // Lógica sênior para nome da casa: aguarda carregamento e trata nulos
   const houseName = useMemo(() => {
     if (projectLoading) return "Carregando...";
-    return project?.name?.trim() || "Casa vinculada";
+    return project?.name?.trim() || "Obra vinculada";
   }, [project, projectLoading]);
 
   const availableRoutes = useMemo(() => appRoutes.filter(r => !r.ownerOnly || isOwner), [isOwner]);

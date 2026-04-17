@@ -172,7 +172,7 @@ export function DocumentsScreen() {
   // Garante a integridade referencial entre o arquivo fisico e o registro na tabela do Supabase.
   const handleSave = async () => {
     if (!project?.id || !user?.id) {
-      Alert.alert("Casa", "Configure a casa antes de cadastrar documentos.");
+      Alert.alert("Obra", "Configure a obra antes de cadastrar documentos.");
       return;
     }
 
@@ -277,14 +277,14 @@ export function DocumentsScreen() {
 
     if (Platform.OS === "web") {
       console.log("Plataforma detectada: WEB. Abrindo confirm...");
-      if (window.confirm("Excluir documento? Esse arquivo sera removido da biblioteca da casa.")) {
+      if (window.confirm("Excluir documento? Esse arquivo sera removido da biblioteca da obra.")) {
         void performDelete();
       }
       return;
     }
 
     console.log("Plataforma detectada: NATIVE. Abrindo Alert...");
-    Alert.alert("Excluir documento?", "Esse arquivo sera removido da biblioteca da casa.", [
+    Alert.alert("Excluir documento?", "Esse arquivo sera removido da biblioteca da obra.", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
@@ -297,7 +297,7 @@ export function DocumentsScreen() {
   // Renderizacao da tela principal com Header, Resumo de status e Listagem de arquivos.
   // Os documentos sao exibidos em cards com informacoes de categoria, vencimento e tamanho.
   return (
-    <AppScreen title="Documentos" subtitle="Upload, consulta e abertura segura de arquivos da casa via Supabase Storage.">
+    <AppScreen title="Documentos" subtitle="Upload, consulta e abertura segura de arquivos da obra via Supabase Storage.">
       <View style={styles.summaryRow}>
         <View style={styles.summaryCard}>
           <Text style={styles.summaryValue}>{summary.total}</Text>
@@ -313,7 +313,7 @@ export function DocumentsScreen() {
         </View>
       </View>
 
-      <SectionCard title="Biblioteca da casa" subtitle="Cadastre contrato, alvara, laudo, nota fiscal e outros arquivos importantes.">
+      <SectionCard title="Biblioteca da obra" subtitle="Cadastre contrato, alvara, laudo, nota fiscal e outros arquivos importantes.">
         <View style={styles.actionRow}>
           <Pressable style={({ pressed }) => [styles.primaryButton, pressed && styles.buttonPressed]} onPress={() => setFormOpen(true)}>
             <Text style={styles.primaryButtonText}>+ Novo documento</Text>
@@ -341,7 +341,7 @@ export function DocumentsScreen() {
             <Text style={styles.loadingText}>Carregando documentos...</Text>
           </View>
         ) : !project ? (
-          <Text style={styles.emptyText}>Configure a casa antes de cadastrar a biblioteca de documentos.</Text>
+          <Text style={styles.emptyText}>Configure a obra antes de cadastrar a biblioteca de documentos.</Text>
         ) : filteredDocuments.length === 0 ? (
           <Text style={styles.emptyText}>Nenhum documento encontrado nesse filtro.</Text>
         ) : (

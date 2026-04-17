@@ -48,7 +48,7 @@ function initialsFromName(name: string) {
 }
 
 /**
- * Tela de Configuração da Casa (Refatorada para RPC e Drag & Drop).
+ * Tela de Configuração da Obra (Refatorada para RPC e Drag & Drop).
  */
 export function HouseFormScreen() {
   const queryClient = useQueryClient();
@@ -160,11 +160,11 @@ export function HouseFormScreen() {
       Toast.show({
         type: "success",
         text1: "Configurações salvas",
-        text2: "Os dados da casa e equipe foram sincronizados.",
+        text2: "Os dados da obra e equipe foram sincronizados.",
       });
     } catch (e) {
       console.error(e);
-      Alert.alert("Erro", "Falha ao sincronizar dados da casa.");
+      Alert.alert("Erro", "Falha ao sincronizar dados da obra.");
     } finally {
       setSaving(false);
     }
@@ -197,13 +197,13 @@ export function HouseFormScreen() {
 
   return (
     <>
-      <AppScreen title="Casa" subtitle="Defina os detalhes da obra e a equipe fixa.">
+      <AppScreen title="Obra" subtitle="Defina os detalhes da obra e a equipe fixa.">
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <View style={styles.houseThumb}>{photoUrl ? <Image source={{ uri: photoUrl }} style={styles.img} /> : <Text style={styles.initials}>{initialsFromName(houseName)}</Text>}</View>
             <View style={styles.headerInfo}><Text style={styles.cardTitle}>Dados da Obra</Text><Pressable onPress={() => pickImage("house")}><Text style={styles.linkText}>Alterar foto da capa</Text></Pressable></View>
           </View>
-          <View style={styles.field}><Text style={styles.label}>Nome da Casa *</Text><TextInput style={styles.input} value={houseName} onChangeText={setHouseName} placeholder="Ex: Casa de Campo" /></View>
+          <View style={styles.field}><Text style={styles.label}>Nome da Obra *</Text><TextInput style={styles.input} value={houseName} onChangeText={setHouseName} placeholder="Ex: Obra de Campo" /></View>
           <View style={styles.field}><Text style={styles.label}>Endereço</Text><TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Rua, Numero, Bairro" /></View>
         </View>
 

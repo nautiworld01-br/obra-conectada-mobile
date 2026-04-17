@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../config/theme";
 
 /**
@@ -23,7 +23,10 @@ export function AppScreen({ title, titleColor, subtitle, children, scrollable = 
   const content = (
     <View style={styles.content}>
       <View style={styles.header}>
-        <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
+        <View style={styles.titleRow}>
+          <Image source={require("../../assets/icon.png")} style={styles.headerLogo} />
+          <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
+        </View>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </View>
       {children}
@@ -58,6 +61,16 @@ const styles = StyleSheet.create({
   },
   header: {
     gap: 6,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerLogo: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
   },
   title: {
     fontSize: 30,

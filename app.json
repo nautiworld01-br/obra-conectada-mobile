@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "obra-conectada-mobile",
+    "name": "Obra Conectada",
     "slug": "obra-conectada-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "br.com.suaempresa.obraconectada"
     },
     "android": {
       "adaptiveIcon": {
@@ -28,7 +29,7 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro",
       "name": "Obra Conectada",
-      "shortName": "ObraApp",
+      "shortName": "Obra Conectada",
       "themeColor": "#2563EB",
       "backgroundColor": "#FFFFFF"
     },

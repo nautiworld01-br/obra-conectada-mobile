@@ -129,7 +129,7 @@ export function DashboardScreen() {
   // Renderizacao principal para proprietarios/administradores.
   // Exibe panorama geral de progresso, metricas globais e situacao da equipe.
   return (
-    <AppScreen title="Dashboard" subtitle="Resumo geral da casa, da obra e dos registros operacionais.">
+    <AppScreen title="Dashboard" subtitle="Resumo geral da obra e dos registros operacionais.">
       <SectionCard title="Progresso geral" subtitle="Leitura consolidada das etapas e da operacao.">
         <View style={styles.heroRow}>
           <View style={styles.progressCircle}>

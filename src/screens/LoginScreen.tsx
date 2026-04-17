@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -66,7 +67,7 @@ export function LoginScreen({ navigation }: Props) {
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardShell}>
         <ScrollView bounces={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <View style={styles.brandBlock}>
-            <View style={styles.brandBadge}><Text style={styles.brandBadgeText}>OC</Text></View>
+            <Image source={require("../../assets/icon.png")} style={styles.brandLogo} />
             <Text style={styles.title}>Obra Conectada</Text>
           </View>
 
@@ -106,7 +107,8 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: colors.background },
   keyboardShell: { flex: 1 },
   scrollContent: { flexGrow: 1, paddingHorizontal: 20, paddingTop: 36, paddingBottom: 28, gap: 24 },
-  brandBlock: { gap: 10, alignItems: "center" },
+  brandBlock: { gap: 12, alignItems: "center", marginBottom: 30 },
+  brandLogo: { width: 80, height: 80, borderRadius: 20 },
   brandBadge: { width: 52, height: 52, borderRadius: 18, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.cardBorder },
   brandBadgeText: { color: colors.primary, fontSize: 19, fontWeight: "800" },
   title: { fontSize: 35, lineHeight: 40, fontWeight: "800", color: colors.text, textAlign: "center" },

@@ -86,7 +86,7 @@ function EditProjectModal({
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Nome da obra *</Text>
               <TextInput
-                placeholder="Ex: Reforma Casa 01"
+                placeholder="Ex: Reforma Obra 01"
                 placeholderTextColor={colors.textMuted}
                 style={styles.fieldInput}
                 value={name}
@@ -218,7 +218,7 @@ export function SettingsScreen() {
             <Text style={styles.rowLabel}>Supabase: {isConfigured ? "Configurado" : "Pendente"}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.rowLabel}>Casa vinculada: {project?.name?.trim() || "Ainda nao configurada"}</Text>
+            <Text style={styles.rowLabel}>Obra vinculada: {project?.name?.trim() || "Ainda nao configurada"}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.rowLabel}>Endereco: {project?.address?.trim() || "Nao informado"}</Text>
