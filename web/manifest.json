@@ -1,14 +1,14 @@
 {
-  "id": "/obra-conectada-mobile/",
+  "id": "obra-conectada-pwa",
   "name": "Obra Conectada",
   "short_name": "Obra",
   "description": "Gestão inteligente de obras e cronogramas.",
-  "start_url": "/obra-conectada-mobile/",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#FFFFFF",
   "theme_color": "#2563EB",
   "orientation": "portrait",
-  "scope": "/obra-conectada-mobile/",
+  "scope": "./",
   "icons": [
     {
       "src": "assets/icon.png",
