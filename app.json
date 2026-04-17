@@ -37,7 +37,12 @@
       "scope": "/obra-conectada-mobile/",
       "startUrl": "/obra-conectada-mobile/",
       "orientation": "portrait",
-      "barStyle": "black-translucent"
+      "barStyle": "black-translucent",
+      "splash": {
+        "image": "./assets/splash-icon.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#ffffff"
+      }
     },
     "experiments": {
       "baseUrl": "/obra-conectada-mobile"
