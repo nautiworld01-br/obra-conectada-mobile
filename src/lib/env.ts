@@ -1,7 +1,6 @@
-// Carregamento das variáveis de ambiente para conexão com o Supabase.
-// future_fix: Adicionar validação de tipo para as chaves do ambiente.
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? "";
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? "";
+// Chaves hardcoded para garantir o funcionamento em builds de apresentação (APK e PWA).
+const supabaseUrl = "https://hjxvjmcdrsiifukmtjig.supabase.co";
+const supabaseAnonKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhqeHZqbWNkcnNpaWZ1a210amlnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODc4MzgsImV4cCI6MjA5MTY2MzgzOH0.VTA5eUJHX2BN59us1MMftZtPuoyU-yQE8YXt-kI8dDA";
 
 // Valida se as configurações básicas de conexão com o Supabase foram fornecidas.
 const hasConfig = Boolean(supabaseUrl && supabaseAnonKey);
