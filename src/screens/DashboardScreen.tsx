@@ -151,16 +151,13 @@ export function DashboardScreen() {
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricValue}>{updates.length}</Text>
-          <Text style={styles.metricLabel}>Atualizacoes</Text>
+          <Text style={styles.metricLabel}>Relatorios</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricValue}>{logs.length}</Text>
           <Text style={styles.metricLabel}>Registros diarios</Text>
         </View>
-        <View style={styles.metricCard}>
-          <Text style={styles.metricValue}>{formatCurrency(dashboardData.paidTotal)}</Text>
-          <Text style={styles.metricLabel}>Financeiro executado</Text>
-        </View>
+        {/* Card financeiro removido conforme plano de visibilidade operacional */}
       </View>
 
       <SectionCard title="Equipe em campo" subtitle="Registros operacionais dos funcionarios.">

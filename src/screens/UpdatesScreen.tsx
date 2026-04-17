@@ -6,6 +6,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -391,8 +392,6 @@ export function UpdatesScreen() {
     }
   };
 
-  if (!project) return <AppScreen title="Relatórios"><Text>Configure a casa primeiro.</Text></AppScreen>;
-
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
@@ -400,10 +399,23 @@ export function UpdatesScreen() {
         <Pressable style={styles.newButton} onPress={() => { setEditingUpdate(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable>
       </View>
 
-      {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 40 }} /> : (
+      {isLoading ? (
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator color={colors.primary} />
+        </View>
+      ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {updates.map(u => (
-            <Pressable key={u.id} style={styles.updateCard} onPress={() => setSelectedUpdate(u)}>
+          {updates.length === 0 ? (
+            <Text style={styles.emptyText}>Nenhum relatório semanal registrado ainda.</Text>
+          ) : updates.map(u => (
+            <Pressable 
+              key={u.id} 
+              style={u.updateCard} 
+              onPress={() => {
+                // Pequeno delay para estabilizar renderizacao no React 19
+                setTimeout(() => setSelectedUpdate(u), 10);
+              }}
+            >
               <View style={styles.cardRow}>
                 <Text style={styles.cardWeek}>Semana {u.week_ref}</Text>
                 {u.approved && <AppIcon name="CheckCircle2" size={18} color={colors.success} />}
@@ -417,9 +429,26 @@ export function UpdatesScreen() {
 
       <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} loading={upsertUpdate.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
       <UpdateDetailModal update={selectedUpdate} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
+        const performDelete = async () => {
+          try {
+            await deleteUpdate.mutateAsync({ id: selectedUpdate!.id, projectId: project.id });
+            setSelectedUpdate(null);
+            Toast.show({ type: "success", text1: "Relatório removido" });
+          } catch (e) {
+            Alert.alert("Erro", "Nao foi possivel excluir o relatório.");
+          }
+        };
+
+        if (Platform.OS === "web") {
+          if (window.confirm("Deseja remover este relatório semanal?")) {
+            void performDelete();
+          }
+          return;
+        }
+
         Alert.alert("Excluir?", "Deseja remover este relatório?", [
-          { text: "Não" },
-          { text: "Sim", style: "destructive", onPress: () => deleteUpdate.mutateAsync({ id: selectedUpdate!.id, projectId: project.id }).then(() => setSelectedUpdate(null)) }
+          { text: "Não", style: "cancel" },
+          { text: "Sim", style: "destructive", onPress: () => void performDelete() }
         ]);
       }} />
     </View>
@@ -428,6 +457,7 @@ export function UpdatesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 16 },
+  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
   subtitle: { fontSize: 13, color: colors.textMuted },

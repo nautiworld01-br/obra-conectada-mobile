@@ -44,9 +44,11 @@ const appRoutes: AppRoute[] = [
   { key: "inicio", label: "Inicio", menuLabel: "Dashboard", icon: "Home", component: DashboardScreen, inBottomNav: true, inDrawer: true },
   { key: "dia-a-dia", label: "Dia a Dia", menuLabel: "Dia a Dia", icon: "LayoutList", component: DailyScreen, inBottomNav: true },
   { key: "crono", label: "Crono", menuLabel: "Crono", icon: "CalendarDays", component: ScheduleScreen, inBottomNav: true },
-  { key: "pagtos", label: "Pagtos", menuLabel: "Pagamentos", icon: "CircleDollarSign", component: PaymentsScreen, inDrawer: true, ownerOnly: true },
+  { key: "atualizacoes", label: "Relatorios", menuLabel: "Relatorios", icon: "Camera", component: UpdatesScreen, inDrawer: true },
   { key: "mais", label: "Perfil", menuLabel: "Perfil", icon: "User", component: MoreScreen, inBottomNav: true },
-  { key: "atualizacoes", label: "Atualizacoes", menuLabel: "Atualizacoes", icon: "Camera", component: UpdatesScreen, inDrawer: true, ownerOnly: true },
+  
+  // Rotas exclusivas do Proprietario
+  { key: "pagtos", label: "Pagtos", menuLabel: "Pagamentos", icon: "CircleDollarSign", component: PaymentsScreen, inDrawer: true, ownerOnly: true },
   { key: "documentos", label: "Documentos", menuLabel: "Documentos", icon: "FileText", component: DocumentsScreen, inDrawer: true, ownerOnly: true },
   { key: "equipe", label: "Equipe", menuLabel: "Equipe", icon: "Users", component: TeamScreen, inDrawer: true, ownerOnly: true },
   { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "UserCheck", component: PresenceScreen, inDrawer: true, ownerOnly: true },
@@ -128,22 +130,22 @@ function SideMenu(_: any) {
                 </View>
               </View>
               <View style={styles.drawerHouseArea}>
-                <Pressable style={styles.drawerHouseButton} onPress={onToggleHouseMenu}>
+                <Pressable 
+                  style={styles.drawerHouseButton} 
+                  onPress={isOwner ? onToggleHouseMenu : undefined}
+                >
                   <View style={styles.drawerHouseAvatar}>{housePhotoUrl ? <Image source={{ uri: housePhotoUrl }} style={styles.drawerHouseAvatarImage} /> : <Text style={styles.drawerHouseAvatarText}>OC</Text>}</View>
-                  <View style={styles.drawerHouseCopy}><Text numberOfLines={1} style={styles.drawerHouseName}>{houseName}</Text><Text style={styles.drawerHouseHint}>{isOwner ? "Ver ou configurar" : "Ver casa"}</Text></View>
-                  <AppIcon name={isHouseMenuOpen ? "ChevronUp" : "ChevronDown"} size={16} color={colors.textMuted} />
+                  <View style={styles.drawerHouseCopy}>
+                    <Text numberOfLines={1} style={styles.drawerHouseName}>{houseName}</Text>
+                    <Text style={styles.drawerHouseHint}>{isOwner ? "Toque para configurar" : "Residência vinculada"}</Text>
+                  </View>
+                  {isOwner && <AppIcon name={isHouseMenuOpen ? "ChevronUp" : "ChevronDown"} size={16} color={colors.textMuted} />}
                 </Pressable>
-                {isHouseMenuOpen && (
+                {isHouseMenuOpen && isOwner && (
                   <View style={styles.drawerHousePopover}>
-                    {isOwner && (
-                      <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("house-config")}>
-                        <AppIcon name="Home" size={16} color={colors.primary} />
-                        <Text style={styles.drawerHouseMenuTitle}>Configurar</Text>
-                      </Pressable>
-                    )}
-                    <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("inicio")}>
-                      <AppIcon name="Eye" size={16} color={colors.primary} />
-                      <Text style={styles.drawerHouseMenuTitle}>Ver casa</Text>
+                    <Pressable style={styles.drawerHouseMenuItem} onPress={() => onNavigate("house-config")}>
+                      <AppIcon name="Settings2" size={16} color={colors.primary} />
+                      <Text style={styles.drawerHouseMenuTitle}>Configurar Casa</Text>
                     </Pressable>
                   </View>
                 )}
@@ -179,11 +181,25 @@ function AppShell() {
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const [isHouseMenuOpen, setIsHouseMenuOpen] = useState(false);
   const { signOut } = useAuth();
-  const { project } = useProject();
-  const { isOwner } = useProfile();
+  const { project, isLoading: projectLoading } = useProject();
+  const { isOwner, profile, isLoading: profileLoading } = useProfile();
 
   const ActiveScreen = useMemo(() => appRoutes.find(r => r.key === currentRouteKey)?.component ?? appRoutes[0].component, [currentRouteKey]);
-  const houseName = project?.name?.trim() || "Casa ainda nao configurada";
+  
+  // SEGURANCA SENIOR: Se o perfil sumiu do banco mas a sessao existe, desloga na hora.
+  useEffect(() => {
+    if (!profileLoading && !profile) {
+      console.log("Perfil nao encontrado. Encerrando sessao por seguranca...");
+      void signOut();
+    }
+  }, [profile, profileLoading, signOut]);
+
+  // Lógica sênior para nome da casa: aguarda carregamento e trata nulos
+  const houseName = useMemo(() => {
+    if (projectLoading) return "Carregando...";
+    return project?.name?.trim() || "Casa vinculada";
+  }, [project, projectLoading]);
+
   const availableRoutes = useMemo(() => appRoutes.filter(r => !r.ownerOnly || isOwner), [isOwner]);
 
   const handleNavigate = (routeKey: string) => { setCurrentRouteKey(routeKey); setIsHouseMenuOpen(false); setIsSideMenuOpen(false); };

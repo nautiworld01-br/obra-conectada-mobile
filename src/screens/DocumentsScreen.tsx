@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -15,6 +15,8 @@ import {
 } from "../hooks/useDocuments";
 import { uploadLocalFileToStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
+import { AppDatePicker } from "../components/AppDatePicker";
+
 
 const categoryOptions: { value: DocumentCategory | "todos"; label: string }[] = [
   { value: "todos", label: "Todos" },
@@ -184,12 +186,6 @@ export function DocumentsScreen() {
       return;
     }
 
-    const expiresAtIso = toIsoDate(expiresAt);
-    if (expiresAt.trim() && !expiresAtIso) {
-      setLocalError("Data de vencimento invalida.");
-      return;
-    }
-
     if (!supabase) {
       setLocalError("Supabase nao configurado.");
       return;
@@ -211,7 +207,7 @@ export function DocumentsScreen() {
         userId: user.id,
         title: title.trim(),
         category,
-        expiresAt: expiresAtIso,
+        expiresAt: expiresAt || null, // Ja esta em ISO via AppDatePicker
         fileName: pickedFile.name,
         filePath,
         mimeType: pickedFile.mimeType ?? null,
@@ -256,23 +252,44 @@ export function DocumentsScreen() {
   };
 
   const handleDeleteDocument = (document: ProjectDocumentRow) => {
-    if (!project?.id) return;
+    console.log("handleDeleteDocument acionado para:", document.id);
+    if (!project?.id) {
+      console.error("Erro: project.id nao encontrado");
+      return;
+    }
 
+    const performDelete = async () => {
+      try {
+        console.log("Iniciando performDelete no Supabase...");
+        await deleteDocument.mutateAsync({
+          id: document.id,
+          projectId: project.id,
+          filePath: document.file_path,
+        });
+        console.log("Exclusao concluida com sucesso no banco/storage.");
+      } catch (error) {
+        console.error("Erro na execucao da exclusao:", error);
+        const message = error instanceof Error ? error.message : "Nao foi possivel excluir o documento.";
+        if (Platform.OS === "web") alert(message);
+        else Alert.alert("Erro ao excluir", message);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      console.log("Plataforma detectada: WEB. Abrindo confirm...");
+      if (window.confirm("Excluir documento? Esse arquivo sera removido da biblioteca da casa.")) {
+        void performDelete();
+      }
+      return;
+    }
+
+    console.log("Plataforma detectada: NATIVE. Abrindo Alert...");
     Alert.alert("Excluir documento?", "Esse arquivo sera removido da biblioteca da casa.", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
         style: "destructive",
-        onPress: () => {
-          void deleteDocument.mutateAsync({
-            id: document.id,
-            projectId: project.id,
-            filePath: document.file_path,
-          }).catch((error) => {
-            const message = error instanceof Error ? error.message : "Nao foi possivel excluir o documento.";
-            Alert.alert("Erro ao excluir", message);
-          });
-        },
+        onPress: () => void performDelete(),
       },
     ]);
   };
@@ -426,16 +443,11 @@ export function DocumentsScreen() {
               </View>
 
               <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Vencimento</Text>
-                <Pressable 
-                  style={({ pressed }) => [styles.dateField, pressed && styles.buttonPressed]} 
-                  onPress={() => setCalendarOpen(true)}
-                >
-                  <Text style={expiresAt ? styles.dateFieldText : styles.dateFieldPlaceholder}>
-                    {expiresAt || "dd/mm/aaaa"}
-                  </Text>
-                  <Text style={styles.dateFieldIcon}>◫</Text>
-                </Pressable>
+                <AppDatePicker 
+                  label="Vencimento" 
+                  value={expiresAt} 
+                  onChange={setExpiresAt} 
+                />
               </View>
 
               <View style={styles.fieldBlock}>

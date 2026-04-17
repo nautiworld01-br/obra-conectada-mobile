@@ -4,73 +4,55 @@ import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
 // Definições de cargos e estados para os membros da equipe (funcionários).
-// future_fix: Expandir a lista de cargos conforme a demanda de novos projetos.
-export type TeamEmployeeRole = "empregada domestica" | "marinheiro";
+export type TeamEmployeeRole = "empregada domestica" | "marinheiro" | string;
 export type TeamEmployeeStatus = "ativo" | "inativo";
 
 export type TeamEmployeeRow = {
   id: string;
-  project_id: string;
   full_name: string;
   role: TeamEmployeeRole;
   photo: string | null;
   status: TeamEmployeeStatus;
+  is_owner: boolean;
 };
 
-// Hook para gerenciar a listagem da equipe, incluindo sincronização em tempo real.
-// future_fix: Avaliar impacto de performance do Realtime em equipes muito grandes.
+/**
+ * Hook para gerenciar a listagem da equipe de contas reais (profiles).
+ */
 export function useTeam() {
   const { project, isLoading: projectLoading } = useProject();
   const queryClient = useQueryClient();
 
   const employeesQuery = useQuery({
-    queryKey: ["employees", project?.id, "all"],
-    enabled: Boolean(project?.id && supabase),
+    queryKey: ["employees", "all"],
+    enabled: Boolean(supabase),
     queryFn: async (): Promise<TeamEmployeeRow[]> => {
-      if (!supabase || !project?.id) {
-        return [];
-      }
+      if (!supabase) return [];
 
+      console.log("Buscando funcionarios (is_owner = false)...");
+      // Busca todos os perfis que nao sao proprietarios no sistema
       const { data, error } = await supabase
-        .from("employees")
-        .select("id, project_id, full_name, role, photo, status")
-        .eq("project_id", project.id)
-        .order("status", { ascending: true })
+        .from("profiles")
+        .select("id, full_name, avatar_url, is_owner, is_employee, status, occupation_role")
+        .eq("is_owner", false)
         .order("full_name", { ascending: true });
 
       if (error) {
+        console.error("Erro Supabase Equipe:", error);
         throw error;
       }
-
-      return (data ?? []) as TeamEmployeeRow[];
+      
+      console.log("Funcionarios encontrados:", data?.length);
+      return (data ?? []).map(p => ({
+        id: p.id,
+        full_name: p.full_name,
+        photo: p.avatar_url,
+        role: p.occupation_role || "Funcionário",
+        status: (p.status as TeamEmployeeStatus) || "ativo",
+        is_owner: p.is_owner
+      })) as TeamEmployeeRow[];
     },
   });
-
-  // Configura a escuta de mudanças (INSERT, UPDATE, DELETE) na tabela de funcionários.
-  useEffect(() => {
-    if (!project?.id || !supabase) return;
-
-    const subscription = supabase
-      .channel(`employees:${project.id}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "employees",
-          filter: `project_id=eq.${project.id}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["employees", project.id] });
-          queryClient.invalidateQueries({ queryKey: ["house-employees", project.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [project?.id, queryClient]);
 
   return {
     project,
@@ -79,84 +61,66 @@ export function useTeam() {
   };
 }
 
-// Gerencia a adição ou edição de membros da equipe no banco de dados.
+/**
+ * Mutation para atualizar metadados de gestao do perfil (Status e Cargo).
+ */
 export function useUpsertEmployee() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (payload: {
-      id?: string;
-      projectId: string;
+      id: string;
       fullName: string;
-      role: TeamEmployeeRole;
+      role: string;
       photo: string | null;
       status: TeamEmployeeStatus;
     }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
-      const employeePayload = {
-        project_id: payload.projectId,
-        full_name: payload.fullName,
-        role: payload.role,
-        photo: payload.photo,
-        status: payload.status,
-      };
-
-      if (payload.id) {
-        const { data, error } = await supabase
-          .from("employees")
-          .update(employeePayload)
-          .eq("id", payload.id)
-          .select("id, project_id, full_name, role, photo, status")
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        return data as TeamEmployeeRow;
-      }
-
+      console.log("Tentando atualizar perfil:", payload.id);
       const { data, error } = await supabase
-        .from("employees")
-        .insert(employeePayload)
-        .select("id, project_id, full_name, role, photo, status")
+        .from("profiles")
+        .update({
+          full_name: payload.fullName,
+          occupation_role: payload.role,
+          avatar_url: payload.photo,
+          status: payload.status,
+        })
+        .eq("id", payload.id)
+        .select()
         .single();
 
       if (error) {
+        console.error("Erro Supabase Update Profile:", error);
         throw error;
       }
-
-      return data as TeamEmployeeRow;
+      return data;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["employees", variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ["house-employees", variables.projectId] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });
 }
 
-// Remove um funcionário da base de dados e invalida os caches relacionados.
+/**
+ * Remove a conta do usuario (Perfil) do sistema.
+ */
 export function useDeleteEmployee() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: { id: string; projectId: string }) => {
-      if (!supabase) {
-        throw new Error("Supabase nao configurado.");
-      }
+    mutationFn: async (payload: { id: string }) => {
+      if (!supabase) throw new Error("Supabase nao configurado.");
 
-      const { error } = await supabase.from("employees").delete().eq("id", payload.id);
+      // Chama a RPC para deletar o registro do banco
+      const { error } = await supabase.rpc("delete_user_account", {
+        p_user_id: payload.id
+      });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
     },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["employees", variables.projectId] });
-      queryClient.invalidateQueries({ queryKey: ["house-employees", variables.projectId] });
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
     },
   });
 }

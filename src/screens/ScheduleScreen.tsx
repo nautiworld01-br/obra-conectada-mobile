@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +15,7 @@ import Toast from "react-native-toast-message";
 import { colors } from "../config/theme";
 import { Validator } from "../lib/validation";
 import { StageRow, StageStatus, useDeleteStage, useStages, useUpsertStage } from "../hooks/useStages";
+import { useProject } from "../hooks/useProject";
 import { AppIcon } from "../components/AppIcon";
 import { AppDatePicker } from "../components/AppDatePicker";
 
@@ -60,6 +62,7 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
   const [status, setStatus] = useState<StageStatus>("nao_iniciado");
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedEnd, setPlannedEnd] = useState("");
+  const [percentComplete, setPercentComplete] = useState(0);
 
   // Sincroniza o rascunho com os dados reais ao abrir para edicao.
   useEffect(() => {
@@ -70,23 +73,44 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
       setStatus(stage?.status ?? "nao_iniciado");
       setPlannedStart(stage?.planned_start ?? "");
       setPlannedEnd(stage?.planned_end ?? "");
+      setPercentComplete(stage?.percent_complete ?? 0);
     }
   }, [stage, visible]);
 
   /**
-   * Executa a validacao e dispara o salvamento da etapa.
+   * Executa a validacao e dispara o salvamento da etapa com calculo automatico de status.
    */
   const handleInternalSave = () => {
     const nameVal = Validator.required(name, "nome");
     if (!nameVal.isValid) { Alert.alert("Erro", nameVal.error!); return; }
+
+    // Inteligencia de Status: Calcula o status ideal baseado nas datas se nao for um estado terminal.
+    let finalStatus: StageStatus = status;
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    if (status !== "concluido" && status !== "bloqueado") {
+      if (plannedEnd && todayStr > plannedEnd) {
+        finalStatus = "atrasado";
+      } else if (plannedStart && todayStr >= plannedStart) {
+        finalStatus = "em_andamento";
+      } else {
+        finalStatus = "nao_iniciado";
+      }
+    }
+
+    // Sincroniza Porcentagem com o Status
+    let finalPercent = percentComplete;
+    if (finalStatus === "concluido") finalPercent = 100;
+    if (finalStatus === "nao_iniciado") finalPercent = 0;
+
     onSave({ 
       name: name.trim(), 
       category, 
       responsible, 
-      status, 
+      status: finalStatus, 
       plannedStart: plannedStart || null, 
       plannedEnd: plannedEnd || null, 
-      percentComplete: stage?.percent_complete ?? 0 
+      percentComplete: finalPercent
     });
   };
 
@@ -122,6 +146,37 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
               />
             </View>
 
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Status Manual</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusPillsRow}>
+                {statusOptions.map(opt => (
+                  <Pressable 
+                    key={opt.value} 
+                    style={[styles.statusPillBtn, status === opt.value && styles.statusPillBtnActive]}
+                    onPress={() => setStatus(opt.value)}
+                  >
+                    <Text style={[styles.statusPillBtnText, status === opt.value && styles.statusPillBtnTextActive]}>{opt.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={styles.helperTextSmall}>Estados "Em Andamento" e "Atrasado" sao sugeridos automaticamente por data, mas voce pode forçar "Concluido" ou "Bloqueado".</Text>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Evolução da Etapa: {percentComplete}%</Text>
+              <View style={styles.statusPillsRow}>
+                {[0, 25, 50, 75, 100].map(val => (
+                  <Pressable 
+                    key={val} 
+                    style={[styles.statusPillBtn, percentComplete === val && styles.statusPillBtnActive]}
+                    onPress={() => setPercentComplete(val)}
+                  >
+                    <Text style={[styles.statusPillBtnText, percentComplete === val && styles.statusPillBtnTextActive]}>{val}%</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
             <View style={styles.formActions}>
               <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={handleInternalSave}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar Etapa</Text>}
@@ -144,6 +199,7 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
  * future_fix: Implementar arrastar-e-soltar para reordenar importancia das etapas.
  */
 export function ScheduleScreen() {
+  const { project } = useProject();
   const { stages, isLoading } = useStages();
   const upsertStage = useUpsertStage();
   const deleteStage = useDeleteStage();
@@ -175,9 +231,28 @@ export function ScheduleScreen() {
 
   const handleDelete = () => {
     if (!selectedStage) return;
+
+    const performDelete = async () => {
+      try {
+        await deleteStage.mutateAsync({ id: selectedStage.id, projectId: selectedStage.project_id });
+        setFormOpen(false);
+        setSelectedStage(null);
+        Toast.show({ type: "success", text1: "Etapa removida", text2: "O cronograma foi atualizado." });
+      } catch (e) {
+        Alert.alert("Erro", "Não foi possível excluir a etapa.");
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (window.confirm("Deseja remover esta etapa do cronograma?")) {
+        void performDelete();
+      }
+      return;
+    }
+
     Alert.alert("Excluir?", "Remover esta etapa?", [
-      { text: "Não" },
-      { text: "Sim", style: "destructive", onPress: () => deleteStage.mutateAsync({ id: selectedStage.id, projectId: selectedStage.project_id }).then(() => { setFormOpen(false); setSelectedStage(null); }) }
+      { text: "Não", style: "cancel" },
+      { text: "Sim", style: "destructive", onPress: () => void performDelete() }
     ]);
   };
 
@@ -227,7 +302,7 @@ export function ScheduleScreen() {
         loading={upsertStage.isPending} 
         deleting={deleteStage.isPending} 
         onClose={() => setFormOpen(false)} 
-        onSave={(p: any) => upsertStage.mutateAsync({ id: selectedStage?.id, projectId: stages[0]?.project_id, ...p }).then(() => {
+        onSave={(p: any) => upsertStage.mutateAsync({ id: selectedStage?.id, projectId: project?.id, ...p }).then(() => {
           setFormOpen(false);
           Toast.show({ type: "success", text1: "Etapa salva", text2: "O cronograma foi atualizado." });
         })} 
@@ -274,6 +349,12 @@ const styles = StyleSheet.create({
   fieldBlock: { gap: 4 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
+  statusPillsRow: { gap: 8, paddingVertical: 4 },
+  statusPillBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted },
+  statusPillBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  statusPillBtnText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  statusPillBtnTextActive: { color: colors.surface },
+  helperTextSmall: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
   row: { flexDirection: "row", gap: 10 },
   formActions: { gap: 10, marginTop: 10 },
   primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },

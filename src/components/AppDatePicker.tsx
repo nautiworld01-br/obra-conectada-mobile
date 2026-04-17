@@ -15,30 +15,44 @@ interface AppDatePickerProps {
  * Componente de Seletor de Data Padronizado.
  * Suporta plataformas nativas (modal) e Web (input nativo HTML5).
  */
-export function AppDatePicker({ value, onChange, label, placeholder = "Selecione uma data" }: AppDatePickerProps) {
+export function AppDatePicker({ value, onChange, label, placeholder }: AppDatePickerProps) {
   const [show, setShow] = useState(false);
+
+  // Calcula a data de hoje formatada para o placeholder
+  const today = new Date();
+  const formattedToday = `${today.getDate().toString().padStart(2, "0")}/${(today.getMonth() + 1).toString().padStart(2, "0")}/${today.getFullYear()}`;
+  const displayPlaceholder = placeholder || formattedToday;
 
   // Renderização específica para WEB
   if (Platform.OS === "web") {
     return (
       <View style={styles.container}>
         {label ? <Text style={styles.label}>{label}</Text> : null}
-        <input
-          type="date"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            padding: "12px 14px",
-            borderRadius: "14px",
-            border: `1px solid ${colors.cardBorder}`,
-            backgroundColor: colors.surfaceMuted,
-            color: colors.text,
-            fontSize: "15px",
-            fontFamily: "inherit",
-            width: "100%",
-            outline: "none",
-          }}
-        />
+        <View style={styles.inputWebWrapper}>
+          <View style={styles.iconWrapper}>
+            <AppIcon name="Calendar" size={18} color={colors.textMuted} />
+          </View>
+          <input
+            type="date"
+            value={value}
+            placeholder={displayPlaceholder}
+            onChange={(e) => onChange(e.target.value)}
+            style={{
+              padding: "12px 14px",
+              paddingLeft: "42px", // Espaço para o icone fixo a esquerda
+              borderRadius: "14px",
+              border: `1px solid ${colors.cardBorder}`,
+              backgroundColor: colors.surfaceMuted,
+              color: colors.text,
+              fontSize: "15px",
+              fontFamily: "inherit",
+              width: "100%",
+              boxSizing: "border-box",
+              outline: "none",
+              cursor: "pointer",
+            }}
+          />
+        </View>
       </View>
     );
   }
@@ -66,10 +80,12 @@ export function AppDatePicker({ value, onChange, label, placeholder = "Selecione
         style={({ pressed }) => [styles.input, pressed && styles.pressed]} 
         onPress={() => setShow(true)}
       >
-        <Text style={[styles.inputText, !displayDate && styles.placeholder]}>
-          {displayDate || placeholder}
-        </Text>
-        <AppIcon name="Calendar" size={18} color={colors.textMuted} />
+        <View style={styles.innerInputRow}>
+          <AppIcon name="Calendar" size={18} color={colors.textMuted} />
+          <Text style={[styles.inputText, !displayDate && styles.placeholder]}>
+            {displayDate || displayPlaceholder}
+          </Text>
+        </View>
       </Pressable>
 
       {show && (
@@ -99,7 +115,6 @@ const styles = StyleSheet.create({
   input: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -107,12 +122,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
+  innerInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  inputWebWrapper: {
+    position: "relative",
+    width: "100%",
+  },
+  iconWrapper: {
+    position: "absolute",
+    left: 14,
+    top: "50%",
+    transform: [{ translateY: -9 }],
+    zIndex: 1,
+  },
   inputText: {
     color: colors.text,
     fontSize: 15,
   },
   placeholder: {
     color: colors.textMuted,
+    opacity: 0.7,
   },
   pressed: {
     opacity: 0.7,

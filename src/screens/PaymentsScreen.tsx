@@ -6,6 +6,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Toast from "react-native-toast-message";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { Validator } from "../lib/validation";
@@ -26,12 +28,11 @@ import {
   useUpdatePaymentStatus,
 } from "../hooks/usePayments";
 import { StageRow, useStages } from "../hooks/useStages";
+import { useProfile } from "../hooks/useProfile";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
+import { AppDatePicker } from "../components/AppDatePicker";
 
-/**
- * Opções de categoria para classificação financeira.
- */
 const categoryOptions: { value: PaymentCategory | "todos"; label: string; short: string }[] = [
   { value: "todos", label: "Todas Categorias", short: "Todos" },
   { value: "mao_de_obra_projeto", label: "Mao de obra Projeto Inicial", short: "MO Projeto" },
@@ -39,9 +40,6 @@ const categoryOptions: { value: PaymentCategory | "todos"; label: string; short:
   { value: "insumos_extras", label: "Insumos Servicos Extra", short: "Insumos Extra" },
 ];
 
-/**
- * Status possíveis para o fluxo de aprovação e pagamento.
- */
 const statusOptions: { value: PaymentStatus | "todos"; label: string }[] = [
   { value: "todos", label: "Todos Status" },
   { value: "pendente", label: "Pendente" },
@@ -51,52 +49,18 @@ const statusOptions: { value: PaymentStatus | "todos"; label: string }[] = [
   { value: "recusado", label: "Recusado" },
 ];
 
-const monthOptions = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const monthOptions = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-/**
- * Formata valores numéricos para moeda Real (R$).
- */
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
-/**
- * Converte data ISO para exibição brasileira.
- */
 function formatDate(value: string | null) {
   if (!value) return "—";
   const [year, month, day] = value.split("-");
   return `${day}/${month}/${year}`;
 }
 
-/**
- * Converte data brasileira para ISO (banco).
- */
-function toIsoDate(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split("/");
-  if (parts.length !== 3) return null;
-  return `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
-}
-
-/**
- * Gera a grade do seletor de datas.
- */
-function buildMonthGrid(currentMonthDate: Date) {
-  const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
-  const start = new Date(firstDay);
-  start.setDate(firstDay.getDate() - firstDay.getDay());
-  return Array.from({ length: 35 }).map((_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return { key: `${date.getTime()}`, iso: date.toISOString().split("T")[0], dayNumber: date.getDate(), currentMonth: date.getMonth() === currentMonthDate.getMonth() };
-  });
-}
-
-/**
- * Define cores baseadas no status do pagamento.
- */
 function getStatusColors(status: PaymentStatus) {
   switch (status) {
     case "pago": return { background: colors.successLight, text: colors.success };
@@ -107,24 +71,17 @@ function getStatusColors(status: PaymentStatus) {
   }
 }
 
-/**
- * Modal de Formulario: Cadastro e edicao de solicitacoes financeiras.
- * future_fix: Adicionar suporte a múltiplos anexos por pagamento.
- */
-function PaymentFormModal(_: any) {
-  const { visible, payment, projectId, stages, loading, onClose, onSave } = _;
+function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSave }: any) {
   const [draft, setDraft] = useState({
     periodMonth: monthOptions[new Date().getMonth()],
     periodYear: new Date().getFullYear().toString(),
     category: "mao_de_obra_projeto" as PaymentCategory,
     requestedAmount: "", description: "", stageId: null, dueDate: "", receiptUrl: ""
   });
-  const [localError, setLocalError] = useState<string | null>(null);
   const [monthOpen, setMonthOpen] = useState(false);
-  const [dateOpen, setDateOpen] = useState(false);
-  const [isUploading, setIsStatusUploading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Sincroniza estado com dados reais ao abrir para edicao.
   useEffect(() => {
     if (visible) {
       const currentPeriod = payment?.period || "";
@@ -136,91 +93,144 @@ function PaymentFormModal(_: any) {
         requestedAmount: payment?.requested_amount?.toString() ?? "",
         description: payment?.description ?? "",
         stageId: payment?.stage_id ?? null,
-        dueDate: payment?.due_date ? `${payment.due_date.split("-")[2]}/${payment.due_date.split("-")[1]}/${payment.due_date.split("-")[0]}` : "",
+        dueDate: payment?.due_date ?? "",
         receiptUrl: payment?.receipt_url ?? ""
       });
       setLocalError(null);
     }
   }, [payment, visible]);
 
-  /**
-   * Captura foto do comprovante e gerencia o upload para o Storage.
-   */
   const handleSave = async () => {
-    const descVal = Validator.required(draft.description, "descrição");
-    if (!descVal.isValid) { setLocalError(descVal.error!); return; }
-
-    const amountVal = Validator.number(draft.requestedAmount, "valor solicitado", 0.01);
+    if (!draft.description.trim()) { setLocalError("Descricao obrigatoria."); return; }
+    const amountVal = Validator.number(draft.requestedAmount, "valor", 0.01);
     if (!amountVal.isValid) { setLocalError(amountVal.error!); return; }
 
-    setIsStatusUploading(true);
+    setIsUploading(true);
     try {
       const finalReceiptUrl = await uploadAppMediaIfNeeded({
         uri: draft.receiptUrl,
         pathPrefix: `projects/${projectId}/payments/receipts`,
         fileBaseName: "receipt"
       });
-      await onSave({ ...draft, requestedAmount: amountVal.parsedValue, period: `${draft.periodMonth} ${draft.periodYear}`, receiptUrl: finalReceiptUrl });
-    } catch (e) { setLocalError("Falha no upload."); }
-    finally { setIsStatusUploading(false); }
+      await onSave({ 
+        ...draft, 
+        requestedAmount: amountVal.parsedValue, 
+        period: `${draft.periodMonth} ${draft.periodYear}`, 
+        receiptUrl: finalReceiptUrl 
+      });
+    } catch (e) { setLocalError("Erro no upload."); }
+    finally { setIsUploading(false); }
   };
 
   const pickReceipt = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { Alert.alert("Galeria", "Permissao necessaria."); return; }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
     if (!result.canceled) setDraft(c => ({ ...c, receiptUrl: result.assets[0].uri }));
   };
 
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}><Text style={styles.modalTitle}>{payment ? "Editar" : "Novo"} Pagamento</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+      <View style={styles.modalBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.modalCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{payment ? "Editar" : "Novo"} Pagamento</Text>
+            <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Referencia</Text><View style={styles.row}><Pressable style={[styles.selectField, {flex: 2}]} onPress={() => setMonthOpen(true)}><Text style={styles.selectFieldText}>{draft.periodMonth}</Text></Pressable><TextInput style={[styles.fieldInput, {flex: 1}]} value={draft.periodYear} onChangeText={v => setDraft(c => ({...c, periodYear: v}))} keyboardType="numeric" /></View></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Valor (R$)</Text><TextInput style={styles.fieldInput} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v}))} keyboardType="numeric" placeholder="0.00" /></View>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Vencimento</Text><Pressable style={styles.dateField} onPress={() => setDateOpen(true)}><Text style={styles.dateFieldText}>{draft.dueDate || "dd/mm/aaaa"}</Text></Pressable></View>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Descrição</Text><TextInput style={styles.fieldInput} value={draft.description} onChangeText={v => setDraft(c => ({...c, description: v}))} /></View>
+            <View style={styles.fieldBlock}><AppDatePicker label="Vencimento" value={draft.dueDate} onChange={(v) => setDraft(c => ({ ...c, dueDate: v }))} /></View>
+            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Descricao</Text><TextInput style={styles.fieldInput} value={draft.description} onChangeText={v => setDraft(c => ({...c, description: v}))} /></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Comprovante</Text><Pressable style={styles.mediaButton} onPress={pickReceipt}>{draft.receiptUrl ? <Image source={{ uri: draft.receiptUrl }} style={styles.receiptPreview} /> : <Text style={styles.mediaButtonText}>+ Anexar Foto</Text>}</Pressable></View>
             {localError && <Text style={styles.localError}>{localError}</Text>}
-            <Pressable style={({ pressed }) => [styles.primaryButton, (loading || isUploading || pressed) && styles.buttonPressed]} onPress={handleSave}>
+            <Pressable style={({ pressed }) => [styles.primaryButton, (loading || isUploading || pressed) && styles.buttonPressed]} onPress={handleSave} disabled={loading || isUploading}>
               {(loading || isUploading) ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar</Text>}
             </Pressable>
           </ScrollView>
+        </View>
+      </View>
+      <Modal transparent visible={monthOpen} animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setMonthOpen(false)}>
+          <View style={styles.dropdownModalCard}><ScrollView>{monthOptions.map(m => (<Pressable key={m} style={styles.dropdownItem} onPress={() => { setDraft(c => ({...c, periodMonth: m})); setMonthOpen(false); }}><Text style={styles.dropdownItemText}>{m}</Text></Pressable>))}</ScrollView></View>
         </Pressable>
-      </Pressable>
-      <Modal transparent visible={monthOpen} onRequestClose={() => setMonthOpen(false)}><Pressable style={styles.modalBackdrop} onPress={() => setMonthOpen(false)}><View style={styles.dropdownModalCard}><ScrollView>{monthOptions.map(m => (<Pressable key={m} style={styles.dropdownItem} onPress={() => { setDraft(c => ({...c, periodMonth: m})); setMonthOpen(false); }}><Text style={styles.dropdownItemText}>{m}</Text></Pressable>))}</ScrollView></View></Pressable></Modal>
-      <Modal transparent visible={dateOpen} onRequestClose={() => setDateOpen(false)}><Pressable style={styles.modalBackdrop} onPress={() => setDateOpen(false)}><View style={styles.calendarModalCard}><View style={styles.calendarGrid}>{buildMonthGrid(new Date()).map(cell => (<Pressable key={cell.key} style={styles.calendarDay} onPress={() => { setDraft(c => ({...c, dueDate: `${cell.iso.split("-")[2]}/${cell.iso.split("-")[1]}/${cell.iso.split("-")[0]}`})); setDateOpen(false); }}><Text>{cell.dayNumber}</Text></Pressable>))}</View></View></Pressable></Modal>
+      </Modal>
     </Modal>
   );
 }
 
-/**
- * Modal de Detalhes: Visualizacao, aprovacao e exclusao de pagamentos.
- */
-function PaymentDetailModal(_: any) {
-  const { payment, visible, onClose, onEdit, onDelete, onApprove, onMarkPaid } = _;
+function PaymentDetailModal({ payment, visible, isOwner, onClose, onEdit, onDelete, onApprove, onMarkPaid, onReview }: any) {
   if (!payment) return null;
   const statusStyle = getStatusColors(payment.status);
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}><Pressable style={styles.detailCard} onPress={() => undefined}><View style={styles.modalHeader}><Text style={styles.modalTitle}>Detalhe</Text><Pressable onPress={onClose}><Text style={styles.closeIcon}>×</Text></Pressable></View><ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}><View style={styles.detailRow}><Text style={styles.detailPeriod}>{payment.period}</Text><View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{payment.status.toUpperCase()}</Text></View></View><Text style={styles.detailAmount}>{formatCurrency(Number(payment.requested_amount))}</Text><Text style={styles.detailLabel}>Desc: {payment.description}</Text>{payment.receipt_url && <Pressable onPress={() => Linking.openURL(payment.receipt_url)}><Image source={{ uri: payment.receipt_url }} style={styles.receiptImageLarge} /></Pressable>}<View style={styles.detailActionRow}><Pressable style={styles.editPill} onPress={onEdit}><Text style={styles.editPillText}>Editar</Text></Pressable><Pressable style={styles.deletePill} onPress={onDelete}><Text style={styles.deletePillText}>Excluir</Text></Pressable></View><View style={styles.mainActionsRow}>{payment.status === "pendente" && <Pressable style={[styles.primaryButton, {flex: 1}]} onPress={onApprove}><Text style={styles.primaryButtonText}>Aprovar</Text></Pressable>}{payment.status === "aprovado" && <Pressable style={[styles.successButton, {flex: 1}]} onPress={onMarkPaid}><Text style={styles.primaryButtonText}>Confirmar</Text></Pressable>}</View></ScrollView></Pressable></Pressable>
+      <View style={styles.modalBackdrop}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.detailCard}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Detalhe do Pagamento</Text>
+            <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailPeriod}>{payment.period}</Text>
+              <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{payment.status.toUpperCase()}</Text></View>
+            </View>
+            <Text style={styles.detailAmount}>{formatCurrency(Number(payment.requested_amount))}</Text>
+            <Text style={styles.detailLabel}>Vencimento: {formatDate(payment.due_date)}</Text>
+            <Text style={styles.detailLabel}>Desc: {payment.description}</Text>
+            {payment.receipt_url && <Pressable onPress={() => Linking.openURL(payment.receipt_url)}><Image source={{ uri: payment.receipt_url }} style={styles.receiptImageLarge} /></Pressable>}
+            <View style={styles.detailActionRow}>
+              <Pressable style={styles.editPill} onPress={onEdit}><Text style={styles.editPillText}>Editar</Text></Pressable>
+              <Pressable style={styles.deletePill} onPress={onDelete}><Text style={styles.deletePillText}>Excluir</Text></Pressable>
+            </View>
+            
+            {/* Acoes Restritas ao Proprietario */}
+            {isOwner && (
+              <View style={styles.mainActionsRow}>
+                {payment.status === "pendente" && (
+                  <Pressable style={[styles.approveButton, {flex: 1}]} onPress={onApprove}>
+                    <AppIcon name="Check" size={20} color={colors.surface} />
+                    <Text style={styles.primaryButtonText}>Aprovar</Text>
+                  </Pressable>
+                )}
+                {payment.status === "aprovado" && (
+                  <View style={{ flex: 1, gap: 12 }}>
+                    <Pressable style={styles.successButton} onPress={onMarkPaid}>
+                      <AppIcon name="CreditCard" size={20} color={colors.surface} />
+                      <Text style={styles.primaryButtonText}>Confirmar Pagamento</Text>
+                    </Pressable>
+                    <Pressable style={styles.revertLink} onPress={() => onReview("pendente")}>
+                      <AppIcon name="RotateCcw" size={12} color={colors.textMuted} />
+                      <Text style={styles.revertLinkText}>Voltar para Pendente</Text>
+                    </Pressable>
+                  </View>
+                )}
+                {payment.status === "pago" && (
+                  <View style={{ flex: 1 }}>
+                    <Pressable style={styles.revertLink} onPress={() => onReview("aprovado")}>
+                      <AppIcon name="RotateCcw" size={12} color={colors.textMuted} />
+                      <Text style={styles.revertLinkText}>Estornar (Voltar para Aprovado)</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </View>
     </Modal>
   );
 }
 
-/**
- * Tela Financeira: Gestao de fluxo de caixa e comprovantes.
- * future_fix: Adicionar gráfico de 'Gasto por Categoria' para analise de custos.
- */
 export function PaymentsScreen() {
   const { user } = useAuth();
+  const { isOwner } = useProfile();
   const { project, payments, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = usePayments();
-  const { stages } = useStages();
   const upsertPayment = useUpsertPayment();
   const updateStatus = useUpdatePaymentStatus();
   const deletePayment = useDeletePayment();
+  
+  const [activeTab, setActiveTab] = useState<"historico" | "programados" | "financeiro">("historico");
   const [formOpen, setFormOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState<PaymentRow | null>(null);
   const [editingPayment, setEditingPayment] = useState<PaymentRow | null>(null);
@@ -228,70 +238,241 @@ export function PaymentsScreen() {
   const [statusFilter, setStatusFilter] = useState<PaymentStatus | "todos">("todos");
 
   /**
-   * Filtra pagamentos por busca textual e status.
+   * Calculos de Resumo Financeiro (Plano Diretor)
+   */
+  const financialMetrics = useMemo(() => {
+    const initialContract = project?.total_contract_value ?? 0;
+    const today = new Date().toISOString().split("T")[0];
+    
+    const stats = payments.reduce((acc, p) => {
+      const val = Number(p.requested_amount);
+      const isPaid = p.status === "pago" || p.status === "aprovado";
+      
+      acc.totalRequested += val;
+      if (isPaid) acc.totalApproved += val;
+      if (p.status === "pendente" || p.status === "em_analise") acc.totalPending += val;
+
+      // Agrupamento por Categoria (apenas pagos/aprovados)
+      if (isPaid) {
+        if (p.category === "mao_de_obra_projeto") acc.moProjeto += val;
+        if (p.category === "mao_de_obra_extras") acc.moExtras += val;
+        if (p.category === "insumos_extras") acc.insumosExtras += val;
+      }
+
+      // Identificação de Vencidos (Programados)
+      if (!isPaid && p.due_date && p.due_date < today) {
+        acc.overdueCount += 1;
+        acc.overdueAmount += val;
+      }
+
+      return acc;
+    }, { 
+      totalRequested: 0, totalApproved: 0, totalPending: 0, 
+      moProjeto: 0, moExtras: 0, insumosExtras: 0,
+      overdueCount: 0, overdueAmount: 0
+    });
+
+    const moPercent = initialContract > 0 ? Math.round((stats.moProjeto / initialContract) * 100) : 0;
+    const overallPercent = initialContract > 0 ? Math.round((stats.totalApproved / initialContract) * 100) : 0;
+
+    return { ...stats, moPercent, overallPercent, initialContract };
+  }, [payments, project]);
+
+  /**
+   * Filtragem Inteligente baseada na Aba Ativa
    */
   const filteredPayments = useMemo(() => {
+    const today = new Date().toISOString().split("T")[0];
+
     return payments.filter(p => {
-      const matchSearch = p.description.toLowerCase().includes(searchQuery.toLowerCase()) || p.period.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = p.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         p.period.toLowerCase().includes(searchQuery.toLowerCase());
       const matchStatus = statusFilter === "todos" || p.status === statusFilter;
+
+      if (activeTab === "programados") {
+        const isNotPaid = p.status !== "pago" && p.status !== "aprovado";
+        return isNotPaid && p.due_date; // Apenas o que tem data e não está pago
+      }
+
       return matchSearch && matchStatus;
     });
-  }, [payments, searchQuery, statusFilter]);
+  }, [payments, searchQuery, statusFilter, activeTab]);
 
   const handleSave = async (payload: any) => {
     if (!project?.id || !user?.id) return;
-    await upsertPayment.mutateAsync({ id: editingPayment?.id, projectId: project.id, userId: user.id, ...payload, plannedAmount: 0, requestedAmount: Number(payload.requestedAmount), percentWork: 0, stageId: payload.stageId, observations: "", dueDate: toIsoDate(payload.dueDate), receiptUrl: payload.receiptUrl });
-    setFormOpen(false);
+    try {
+      await upsertPayment.mutateAsync({ 
+        id: editingPayment?.id, 
+        projectId: project.id, 
+        userId: user.id, 
+        ...payload, 
+        plannedAmount: 0, 
+        requestedAmount: Number(payload.requestedAmount), 
+        percentWork: 0, 
+        stageId: payload.stageId, 
+        observations: "", 
+        dueDate: payload.dueDate || null, 
+        receiptUrl: payload.receiptUrl 
+      });
+      setFormOpen(false);
+      Toast.show({ type: "success", text1: "Pagamento salvo" });
+    } catch (e) { Alert.alert("Erro", "Falha ao salvar pagamento."); }
   };
 
-  const totalPaid = useMemo(() => payments.filter(p => p.status === "pago" || p.status === "aprovado").reduce((sum, p) => sum + Number(p.requested_amount), 0), [payments]);
+  const handleDelete = () => {
+    if (!selectedPayment || !project?.id) return;
+    const performDelete = async () => {
+      await deletePayment.mutateAsync({ id: selectedPayment.id, projectId: project.id });
+      setSelectedPayment(null);
+      Toast.show({ type: "success", text1: "Registro removido" });
+    };
+    if (Platform.OS === "web") {
+      if (window.confirm("Deseja excluir este registro?")) void performDelete();
+    } else {
+      Alert.alert("Excluir?", "Remover registro?", [{ text: "Não" }, { text: "Sim", style: "destructive", onPress: () => void performDelete() }]);
+    }
+  };
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}><View><Text style={styles.title}>Financeiro</Text></View><Pressable style={styles.newButton} onPress={() => { setEditingPayment(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable></View>
-      <View style={styles.filterSection}>
-        <View style={styles.searchBar}>
-          <AppIcon name="Search" size={18} color={colors.textMuted} />
-          <TextInput style={styles.searchInput} placeholder="Buscar..." value={searchQuery} onChangeText={setSearchQuery} />
-          {searchQuery !== "" && (
-            <Pressable onPress={() => setSearchQuery("")}>
-              <AppIcon name="XCircle" size={18} color={colors.textMuted} />
-            </Pressable>
-          )}
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
-          {statusOptions.map(opt => (<Pressable key={opt.value} style={[styles.chip, statusFilter === opt.value && styles.chipActive]} onPress={() => setStatusFilter(opt.value)}><Text style={[styles.chipText, statusFilter === opt.value && styles.chipTextActive]}>{opt.label}</Text></Pressable>))}
+      <View style={styles.header}><Text style={styles.title}>Financeiro</Text><Pressable style={styles.newButton} onPress={() => { setEditingPayment(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable></View>
+      
+      <View style={styles.summaryContainer}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.summaryScroll}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.text }]}>
+            <Text style={styles.summaryLabel}>TOTAL SOLICITADO</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(financialMetrics.totalRequested)}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: colors.info }]}>
+            <Text style={styles.summaryLabel}>APROVADO + PAGO</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(financialMetrics.totalApproved)}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: colors.warning }]}>
+            <Text style={styles.summaryLabel}>PENDENTE ANALISE</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(financialMetrics.totalPending)}</Text>
+          </View>
         </ScrollView>
       </View>
-      {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.totalPaidCard}><Text style={styles.totalLabel}>Total Pago/Aprovado</Text><Text style={styles.totalValue}>{formatCurrency(totalPaid)}</Text></View>
-          {filteredPayments.length === 0 ? <Text style={styles.emptySearchText}>Nenhum pagamento encontrado.</Text> : filteredPayments.map(p => (
-            <Pressable key={p.id} style={styles.paymentCard} onPress={() => setSelectedPayment(p)}>
-              <View style={styles.paymentCardTop}><Text style={styles.paymentPeriod}>{p.period}</Text><View style={[styles.statusPill, { backgroundColor: getStatusColors(p.status).background }]}><Text style={[styles.statusPillText, { color: getStatusColors(p.status).text }]}>{p.status}</Text></View></View>
-              <Text style={styles.paymentAmount}>{formatCurrency(Number(p.requested_amount))}</Text>
-              <Text style={styles.paymentDesc} numberOfLines={1}>{p.description}</Text>
-              {p.receipt_url && <Text style={styles.attachmentBadge}>📎 Comprovante</Text>}
-            </Pressable>
-          ))}
 
-          {hasNextPage && (
-            <Pressable 
-              style={({ pressed }) => [styles.loadMoreButton, pressed && styles.buttonPressed]} 
-              onPress={() => fetchNextPage()}
-              disabled={isFetchingNextPage}
-            >
-              {isFetchingNextPage ? (
-                <ActivityIndicator color={colors.primary} />
-              ) : (
-                <Text style={styles.loadMoreText}>Carregar pagamentos anteriores...</Text>
-              )}
-            </Pressable>
-          )}
+      <View style={styles.tabsContainer}>
+        <Pressable style={[styles.tabBtn, activeTab === "historico" && styles.tabBtnActive]} onPress={() => setActiveTab("historico")}>
+          <Text style={[styles.tabBtnText, activeTab === "historico" && styles.tabBtnTextActive]}>Histórico</Text>
+        </Pressable>
+        <Pressable style={[styles.tabBtn, activeTab === "programados" && styles.tabBtnActive]} onPress={() => setActiveTab("programados")}>
+          <View style={styles.row}>
+            <Text style={[styles.tabBtnText, activeTab === "programados" && styles.tabBtnTextActive]}>Programados</Text>
+            {financialMetrics.overdueCount > 0 && <View style={styles.overdueBadge} />}
+          </View>
+        </Pressable>
+        <Pressable style={[styles.tabBtn, activeTab === "financeiro" && styles.tabBtnActive]} onPress={() => setActiveTab("financeiro")}>
+          <Text style={[styles.tabBtnText, activeTab === "financeiro" && styles.tabBtnTextActive]}>Análise</Text>
+        </Pressable>
+      </View>
+
+      {activeTab === "financeiro" ? (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <View style={styles.executionSection}>
+            <View style={styles.executionHeader}>
+              <Text style={styles.executionTitle}>Execução Orçamentária</Text>
+              <Text style={styles.executionContract}>Contrato: {formatCurrency(financialMetrics.initialContract)}</Text>
+            </View>
+
+            <View style={styles.barContainer}>
+              <View style={styles.barLabelRow}>
+                <Text style={styles.barLabel}>Mão de Obra (Projeto)</Text>
+                <Text style={styles.barPercent}>{financialMetrics.moPercent}%</Text>
+              </View>
+              <View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.min(financialMetrics.moPercent, 100)}%`, backgroundColor: colors.primary }]} /></View>
+              <Text style={styles.barSubLabel}>Gasto: {formatCurrency(financialMetrics.moProjeto)}</Text>
+            </View>
+
+            <View style={styles.barContainer}>
+              <View style={styles.barLabelRow}>
+                <Text style={styles.barLabel}>Extras e Insumos</Text>
+                <Text style={styles.barAmount}>{formatCurrency(financialMetrics.moExtras + financialMetrics.insumosExtras)}</Text>
+              </View>
+              <View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.min(financialMetrics.overallPercent, 100)}%`, backgroundColor: colors.secondary }]} /></View>
+              <Text style={styles.barSubLabel}>Mão de Obra Extras: {formatCurrency(financialMetrics.moExtras)}</Text>
+              <Text style={styles.barSubLabel}>Insumos Extras: {formatCurrency(financialMetrics.insumosExtras)}</Text>
+            </View>
+          </View>
         </ScrollView>
+      ) : (
+        <>
+          <View style={styles.filterSection}>
+            {activeTab === "historico" && (
+              <>
+                <View style={styles.searchBar}><AppIcon name="Search" size={18} color={colors.textMuted} /><TextInput style={styles.searchInput} placeholder="Buscar..." value={searchQuery} onChangeText={setSearchQuery} />{searchQuery !== "" && <Pressable onPress={() => setSearchQuery("")}><AppIcon name="XCircle" size={18} color={colors.textMuted} /></Pressable>}</View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                  {statusOptions.map(opt => (<Pressable key={opt.value} style={[styles.chip, statusFilter === opt.value && styles.chipActive]} onPress={() => setStatusFilter(opt.value)}><Text style={[styles.chipText, statusFilter === opt.value && styles.chipTextActive]}>{opt.label}</Text></Pressable>))}
+                </ScrollView>
+              </>
+            )}
+            {activeTab === "programados" && (
+              <View style={styles.programadosHeader}>
+                <Text style={styles.programadosTitle}>Próximos Vencimentos</Text>
+                {financialMetrics.overdueCount > 0 && (
+                  <View style={styles.overdueBanner}>
+                    <AppIcon name="AlertCircle" size={14} color={colors.danger} />
+                    <Text style={styles.overdueBannerText}>{financialMetrics.overdueCount} pagamento(s) vencido(s) ({formatCurrency(financialMetrics.overdueAmount)})</Text>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
+            <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+              {filteredPayments.length === 0 ? (
+                <Text style={styles.emptySearchText}>Nenhum registro encontrado nesta aba.</Text>
+              ) : filteredPayments.map(p => {
+                const isOverdue = p.due_date && p.due_date < new Date().toISOString().split("T")[0] && p.status !== "pago" && p.status !== "aprovado";
+                return (
+                  <Pressable key={p.id} style={[styles.paymentCard, isOverdue && { borderColor: colors.danger, borderWidth: 1.5 }]} onPress={() => setSelectedPayment(p)}>
+                    <View style={styles.paymentCardTop}>
+                      <Text style={styles.paymentPeriod}>{p.period}</Text>
+                      <View style={[styles.statusPill, { backgroundColor: getStatusColors(p.status).background }]}>
+                        <Text style={[styles.statusPillText, { color: getStatusColors(p.status).text }]}>{p.status}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.rowBetween}>
+                      <Text style={styles.paymentAmount}>{formatCurrency(Number(p.requested_amount))}</Text>
+                      {p.due_date && <Text style={[styles.paymentDate, isOverdue && { color: colors.danger, fontWeight: "800" }]}>{formatDate(p.due_date)}</Text>}
+                    </View>
+                    <Text style={styles.paymentDesc} numberOfLines={1}>{p.description}</Text>
+                    {p.receipt_url && <View style={styles.attachmentRow}><AppIcon name="Paperclip" size={12} color={colors.primary} /><Text style={styles.attachmentBadge}>Comprovante</Text></View>}
+                  </Pressable>
+                );
+              })}
+              {hasNextPage && activeTab === "historico" && (
+                <Pressable style={styles.loadMoreButton} onPress={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                  <Text style={styles.loadMoreText}>{isFetchingNextPage ? "Carregando..." : "Ver mais"}</Text>
+                </Pressable>
+              )}
+            </ScrollView>
+          )}
+        </>
       )}
-      <PaymentFormModal visible={formOpen} payment={editingPayment} projectId={project?.id} stages={stages} loading={upsertPayment.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
-      <PaymentDetailModal payment={selectedPayment} visible={Boolean(selectedPayment)} onClose={() => setSelectedPayment(null)} onEdit={() => { setEditingPayment(selectedPayment); setFormOpen(false); setSelectedPayment(null); setTimeout(()=>setFormOpen(true), 300); }} onApprove={() => updateStatus.mutateAsync({ id: selectedPayment!.id, projectId: project!.id, userId: user!.id, status: "aprovado" }).then(()=>setSelectedPayment(null))} onMarkPaid={() => updateStatus.mutateAsync({ id: selectedPayment!.id, projectId: project!.id, userId: user!.id, status: "pago", paymentDate: isoDate(new Date()) }).then(()=>setSelectedPayment(null))} onDelete={() => { Alert.alert("Excluir?", "Remover registro?", [{ text: "Não" }, { text: "Sim", style: "destructive", onPress: () => deletePayment.mutateAsync({ id: selectedPayment!.id, projectId: project!.id }).then(()=>setSelectedPayment(null)) }]); }} />
+      <PaymentFormModal visible={formOpen} payment={editingPayment} projectId={project?.id} loading={upsertPayment.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
+      <PaymentDetailModal 
+        payment={selectedPayment} 
+        visible={Boolean(selectedPayment)} 
+        isOwner={isOwner}
+        onClose={() => setSelectedPayment(null)} 
+        onEdit={() => { setEditingPayment(selectedPayment); setFormOpen(false); setSelectedPayment(null); setTimeout(()=>setFormOpen(true), 300); }} 
+        onApprove={() => updateStatus.mutateAsync({ id: selectedPayment!.id, projectId: project!.id, userId: user!.id, status: "aprovado" }).then(()=>setSelectedPayment(null))} 
+        onMarkPaid={() => updateStatus.mutateAsync({ id: selectedPayment!.id, projectId: project!.id, userId: user!.id, status: "pago", paymentDate: new Date().toISOString().split("T")[0] }).then(()=>setSelectedPayment(null))} 
+        onReview={(newStatus: PaymentStatus) => {
+          updateStatus.mutateAsync({ 
+            id: selectedPayment!.id, 
+            projectId: project!.id, 
+            userId: user!.id, 
+            status: newStatus,
+            paymentDate: newStatus === "pago" ? new Date().toISOString().split("T")[0] : null
+          }).then(() => setSelectedPayment(null));
+        }}
+        onDelete={handleDelete} 
+      />
     </View>
   );
 }
@@ -311,10 +492,36 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
   chipTextActive: { color: colors.surface },
   content: { paddingBottom: 32, gap: 10 },
-  totalPaidCard: { backgroundColor: colors.primary, borderRadius: 16, padding: 16, marginBottom: 6 },
-  totalLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: "700", textTransform: "uppercase" },
-  totalValue: { color: colors.surface, fontSize: 24, fontWeight: "900" },
-  paymentCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 4 },
+  summaryContainer: { marginBottom: 16 },
+  summaryScroll: { gap: 12, paddingRight: 16 },
+  summaryCard: { borderRadius: 16, padding: 14, width: 220, gap: 4 },
+  summaryLabel: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "800", textTransform: "uppercase" },
+  summaryValue: { color: colors.surface, fontSize: 20, fontWeight: "900" },
+  tabsContainer: { flexDirection: "row", backgroundColor: colors.surface, borderRadius: 14, padding: 4, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder },
+  tabBtn: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 10 },
+  tabBtnActive: { backgroundColor: colors.background },
+  tabBtnText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
+  tabBtnTextActive: { color: colors.primary },
+  overdueBadge: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.danger, marginLeft: 4 },
+  programadosHeader: { paddingVertical: 4, gap: 8 },
+  programadosTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  overdueBanner: { flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: colors.dangerLight, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: colors.danger },
+  overdueBannerText: { fontSize: 13, fontWeight: "700", color: colors.danger },
+  executionSection: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.cardBorder, gap: 14 },
+  executionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 4 },
+  executionTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+  executionContract: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  barContainer: { gap: 6 },
+  barLabelRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  barLabel: { fontSize: 13, fontWeight: "700", color: colors.text },
+  barSubLabel: { fontSize: 11, color: colors.textMuted, marginTop: -2 },
+  barPercent: { fontSize: 13, fontWeight: "800", color: colors.primary },
+  barAmount: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
+  barTrack: { height: 10, borderRadius: 5, backgroundColor: colors.surfaceMuted, overflow: "hidden", borderWidth: 1, borderColor: colors.divider },
+  barFill: { height: "100%", borderRadius: 5 },
+  paymentCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 4, marginBottom: 10 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 4 },
+  paymentDate: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
   paymentCardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   paymentPeriod: { fontSize: 13, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
   paymentAmount: { fontSize: 20, fontWeight: "800", color: colors.text },
@@ -332,7 +539,7 @@ const styles = StyleSheet.create({
   fieldBlock: { gap: 6 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
-  selectField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
+  selectField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   selectFieldText: { fontSize: 15, fontWeight: "600", color: colors.text },
   row: { flexDirection: "row", gap: 10 },
   mediaButton: { height: 100, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, borderStyle: "dashed", backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center", overflow: "hidden" },
@@ -341,7 +548,10 @@ const styles = StyleSheet.create({
   receiptImageLarge: { width: "100%", height: 200, borderRadius: 16, marginTop: 10 },
   primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
   primaryButtonText: { color: colors.surface, fontWeight: "800", fontSize: 15 },
-  successButton: { borderRadius: 14, backgroundColor: colors.success, paddingVertical: 16, alignItems: "center" },
+  approveButton: { flexDirection: "row", gap: 8, borderRadius: 14, backgroundColor: colors.info, paddingVertical: 16, alignItems: "center", justifyContent: "center" },
+  successButton: { flexDirection: "row", gap: 8, borderRadius: 14, backgroundColor: colors.success, paddingVertical: 16, alignItems: "center", justifyContent: "center" },
+  revertLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 4, paddingVertical: 8 },
+  revertLinkText: { fontSize: 13, fontWeight: "700", color: colors.textMuted, textDecorationLine: "underline" },
   editPill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.surfaceMuted, alignItems: "center" },
   editPillText: { fontWeight: "700", color: colors.text },
   deletePill: { flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: colors.dangerLight, alignItems: "center" },

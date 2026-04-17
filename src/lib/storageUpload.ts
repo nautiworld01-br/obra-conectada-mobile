@@ -1,4 +1,6 @@
 import { Platform } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import { decode } from "base64-arraybuffer";
 import { supabase } from "./supabase";
 
 type UploadLocalFileParams = {
@@ -19,7 +21,6 @@ type UploadLocalFilesToPublicUrlsParams = {
 
 /**
  * Extrai o path do arquivo de uma URL publica do Supabase.
- * Ex: https://xxx.supabase.co/storage/v1/object/public/bucket/pasta/foto.jpg -> pasta/foto.jpg
  */
 export function extractPathFromSupabaseUrl(url: string | null | undefined): string | null {
   if (!url || !url.includes("/public/")) return null;
@@ -27,7 +28,6 @@ export function extractPathFromSupabaseUrl(url: string | null | undefined): stri
     const parts = url.split("/public/");
     if (parts.length < 2) return null;
     
-    // Pega tudo após o nome do bucket
     const pathWithBucket = parts[1];
     const firstSlashIndex = pathWithBucket.indexOf("/");
     if (firstSlashIndex === -1) return null;
@@ -40,7 +40,6 @@ export function extractPathFromSupabaseUrl(url: string | null | undefined): stri
 
 /**
  * Remove um arquivo fisicamente do Storage.
- * future_fix: Adicionar log de erro se a delecao falhar mas o registro no banco continuar.
  */
 export async function deleteFileFromStorage(bucket: string, url: string | null | undefined) {
   if (!supabase || !url) return;
@@ -54,26 +53,39 @@ export async function deleteFileFromStorage(bucket: string, url: string | null |
   }
 }
 
+/**
+ * Upload universal de arquivo: detecta plataforma e usa o metodo de transporte mais estavel.
+ */
 export async function uploadLocalFileToStorage({
   bucket,
   filePath,
   fileUri,
   contentType,
-  upsert = true, // Padrao sênior: upsert true evita erros 400 de conflito
+  upsert = true,
 }: UploadLocalFileParams) {
   if (!supabase) throw new Error("Supabase nao configurado.");
 
-  // Padrao universal: converte URI em Blob (funciona em Web, iOS e Android)
-  const response = await fetch(fileUri);
-  const blob = await response.blob();
-  
+  let fileBody: any;
   const fileType = contentType || inferTypeFromUri(fileUri);
 
   try {
-    const { error } = await supabase.storage.from(bucket).upload(filePath, blob, {
+    if (Platform.OS === "web") {
+      // Padrao Web: Fetch gera um Blob que o navegador entende nativamente
+      const response = await fetch(fileUri);
+      fileBody = await response.blob();
+    } else {
+      // Padrao Mobile: Le do disco como Base64 e decodifica para ArrayBuffer
+      // Usamos a string 'base64' diretamente para evitar erros de constantes undefined em algumas versoes do Expo
+      const base64 = await FileSystem.readAsStringAsync(fileUri, {
+        encoding: "base64",
+      });
+      fileBody = decode(base64);
+    }
+
+    const { error } = await supabase.storage.from(bucket).upload(filePath, fileBody, {
       upsert,
       cacheControl: "3600",
-      contentType: fileType, // Essencial para navegadores
+      contentType: fileType,
     });
 
     if (error) {
@@ -81,6 +93,7 @@ export async function uploadLocalFileToStorage({
       throw error;
     }
   } catch (err) {
+    console.error("Erro fatal no upload universal:", err);
     throw err;
   }
 }

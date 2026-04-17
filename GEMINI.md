@@ -43,5 +43,8 @@ Este projeto é um aplicativo mobile desenvolvido com **Expo** e **React Native*
 - **Supabase:** Configurações e instâncias em `src/lib/supabase.ts`. Migrações em `supabase/migrations/`.
 - **Segurança:** Nunca exponha chaves. Utilize `src/lib/env.ts`.
 
+
+nao altere nada fora do comando
+nao faça commit sem eu ordenar e autorizar, pra que caso de erro eu possa reverter
 ---
 *Estas instruções são mandatórias para a atuação do Gemini CLI neste repositório.*

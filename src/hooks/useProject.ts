@@ -1,9 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
+import { useProfile } from "./useProfile";
 
 // Estrutura de dados que representa um projeto no contexto do aplicativo mobile.
-// future_fix: Adicionar campos de geolocalização para marcar ponto ou rotas.
 export type MobileProject = {
   id: string;
   name: string;
@@ -17,47 +17,33 @@ export type MobileProject = {
   userRole: string;
 };
 
-// Hook principal para obter os detalhes do projeto ao qual o usuário está vinculado.
-// future_fix: Suportar múltiplos projetos por usuário (atualmente assume apenas um).
+/**
+ * Hook de Projeto (Versao Operacao Interna): 
+ * Todos os usuarios logados tem acesso a primeira casa encontrada no banco.
+ */
 export function useProject() {
   const { user } = useAuth();
+  const { isOwner } = useProfile();
 
   const query = useQuery({
-    queryKey: ["project", user?.id],
+    queryKey: ["project-main"],
     enabled: Boolean(user?.id && supabase),
     queryFn: async (): Promise<MobileProject | null> => {
-      if (!supabase || !user) {
-        return null;
-      }
+      if (!supabase || !user) return null;
 
-      const { data: membership, error: membershipError } = await supabase
-        .from("project_members")
-        .select("project_id, role")
-        .eq("user_id", user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (membershipError) {
-        throw membershipError;
-      }
-
-      if (!membership) {
-        return null;
-      }
-
+      // Busca diretamente o primeiro projeto (Casa) cadastrado no sistema
       const { data: project, error: projectError } = await supabase
         .from("projects")
         .select("id, name, address, photo_url, total_contract_value, rooms, external_spaces, observations, start_date")
-        .eq("id", membership.project_id)
-        .single();
+        .limit(1)
+        .maybeSingle();
 
-      if (projectError) {
-        throw projectError;
-      }
+      if (projectError) throw projectError;
+      if (!project) return null;
 
       return {
         ...project,
-        userRole: membership.role,
+        userRole: isOwner ? "proprietario" : "funcionario",
       };
     },
   });

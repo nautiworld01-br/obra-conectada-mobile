@@ -5,6 +5,7 @@ import {
   Image,
   Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -283,7 +284,16 @@ function DailyLogForm({
   };
 
   const handleDelete = () => {
-    Alert.alert("Excluir registro?", "Esse registro do dia sera removido permanentemente.", [
+    const message = "Esse registro do dia sera removido permanentemente.";
+
+    if (Platform.OS === "web") {
+      if (window.confirm(`Excluir registro?\n\n${message}`)) {
+        void onDelete();
+      }
+      return;
+    }
+
+    Alert.alert("Excluir registro?", message, [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
@@ -294,7 +304,6 @@ function DailyLogForm({
       },
     ]);
   };
-
   return (
     <Modal transparent animationType="fade" visible={visible} onRequestClose={handleClose}>
       <View style={styles.modalBackdrop}>
