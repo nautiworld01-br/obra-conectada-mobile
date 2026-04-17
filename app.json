@@ -30,8 +30,12 @@
       "bundler": "metro",
       "name": "Obra Conectada",
       "shortName": "Obra Conectada",
+      "description": "Gestão inteligente de obras e cronogramas.",
       "themeColor": "#2563EB",
-      "backgroundColor": "#FFFFFF"
+      "backgroundColor": "#FFFFFF",
+      "display": "standalone",
+      "orientation": "portrait",
+      "barStyle": "black-translucent"
     },
     "experiments": {
       "baseUrl": "/obra-conectada-mobile"
