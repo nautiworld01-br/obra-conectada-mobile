@@ -428,7 +428,7 @@ export function UpdatesScreen() {
             setSelectedUpdate(null);
             Toast.show({ type: "success", text1: "Relatório removido" });
           } catch (e) {
-            Alert.alert("Erro", "Nao foi possivel excluir o relatório.");
+            Alert.alert("Erro", "Não foi possível excluir o relatório.");
           }
         };
 

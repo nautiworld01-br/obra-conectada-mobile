@@ -219,7 +219,7 @@ export function DocumentsScreen() {
       setFormOpen(false);
     } catch (error) {
       console.error("Upload error:", error);
-      const message = error instanceof Error ? error.message : "Nao foi possivel salvar o documento.";
+      const message = error instanceof Error ? error.message : "Não foi possível salvar o documento.";
       setLocalError(message);
     }
   };
@@ -237,7 +237,7 @@ export function DocumentsScreen() {
       const url = await signedUrl.mutateAsync({ filePath: document.file_path });
       await Linking.openURL(url);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Nao foi possivel abrir o documento.";
+      const message = error instanceof Error ? error.message : "Não foi possível abrir o documento.";
       Alert.alert("Erro ao abrir", message);
     }
   };
@@ -248,7 +248,7 @@ export function DocumentsScreen() {
     try {
       await Linking.openURL(pickedFile.uri);
     } catch {
-      Alert.alert("Arquivo", "Nao foi possivel abrir o arquivo selecionado.");
+      Alert.alert("Arquivo", "Não foi possível abrir o arquivo selecionado.");
     }
   };
 
@@ -270,7 +270,7 @@ export function DocumentsScreen() {
         console.log("Exclusao concluida com sucesso no banco/storage.");
       } catch (error) {
         console.error("Erro na execucao da exclusao:", error);
-        const message = error instanceof Error ? error.message : "Nao foi possivel excluir o documento.";
+        const message = error instanceof Error ? error.message : "Não foi possível excluir o documento.";
         if (Platform.OS === "web") alert(message);
         else Alert.alert("Erro ao excluir", message);
       }
@@ -541,7 +541,7 @@ export function DocumentsScreen() {
             <Text style={styles.confirmText}>Deseja remover este arquivo selecionado?</Text>
             <View style={styles.confirmActions}>
               <Pressable style={styles.confirmCancel} onPress={() => setConfirmRemovePickedFile(false)}>
-                <Text style={styles.confirmCancelText}>Nao</Text>
+                <Text style={styles.confirmCancelText}>Não</Text>
               </Pressable>
               <Pressable
                 style={styles.confirmAccept}

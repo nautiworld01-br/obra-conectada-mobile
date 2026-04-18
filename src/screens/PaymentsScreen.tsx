@@ -36,21 +36,21 @@ import { AppDatePicker } from "../components/AppDatePicker";
 
 const categoryOptions: { value: PaymentCategory | "todos"; label: string; short: string }[] = [
   { value: "todos", label: "Todas Categorias", short: "Todos" },
-  { value: "mao_de_obra_projeto", label: "Mao de obra Projeto Inicial", short: "MO Projeto" },
-  { value: "mao_de_obra_extras", label: "Mao de obra Servicos Extras", short: "MO Extras" },
-  { value: "insumos_extras", label: "Insumos Servicos Extra", short: "Insumos Extra" },
+  { value: "mao_de_obra_projeto", label: "Mão de obra Projeto Inicial", short: "MO Projeto" },
+  { value: "mao_de_obra_extras", label: "Mão de obra Serviços Extras", short: "MO Extras" },
+  { value: "insumos_extras", label: "Insumos Serviços Extra", short: "Insumos Extra" },
 ];
 
 const statusOptions: { value: PaymentStatus | "todos"; label: string }[] = [
   { value: "todos", label: "Todos Status" },
   { value: "pendente", label: "Pendente" },
-  { value: "em_analise", label: "Em Analise" },
+  { value: "em_analise", label: "Em Análise" },
   { value: "aprovado", label: "Aprovado" },
   { value: "pago", label: "Pago" },
   { value: "recusado", label: "Recusado" },
 ];
 
-const monthOptions = ["Janeiro", "Fevereiro", "Marco", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const monthOptions = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -102,7 +102,7 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
   }, [payment, visible]);
 
   const handleSave = async () => {
-    if (!draft.description.trim()) { setLocalError("Descricao obrigatoria."); return; }
+    if (!draft.description.trim()) { setLocalError("Descrição obrigatória."); return; }
     const amountVal = Validator.number(draft.requestedAmount, "valor", 0.01);
     if (!amountVal.isValid) { setLocalError(amountVal.error!); return; }
 
@@ -135,10 +135,10 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
         <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Referencia</Text><View style={styles.row}><Pressable style={[styles.selectField, {flex: 2}]} onPress={() => setMonthOpen(true)}><Text style={styles.selectFieldText}>{draft.periodMonth}</Text></Pressable><TextInput style={[styles.fieldInput, {flex: 1}]} value={draft.periodYear} onChangeText={v => setDraft(c => ({...c, periodYear: v}))} keyboardType="numeric" /></View></View>
+            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Referência</Text><View style={styles.row}><Pressable style={[styles.selectField, {flex: 2}]} onPress={() => setMonthOpen(true)}><Text style={styles.selectFieldText}>{draft.periodMonth}</Text></Pressable><TextInput style={[styles.fieldInput, {flex: 1}]} value={draft.periodYear} onChangeText={v => setDraft(c => ({...c, periodYear: v}))} keyboardType="numeric" /></View></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Valor (R$)</Text><TextInput style={styles.fieldInput} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v}))} keyboardType="numeric" placeholder="0.00" /></View>
             <View style={styles.fieldBlock}><AppDatePicker label="Vencimento" value={draft.dueDate} onChange={(v) => setDraft(c => ({ ...c, dueDate: v }))} /></View>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Descricao</Text><TextInput style={styles.fieldInput} value={draft.description} onChangeText={v => setDraft(c => ({...c, description: v}))} /></View>
+            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Descrição</Text><TextInput style={styles.fieldInput} value={draft.description} onChangeText={v => setDraft(c => ({...c, description: v}))} /></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Comprovante</Text><Pressable style={styles.mediaButton} onPress={pickReceipt}>{draft.receiptUrl ? <Image source={{ uri: draft.receiptUrl }} style={styles.receiptPreview} /> : <Text style={styles.mediaButtonText}>+ Anexar Foto</Text>}</Pressable></View>
             {localError && <Text style={styles.localError}>{localError}</Text>}
             <Pressable style={({ pressed }) => [styles.primaryButton, (loading || isUploading || pressed) && styles.buttonPressed]} onPress={handleSave} disabled={loading || isUploading}>

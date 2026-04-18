@@ -204,7 +204,7 @@ export function HouseFormScreen() {
             <View style={styles.headerInfo}><Text style={styles.cardTitle}>Dados da Obra</Text><Pressable onPress={() => pickImage("house")}><Text style={styles.linkText}>Alterar foto da capa</Text></Pressable></View>
           </View>
           <View style={styles.field}><Text style={styles.label}>Nome da Obra *</Text><TextInput style={styles.input} value={houseName} onChangeText={setHouseName} placeholder="Ex: Obra de Campo" /></View>
-          <View style={styles.field}><Text style={styles.label}>Endereço</Text><TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Rua, Numero, Bairro" /></View>
+          <View style={styles.field}><Text style={styles.label}>Endereço</Text><TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Rua, Número, Bairro" /></View>
         </View>
 
         <View style={[styles.card, { paddingBottom: 8 }]}>

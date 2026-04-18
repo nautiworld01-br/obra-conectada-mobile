@@ -13,7 +13,7 @@ export const Validator = {
    */
   required: (value: string | null | undefined, fieldName: string): ValidationResult => {
     if (!value || value.trim().length === 0) {
-      return { isValid: false, error: `O campo ${fieldName} e obrigatorio.` };
+      return { isValid: false, error: `O campo ${fieldName} é obrigatório.` };
     }
     return { isValid: true };
   },

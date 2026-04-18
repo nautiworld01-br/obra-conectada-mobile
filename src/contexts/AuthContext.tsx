@@ -117,14 +117,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       isConfigured: env.hasSupabaseConfig,
       async signIn(email, password) {
-        if (!supabase) return { error: "Configure as variaveis de ambiente." };
+        if (!supabase) return { error: "Configure as variáveis de ambiente." };
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return error ? { error: error.message } : {};
       },
       async signUp({ fullName, email, password, occupation }) {
-        if (!supabase) return { error: "Configure as variaveis de ambiente." };
+        if (!supabase) return { error: "Configure as variáveis de ambiente." };
         if (occupation === "owner" && await checkOwnerExists()) {
-          return { error: "Ja existe um proprietario registrado." };
+          return { error: "Já existe um proprietário registrado." };
         }
         // Cria usuario e anexa metadados para sincronizacao automatica com a tabela profiles via Trigger.
         const { error } = await supabase.auth.signUp({

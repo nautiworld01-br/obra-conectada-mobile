@@ -40,7 +40,7 @@ export function MoreScreen() {
    */
   const pickAvatarFromGallery = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) { Alert.alert("Galeria", "Permissao necessaria."); return; }
+    if (!permission.granted) { Alert.alert("Galeria", "Permissão necessária."); return; }
     
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"], allowsEditing: true, quality: 0.9, aspect: [1, 1],
@@ -98,7 +98,7 @@ export function MoreScreen() {
             if (!supabase) return;
             const { error } = await supabase.rpc("delete_user_account");
             if (error) {
-              Alert.alert("Erro ao excluir", "Nao foi possivel remover sua conta agora. Tente novamente mais tarde.");
+              Alert.alert("Erro ao excluir", "Não foi possível remover sua conta agora. Tente novamente mais tarde.");
             } else {
               await signOut();
             }

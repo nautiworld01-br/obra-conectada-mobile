@@ -42,19 +42,19 @@ type AppRoute = {
 };
 
 const appRoutes: AppRoute[] = [
-  { key: "inicio", label: "Inicio", menuLabel: "Dashboard", icon: "Home", component: DashboardScreen, inBottomNav: true, inDrawer: true },
+  { key: "inicio", label: "Início", menuLabel: "Dashboard", icon: "Home", component: DashboardScreen, inBottomNav: true, inDrawer: true },
   { key: "dia-a-dia", label: "Dia a Dia", menuLabel: "Dia a Dia", icon: "LayoutList", component: DailyScreen, inBottomNav: true },
   { key: "crono", label: "Crono", menuLabel: "Crono", icon: "CalendarDays", component: ScheduleScreen, inBottomNav: true },
-  { key: "atualizacoes", label: "Relatorios", menuLabel: "Relatorios", icon: "Camera", component: UpdatesScreen, inDrawer: true },
+  { key: "atualizacoes", label: "Relatórios", menuLabel: "Relatórios", icon: "Camera", component: UpdatesScreen, inDrawer: true },
   { key: "mais", label: "Perfil", menuLabel: "Perfil", icon: "User", component: MoreScreen, inBottomNav: true },
   
   // Rotas exclusivas do Proprietario
   { key: "pagtos", label: "Pagtos", menuLabel: "Pagamentos", icon: "CircleDollarSign", component: PaymentsScreen, inDrawer: true, ownerOnly: true },
   { key: "documentos", label: "Documentos", menuLabel: "Documentos", icon: "FileText", component: DocumentsScreen, inDrawer: true, ownerOnly: true },
   { key: "equipe", label: "Equipe", menuLabel: "Equipe", icon: "Users", component: TeamScreen, inDrawer: true, ownerOnly: true },
-  { key: "presenca", label: "Presenca", menuLabel: "Presenca", icon: "UserCheck", component: PresenceScreen, inDrawer: true, ownerOnly: true },
+  { key: "presenca", label: "Presença", menuLabel: "Presença", icon: "UserCheck", component: PresenceScreen, inDrawer: true, ownerOnly: true },
   { key: "house-config", label: "Obra", menuLabel: "Dados da Obra", icon: "Home", component: HouseFormScreen, ownerOnly: true },
-  { key: "config", label: "Configuracoes", menuLabel: "Configuracoes", icon: "Settings", component: SettingsScreen, inDrawer: true, ownerOnly: true },
+  { key: "config", label: "Configurações", menuLabel: "Configurações", icon: "Settings", component: SettingsScreen, inDrawer: true, ownerOnly: true },
 ];
 
 const navigationTheme = {
@@ -233,7 +233,7 @@ function AppShell() {
       if (globalThis.confirm("Deseja sair da conta?")) void signOut();
       return;
     }
-    Alert.alert("Sair da conta?", "Voce sera desconectado.", [{ text: "Cancelar", style: "cancel" }, { text: "Sair", style: "destructive", onPress: () => void signOut() }]);
+    Alert.alert("Sair da conta?", "Você será desconectado.", [{ text: "Cancelar", style: "cancel" }, { text: "Sair", style: "destructive", onPress: () => void signOut() }]);
   }
 }
 

@@ -6,9 +6,9 @@ import { StageRow, StageStatus, useStages } from "../hooks/useStages";
  * Labels amigaveis para cada status das etapas do cronograma.
  */
 const statusLabels: Record<StageStatus, string> = {
-  nao_iniciado: "Nao Iniciado",
+  nao_iniciado: "Não Iniciado",
   em_andamento: "Em Andamento",
-  concluido: "Concluido",
+  concluido: "Concluído",
   atrasado: "Atrasado",
   bloqueado: "Bloqueado",
 };
@@ -65,7 +65,7 @@ export function ScheduleStatusScreen({
             return (
               <Pressable key={stage.id} style={({ pressed }) => [styles.stageCard, { backgroundColor: statusColors.cardBackground }, pressed && styles.buttonPressed]} onPress={() => onOpenStage(stage)}>
                 <View style={styles.stageHeader}>
-                  <View style={styles.stageCopy}><Text style={styles.stageName}>{stage.name}</Text><Text style={styles.stageMeta}>{stage.category || "Sem categoria"} • {stage.responsible || "Sem responsavel"}</Text></View>
+                  <View style={styles.stageCopy}><Text style={styles.stageName}>{stage.name}</Text><Text style={styles.stageMeta}>{stage.category || "Sem categoria"} • {stage.responsible || "Sem responsável"}</Text></View>
                   <View style={[styles.stageStatusPill, { backgroundColor: statusColors.pillBackground }]}><Text style={[styles.stageStatusText, { color: statusColors.pillText }]}>{statusLabels[stage.status]}</Text></View>
                 </View>
                 <View style={styles.progressHeader}><Text style={styles.stageDates}>Prev: {stage.planned_start || "—"} → {stage.planned_end || "—"}</Text><Text style={styles.stagePercent}>{stage.percent_complete ?? 0}%</Text></View>

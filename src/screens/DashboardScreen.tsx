@@ -89,7 +89,7 @@ export function DashboardScreen() {
   // Foca em metricas pessoais de registros realizados.
   if (!isOwner) {
     return (
-      <AppScreen title="Inicio" subtitle="Resumo operacional do que voce registrou na obra.">
+      <AppScreen title="Início" subtitle="Resumo operacional do que você registrou na obra.">
         <View style={styles.grid}>
           <View style={styles.metricCard}>
             <Text style={styles.metricValue}>{dashboardData.myLogs.length}</Text>
@@ -108,10 +108,10 @@ export function DashboardScreen() {
               <Text style={styles.employeeActivity} numberOfLines={3}>
                 {dashboardData.latestMyLog.activities || "Sem descricao informada."}
               </Text>
-              <Text style={styles.employeeMeta}>Clima: {dashboardData.latestMyLog.weather || "Nao informado"}</Text>
+              <Text style={styles.employeeMeta}>Clima: {dashboardData.latestMyLog.weather || "Não informado"}</Text>
             </View>
           ) : (
-            <Text style={styles.emptyCopy}>Voce ainda nao registrou atividades no Dia a Dia.</Text>
+            <Text style={styles.emptyCopy}>Você ainda não registrou atividades no Dia a Dia.</Text>
           )}
         </SectionCard>
 
@@ -151,16 +151,16 @@ export function DashboardScreen() {
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricValue}>{updates.length}</Text>
-          <Text style={styles.metricLabel}>Relatorios</Text>
+          <Text style={styles.metricLabel}>Relatórios</Text>
         </View>
         <View style={styles.metricCard}>
           <Text style={styles.metricValue}>{logs.length}</Text>
-          <Text style={styles.metricLabel}>Registros diarios</Text>
+          <Text style={styles.metricLabel}>Registros diários</Text>
         </View>
         {/* Card financeiro removido conforme plano de visibilidade operacional */}
       </View>
 
-      <SectionCard title="Equipe em campo" subtitle="Registros operacionais dos funcionarios.">
+      <SectionCard title="Equipe em campo" subtitle="Registros operacionais dos funcionários.">
         <View style={styles.employeeOverviewList}>
           <Text style={styles.infoRow}>Lancamentos da equipe: {logs.length}</Text>
           <Text style={styles.infoRow}>Lancamentos seus: {dashboardData.myLogs.length}</Text>

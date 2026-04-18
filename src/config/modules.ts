@@ -12,9 +12,9 @@ export interface AppModule {
  */
 export const primaryModules: AppModule[] = [
   { key: "dashboard", label: "Dashboard", icon: "LayoutDashboard" },
-  { key: "updates", label: "Atualizacoes", icon: "Camera" },
+  { key: "updates", label: "Atualizações", icon: "Camera" },
   { key: "payments", label: "Pagamentos", icon: "CreditCard" },
   { key: "documents", label: "Documentos", icon: "FileText" },
   { key: "team", label: "Equipe", icon: "Users" },
-  { key: "attendance", label: "Presenca", icon: "UserCheck" },
+  { key: "attendance", label: "Presença", icon: "UserCheck" },
 ];

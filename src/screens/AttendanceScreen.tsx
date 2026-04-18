@@ -9,10 +9,10 @@ import { colors } from "../config/theme";
  */
 export function AttendanceScreen() {
   return (
-    <AppScreen title="Presenca" subtitle="Area de controle legada.">
-      <SectionCard title="Aviso" subtitle="Este modulo foi movido.">
+    <AppScreen title="Presença" subtitle="Área de controle legada.">
+      <SectionCard title="Aviso" subtitle="Este módulo foi movido.">
         <Text style={{ color: colors.text, fontSize: 15, lineHeight: 22 }}>
-          Esta area esta sendo desativada. Utilize o novo Relatorio de Presenca Automatica disponivel no menu principal.
+          Esta área está sendo desativada. Utilize o novo Relatório de Presença Automática disponível no menu principal.
         </Text>
       </SectionCard>
     </AppScreen>

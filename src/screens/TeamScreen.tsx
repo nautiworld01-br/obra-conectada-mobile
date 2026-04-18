@@ -201,7 +201,7 @@ export function TeamScreen() {
 
   return (
     <AppScreen title="Equipe" subtitle="Gestão de funcionários e empreiteiras parceiras.">
-      <SectionCard title="Equipe de funcionarios" subtitle={`Ativos: ${summary.active} • Inativos: ${summary.inactive}`}>
+      <SectionCard title="Equipe de funcionários" subtitle={`Ativos: ${summary.active} • Inativos: ${summary.inactive}`}>
         {isLoading ? (
           <View style={styles.loadingState}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Carregando equipe...</Text></View>
         ) : employees.length ? (
@@ -241,10 +241,10 @@ export function TeamScreen() {
               );
             })}
           </View>
-        ) : <Text style={styles.emptyText}>Nenhum funcionario logado encontrado.</Text>}
+        ) : <Text style={styles.emptyText}>Nenhum funcionário logado encontrado.</Text>}
       </SectionCard>
 
-      <SectionCard title="Equipe da obra" subtitle={`Times: ${workCrewSummary.total} • Media de pessoas: ${workCrewSummary.workersAverage}`}>
+      <SectionCard title="Equipe da obra" subtitle={`Times: ${workCrewSummary.total} • Média de pessoas: ${workCrewSummary.workersAverage}`}>
         <View style={styles.actionRow}>
           <Pressable style={({ pressed }) => [styles.primaryAction, pressed && styles.buttonPressed]} onPress={() => { setWorkCrewDraft(buildWorkCrewDraft()); setWorkCrewFormOpen(true); }}>
             <Text style={styles.primaryActionText}>+ Nova equipe</Text>
@@ -288,14 +288,14 @@ export function TeamScreen() {
         <View style={styles.modalHeader}><Text style={styles.modalTitle}>Equipe da Obra</Text><Pressable onPress={() => setWorkCrewFormOpen(false)}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable></View>
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
               <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Empresa / Equipe *</Text><TextInput style={styles.fieldInput} value={workCrewDraft.companyName} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, companyName: value }))} placeholder="Ex: Empreiteira Silva" placeholderTextColor={colors.textMuted} /></View>
-              <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Responsavel</Text><TextInput style={styles.fieldInput} value={workCrewDraft.responsibleName} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, responsibleName: value }))} placeholder="Nome do responsavel" placeholderTextColor={colors.textMuted} /></View>
+              <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Responsável</Text><TextInput style={styles.fieldInput} value={workCrewDraft.responsibleName} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, responsibleName: value }))} placeholder="Nome do responsável" placeholderTextColor={colors.textMuted} /></View>
               <View style={styles.fieldBlock}>
                 <AppDatePicker label="Início Previsto" value={workCrewDraft.plannedStartDate} onChange={(v) => setWorkCrewDraft(c => ({ ...c, plannedStartDate: v }))} />
               </View>
               <View style={styles.fieldBlock}>
                 <AppDatePicker label="Término Previsto" value={workCrewDraft.plannedEndDate} onChange={(v) => setWorkCrewDraft(c => ({ ...c, plannedEndDate: v }))} />
               </View>
-              <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Observacoes</Text><TextInput multiline style={[styles.fieldInput, styles.textArea]} value={workCrewDraft.observations} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, observations: value }))} placeholder="Anotacoes..." placeholderTextColor={colors.textMuted} /></View>
+              <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Observações</Text><TextInput multiline style={[styles.fieldInput, styles.textArea]} value={workCrewDraft.observations} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, observations: value }))} placeholder="Anotações..." placeholderTextColor={colors.textMuted} /></View>
               <Pressable style={styles.primarySave} onPress={handleSaveWorkCrew}>{upsertWorkCrew.isPending ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primarySaveText}>Salvar Equipe</Text>}</Pressable>
         </ScrollView>
       </AnimatedModal>

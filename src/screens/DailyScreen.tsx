@@ -39,7 +39,7 @@ const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = [
   "janeiro",
   "fevereiro",
-  "marco",
+  "março",
   "abril",
   "maio",
   "junho",
@@ -182,7 +182,7 @@ function DailyLogForm({
     try {
       const { granted } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!granted) {
-        Alert.alert("Permissao", `Permita o acesso a galeria para escolher ${isPhoto ? "fotos" : "videos"}.`);
+        Alert.alert("Permissão", `Permita o acesso à galeria para escolher ${isPhoto ? "fotos" : "vídeos"}.`);
         return [];
       }
 
@@ -230,7 +230,7 @@ function DailyLogForm({
     try {
       await Linking.openURL(url);
     } catch {
-      Alert.alert("Midia", "Nao foi possivel abrir este arquivo.");
+      Alert.alert("Mídia", "Não foi possível abrir este arquivo.");
     }
   };
 
@@ -367,10 +367,10 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Observacoes</Text>
+              <Text style={styles.fieldLabel}>Observações</Text>
               <TextInput
                 multiline
-                placeholder="Observacoes do dia ..."
+                placeholder="Observações do dia ..."
                 placeholderTextColor={colors.textMuted}
                 style={[styles.fieldInput, styles.textAreaMedium]}
                 value={observations}
@@ -379,7 +379,7 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Funcionarios presentes ({employeeIds.length}/{employees.length})</Text>
+              <Text style={styles.fieldLabel}>Funcionários presentes ({employeeIds.length}/{employees.length})</Text>
               {employees.length > 0 ? (
                 <View style={styles.employeeList}>
                   {employees.map((employee) => {
@@ -404,13 +404,13 @@ function DailyLogForm({
                 </View>
               ) : (
                 <View style={styles.emptyEmployeeBox}>
-                  <Text style={styles.emptyEmployeeText}>Nenhum funcionario ativo cadastrado</Text>
+                  <Text style={styles.emptyEmployeeText}>Nenhum funcionário ativo cadastrado</Text>
                 </View>
               )}
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Fotos e Videos</Text>
+              <Text style={styles.fieldLabel}>Fotos e Vídeos</Text>
               <View style={styles.mediaSection}>
                 <Pressable 
                   style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]}
@@ -454,11 +454,11 @@ function DailyLogForm({
                   {uploading ? (
                     <ActivityIndicator size="small" color={colors.primary} />
                   ) : (
-                    <Text style={styles.mediaButtonText}>+ Videos</Text>
+                    <Text style={styles.mediaButtonText}>+ Vídeos</Text>
                   )}
                 </Pressable>
                 <View style={styles.previewSection}>
-                  <Text style={styles.mediaGridTitle}>Videos ({videosUrls.length})</Text>
+                  <Text style={styles.mediaGridTitle}>Vídeos ({videosUrls.length})</Text>
                   {videosUrls.length ? (
                     <View style={styles.mediaListRow}>
                       {videosUrls.map((url, index) => (
@@ -478,7 +478,7 @@ function DailyLogForm({
                     </View>
                   ) : (
                     <View style={styles.emptyPreviewBox}>
-                      <Text style={styles.emptyPreviewText}>Nenhum video adicionado.</Text>
+                      <Text style={styles.emptyPreviewText}>Nenhum vídeo adicionado.</Text>
                     </View>
                   )}
                 </View>
@@ -490,7 +490,7 @@ function DailyLogForm({
               <Text style={styles.confirmText}>Deseja remover este item da lista de uploads?</Text>
               <View style={styles.confirmActions}>
                 <Pressable style={styles.confirmCancel} onPress={() => setPendingRemoval(null)}>
-                  <Text style={styles.confirmCancelText}>Nao</Text>
+                  <Text style={styles.confirmCancelText}>Não</Text>
                 </Pressable>
                 <Pressable style={styles.confirmAccept} onPress={handleConfirmRemoval}>
                   <Text style={styles.confirmAcceptText}>Sim</Text>
@@ -570,7 +570,7 @@ function DailyLogDetailsModal({
 
             {log.observations ? (
               <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Observacoes</Text>
+                <Text style={styles.fieldLabel}>Observações</Text>
                 <Text style={styles.detailValue}>{log.observations}</Text>
               </View>
             ) : null}
@@ -585,14 +585,14 @@ function DailyLogDetailsModal({
                     </View>
                   ))
                 ) : (
-                  <Text style={styles.detailValueEmpty}>Nenhum funcionario registrado.</Text>
+                  <Text style={styles.detailValueEmpty}>Nenhum funcionário registrado.</Text>
                 )}
               </View>
             </View>
 
             {(log.photos_urls?.length ?? 0) > 0 || (log.videos_urls?.length ?? 0) > 0 ? (
               <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Midias</Text>
+                <Text style={styles.fieldLabel}>Mídias</Text>
                 <View style={styles.mediaListRow}>
                   {log.photos_urls?.map((url, i) => (
                     <Pressable key={`p_${i}`} style={styles.mediaItemContainer} onPress={() => Linking.openURL(url)}>
@@ -736,7 +736,7 @@ export function DailyScreen() {
       <View style={styles.dailyHeader}>
         <View>
           <Text style={styles.dailyTitle}>Dia a Dia</Text>
-          <Text style={styles.dailySubtitle}>Registro diario da obra</Text>
+          <Text style={styles.dailySubtitle}>Registro diário da obra</Text>
         </View>
 
         <Pressable style={({ pressed }) => [styles.todayButton, pressed && styles.buttonPressed]} onPress={() => handleOpenDate(new Date())}>
@@ -825,7 +825,7 @@ export function DailyScreen() {
           </View>
 
           {!projectStartDate ? (
-            <Text style={styles.projectHint}>Configure a data de inicio da obra em Configuracoes</Text>
+            <Text style={styles.projectHint}>Configure a data de início da obra em Configurações</Text>
           ) : null}
 
           <View style={styles.monthListSection}>
@@ -847,7 +847,7 @@ export function DailyScreen() {
                       <Text style={styles.monthLogTag}>Registrado</Text>
                     </View>
                     <Text numberOfLines={2} style={styles.monthLogActivities}>
-                      {log.activities || "Sem descricao preenchida."}
+                      {log.activities || "Sem descrição preenchida."}
                     </Text>
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
                   </Pressable>
@@ -869,7 +869,7 @@ export function DailyScreen() {
               </View>
             ) : (
               <View style={styles.monthLogEmpty}>
-                <Text style={styles.monthLogEmptyText}>Nenhum registro salvo neste mes.</Text>
+                <Text style={styles.monthLogEmptyText}>Nenhum registro salvo neste mês.</Text>
               </View>
             )}
 

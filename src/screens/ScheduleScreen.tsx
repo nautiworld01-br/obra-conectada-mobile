@@ -144,7 +144,7 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
                   </Pressable>
                 ))}
               </ScrollView>
-              <Text style={styles.helperTextSmall}>Estados "Em Andamento" e "Atrasado" sao sugeridos automaticamente por data, mas voce pode forçar "Concluido" ou "Bloqueado".</Text>
+              <Text style={styles.helperTextSmall}>Estados "Em Andamento" e "Atrasado" são sugeridos automaticamente por data, mas você pode forçar "Concluído" ou "Bloqueado".</Text>
             </View>
 
             <View style={styles.fieldBlock}>

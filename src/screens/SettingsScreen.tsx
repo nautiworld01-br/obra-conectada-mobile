@@ -19,15 +19,15 @@ import { useTeam } from "../hooks/useTeam";
 
 /**
  * Formata valores numericos para moeda Real (BRL).
- * Exibe 'Nao informado' se o valor for nulo ou invalido.
+ * Exibe 'Não informado' se o valor for nulo ou inválido.
  */
 function formatMoney(value: number | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "Nao informado";
+  if (typeof value !== "number" || Number.isNaN(value)) return "Não informado";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(value);
 }
 
 /**
- * Modal de edicao dos dados do projeto (nome, endereco, valor e inicio).
+ * Modal de edição dos dados do projeto (nome, endereço, valor e início).
  */
 function EditProjectModal({
   project,
@@ -59,7 +59,7 @@ function EditProjectModal({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Erro", "O nome da obra e obrigatorio.");
+      Alert.alert("Erro", "O nome da obra é obrigatório.");
       return;
     }
 
@@ -93,9 +93,9 @@ function EditProjectModal({
         </View>
 
         <View style={styles.fieldBlock}>
-          <Text style={styles.fieldLabel}>Endereco</Text>
+          <Text style={styles.fieldLabel}>Endereço</Text>
           <TextInput
-            placeholder="Rua, Numero, Bairro ..."
+            placeholder="Rua, Número, Bairro ..."
             placeholderTextColor={colors.textMuted}
             style={styles.fieldInput}
             value={address}
@@ -106,7 +106,7 @@ function EditProjectModal({
         <View style={styles.fieldBlock}>
           <Text style={styles.fieldLabel}>Valor do Contrato (R$)</Text>
           <TextInput
-            placeholder="Apenas numeros"
+            placeholder="Apenas números"
             placeholderTextColor={colors.textMuted}
             keyboardType="numeric"
             style={styles.fieldInput}
@@ -117,7 +117,7 @@ function EditProjectModal({
 
         <View style={styles.fieldBlock}>
           <AppDatePicker
-            label="Data de Inicio"
+            label="Data de Início"
             value={startDate}
             onChange={setStartDate}
           />
@@ -128,7 +128,7 @@ function EditProjectModal({
           onPress={handleSave}
           disabled={loading}
         >
-          {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Alteracoes</Text>}
+          {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Alterações</Text>}
         </Pressable>
       </ScrollView>
     </AnimatedModal>
@@ -160,14 +160,14 @@ export function SettingsScreen() {
   const configuredModules = [
     { label: "Equipe", value: `${activeEmployees} ativos` },
     { label: "Crono", value: `${openStages} etapas abertas` },
-    { label: "Pagamentos", value: `${pendingPayments} pendencias` },
-    { label: "Atualizacoes", value: `${approvedUpdates}/${updates.length} aprovadas` },
+    { label: "Pagamentos", value: `${pendingPayments} pendências` },
+    { label: "Atualizações", value: `${approvedUpdates}/${updates.length} aprovadas` },
     { label: "Documentos", value: `${documents.length} arquivos` },
-    { label: "Presenca", value: "Controle diario liberado" },
+    { label: "Presença", value: "Controle diário liberado" },
   ];
 
   const handleSignOut = () => {
-    Alert.alert("Sair da conta?", "Voce sera desconectado deste aparelho.", [
+    Alert.alert("Sair da conta?", "Você será desconectado deste aparelho.", [
       { text: "Cancelar", style: "cancel" },
       { text: "Sair", style: "destructive", onPress: () => void signOut() },
     ]);
@@ -191,15 +191,15 @@ export function SettingsScreen() {
   };
 
   return (
-    <AppScreen title="Configuracoes" subtitle="Visao geral do ambiente, da conta ativa e do estado operacional do app.">
-      <SectionCard title="Conta ativa" subtitle="Informacoes da sessao autenticada neste aparelho.">
+    <AppScreen title="Configurações" subtitle="Visão geral do ambiente, da conta ativa e do estado operacional do app.">
+      <SectionCard title="Conta ativa" subtitle="Informações da sessão autenticada neste aparelho.">
         <View style={styles.accountRow}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{buildInitials(fullName)}</Text>
           </View>
           <View style={styles.accountCopy}>
             <Text style={styles.accountName}>{fullName}</Text>
-            <Text style={styles.accountMeta}>{user?.email ?? "nenhuma sessao ativa"}</Text>
+            <Text style={styles.accountMeta}>{user?.email ?? "nenhuma sessão ativa"}</Text>
             <Text style={styles.accountMeta}>Perfil: {occupationLabel}</Text>
           </View>
         </View>
@@ -207,23 +207,23 @@ export function SettingsScreen() {
 
       <SectionCard
         title="Ambiente"
-        subtitle={isConfigured ? "O app encontrou as variaveis publicas do Supabase." : "Faltam variaveis EXPO_PUBLIC_ no .env."}
+        subtitle={isConfigured ? "O app encontrou as variáveis públicas do Supabase." : "Faltam variáveis EXPO_PUBLIC_ no .env."}
       >
         <View style={styles.infoList}>
           <View style={styles.infoRow}>
             <Text style={styles.rowLabel}>Supabase: {isConfigured ? "Configurado" : "Pendente"}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.rowLabel}>Obra vinculada: {project?.name?.trim() || "Ainda nao configurada"}</Text>
+            <Text style={styles.rowLabel}>Obra vinculada: {project?.name?.trim() || "Ainda não configurada"}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.rowLabel}>Endereco: {project?.address?.trim() || "Nao informado"}</Text>
+            <Text style={styles.rowLabel}>Endereço: {project?.address?.trim() || "Não informado"}</Text>
           </View>
           <View style={styles.infoRow}>
             <Text style={styles.rowLabel}>Contrato: {formatMoney(project?.total_contract_value ?? null)}</Text>
           </View>
           <View style={styles.infoRow}>
-            <Text style={styles.rowLabel}>Inicio da obra: {project?.start_date || "Nao informado"}</Text>
+            <Text style={styles.rowLabel}>Início da obra: {project?.start_date || "Não informado"}</Text>
           </View>
 
           {isOwner ? (
@@ -237,7 +237,7 @@ export function SettingsScreen() {
         </View>
       </SectionCard>
 
-      <SectionCard title="Modulos ativos" subtitle="Resumo rapido do que ja esta operacional neste projeto.">
+      <SectionCard title="Módulos ativos" subtitle="Resumo rápido do que já está operacional neste projeto.">
         <View style={styles.moduleGrid}>
           {configuredModules.map((module) => (
             <View key={module.label} style={styles.moduleCard}>
@@ -248,7 +248,7 @@ export function SettingsScreen() {
         </View>
       </SectionCard>
 
-      <SectionCard title="Navegacao principal" subtitle="Atalhos que hoje fazem parte da operacao base do app.">
+      <SectionCard title="Navegação principal" subtitle="Atalhos que hoje fazem parte da operação base do app.">
         <View style={styles.moduleList}>
           {primaryModules.map((module) => (
             <View key={module.key} style={styles.moduleListRow}>
@@ -257,7 +257,7 @@ export function SettingsScreen() {
             </View>
           ))}
           {isOwner ? (
-            <Text style={styles.helperText}>Como proprietario, voce tambem acessa Documentos, Presenca e Configuracoes pelo menu lateral.</Text>
+            <Text style={styles.helperText}>Como proprietário, você também acessa Documentos, Presença e Configurações pelo menu lateral.</Text>
           ) : (
             <Text style={styles.helperText}>Como funcionario, o menu lateral mostra apenas as areas liberadas para a sua operacao.</Text>
           )}
