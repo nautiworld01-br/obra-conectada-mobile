@@ -1,5 +1,5 @@
-const APP_SHELL_CACHE = "obra-conectada-shell-v2";
-const STATIC_CACHE = "obra-conectada-static-v2";
+const APP_SHELL_CACHE = "obra-conectada-shell-v3";
+const STATIC_CACHE = "obra-conectada-static-v3";
 const PRECACHE_URLS = ["./", "./index.html", "./manifest.json", "./icon.png", "./icon-192.png", "./icon-512.png", "./favicon.ico"];
 
 self.addEventListener("install", (event) => {
