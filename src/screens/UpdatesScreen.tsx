@@ -17,6 +17,7 @@ import {
 import Toast from "react-native-toast-message";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
+import { AnimatedModal } from "../components/AnimatedModal";
 import {
   UpdateRow,
   UpdateStatus,
@@ -151,16 +152,14 @@ function UpdateFormModal(_: any) {
   };
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{update ? "Editar" : "Novo"} Relatório</Text>
-            <Pressable onPress={onClose}>
-              <AppIcon name="X" size={24} color={colors.textMuted} />
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.modalCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>{update ? "Editar" : "Novo"} Relatório</Text>
+        <Pressable onPress={onClose}>
+          <AppIcon name="X" size={24} color={colors.textMuted} />
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Semana do Relatório *</Text>
               <Pressable style={styles.selectField} onPress={() => setWeekOpen(true)}>
@@ -207,9 +206,7 @@ function UpdateFormModal(_: any) {
             <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={handleSave}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar Relatório</Text>}
             </Pressable>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
+      </ScrollView>
 
       <Modal transparent visible={statusOpen} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setStatusOpen(false)}>
@@ -243,7 +240,7 @@ function UpdateFormModal(_: any) {
           </View>
         </Pressable>
       </Modal>
-    </Modal>
+    </AnimatedModal>
   );
 }
 
@@ -259,21 +256,18 @@ function UpdateDetailModal(_: any) {
   useEffect(() => { setComment(update.owner_comments || ""); }, [update, visible]);
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.detailCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Relatório Semanal</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
-              <AppIcon name="X" size={24} color={colors.textMuted} />
-            </Pressable>
-          </View>
-          <ScrollView 
-            contentContainerStyle={styles.modalContent} 
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.detailCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Relatório Semanal</Text>
+        <Pressable onPress={onClose} hitSlop={10}>
+          <AppIcon name="X" size={24} color={colors.textMuted} />
+        </Pressable>
+      </View>
+      <ScrollView 
+        contentContainerStyle={styles.modalContent} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
             <View style={styles.detailHeader}>
               <Text style={styles.detailWeek}>Semana {update.week_ref}</Text>
               <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{update.status.toUpperCase()}</Text></View>
@@ -330,10 +324,8 @@ function UpdateDetailModal(_: any) {
               <Pressable style={styles.editPill} onPress={onEdit}><Text style={styles.editPillText}>Editar</Text></Pressable>
               <Pressable style={styles.deletePill} onPress={onDelete}><Text style={styles.deletePillText}>Excluir</Text></Pressable>
             </View>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </AnimatedModal>
   );
 }
 

@@ -1,9 +1,10 @@
 import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Modal, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
+import { AnimatedModal } from "../components/AnimatedModal";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { buildInitials, useProfile } from "../hooks/useProfile";
@@ -122,22 +123,18 @@ export function MoreScreen() {
         </SectionCard>
       </AppScreen>
 
-      <Modal transparent animationType="fade" visible={editVisible} onRequestClose={() => setEditVisible(false)}>
-        <Pressable style={styles.modalBackdrop} onPress={() => setEditVisible(false)}>
-          <Pressable style={styles.modalCard} onPress={() => undefined}>
-            <Text style={styles.modalTitle}>Editar perfil</Text>
-            <View style={styles.modalAvatarArea}>
-              <Pressable style={styles.photoButton} onPress={() => void pickAvatarFromGallery()}><Text style={styles.photoButtonText}>Trocar foto</Text></Pressable>
-              <View style={styles.avatarShellLarge}>{draftAvatar ? <Image source={{ uri: draftAvatar }} style={styles.avatarImage} /> : <Text style={styles.avatarTextLarge}>{initials}</Text>}</View>
-            </View>
-            <View style={styles.formBlock}><Text style={styles.formLabel}>Nome</Text><TextInput style={styles.formInput} value={draftName} onChangeText={setDraftName} placeholder="Nome completo" /></View>
-            <View style={styles.modalActions}>
-              <Pressable style={styles.cancelButton} onPress={() => setEditVisible(false)}><Text>Cancelar</Text></Pressable>
-              <Pressable style={styles.saveButton} onPress={() => void handleSaveProfile()}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Salvar</Text>}</Pressable>
-            </View>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <AnimatedModal visible={editVisible} onRequestClose={() => setEditVisible(false)} position="center" contentStyle={styles.modalCard}>
+        <Text style={styles.modalTitle}>Editar perfil</Text>
+        <View style={styles.modalAvatarArea}>
+          <Pressable style={styles.photoButton} onPress={() => void pickAvatarFromGallery()}><Text style={styles.photoButtonText}>Trocar foto</Text></Pressable>
+          <View style={styles.avatarShellLarge}>{draftAvatar ? <Image source={{ uri: draftAvatar }} style={styles.avatarImage} /> : <Text style={styles.avatarTextLarge}>{initials}</Text>}</View>
+        </View>
+        <View style={styles.formBlock}><Text style={styles.formLabel}>Nome</Text><TextInput style={styles.formInput} value={draftName} onChangeText={setDraftName} placeholder="Nome completo" /></View>
+        <View style={styles.modalActions}>
+          <Pressable style={styles.cancelButton} onPress={() => setEditVisible(false)}><Text>Cancelar</Text></Pressable>
+          <Pressable style={styles.saveButton} onPress={() => void handleSaveProfile()}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Salvar</Text>}</Pressable>
+        </View>
+      </AnimatedModal>
     </>
   );
 }

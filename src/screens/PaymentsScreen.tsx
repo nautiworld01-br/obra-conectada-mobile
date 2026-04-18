@@ -18,6 +18,7 @@ import Toast from "react-native-toast-message";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { Validator } from "../lib/validation";
+import { AnimatedModal } from "../components/AnimatedModal";
 import {
   PaymentCategory,
   PaymentRow,
@@ -128,15 +129,12 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
   };
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{payment ? "Editar" : "Novo"} Pagamento</Text>
-            <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
-          </View>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.modalCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>{payment ? "Editar" : "Novo"} Pagamento</Text>
+        <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
+      </View>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Referencia</Text><View style={styles.row}><Pressable style={[styles.selectField, {flex: 2}]} onPress={() => setMonthOpen(true)}><Text style={styles.selectFieldText}>{draft.periodMonth}</Text></Pressable><TextInput style={[styles.fieldInput, {flex: 1}]} value={draft.periodYear} onChangeText={v => setDraft(c => ({...c, periodYear: v}))} keyboardType="numeric" /></View></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Valor (R$)</Text><TextInput style={styles.fieldInput} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v}))} keyboardType="numeric" placeholder="0.00" /></View>
             <View style={styles.fieldBlock}><AppDatePicker label="Vencimento" value={draft.dueDate} onChange={(v) => setDraft(c => ({ ...c, dueDate: v }))} /></View>
@@ -146,15 +144,13 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
             <Pressable style={({ pressed }) => [styles.primaryButton, (loading || isUploading || pressed) && styles.buttonPressed]} onPress={handleSave} disabled={loading || isUploading}>
               {(loading || isUploading) ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar</Text>}
             </Pressable>
-          </ScrollView>
-        </View>
-      </View>
+      </ScrollView>
       <Modal transparent visible={monthOpen} animationType="fade">
         <Pressable style={styles.modalBackdrop} onPress={() => setMonthOpen(false)}>
           <View style={styles.dropdownModalCard}><ScrollView>{monthOptions.map(m => (<Pressable key={m} style={styles.dropdownItem} onPress={() => { setDraft(c => ({...c, periodMonth: m})); setMonthOpen(false); }}><Text style={styles.dropdownItemText}>{m}</Text></Pressable>))}</ScrollView></View>
         </Pressable>
       </Modal>
-    </Modal>
+    </AnimatedModal>
   );
 }
 
@@ -162,15 +158,12 @@ function PaymentDetailModal({ payment, visible, isOwner, onClose, onEdit, onDele
   if (!payment) return null;
   const statusStyle = getStatusColors(payment.status);
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.detailCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Detalhe do Pagamento</Text>
-            <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.detailCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Detalhe do Pagamento</Text>
+        <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.detailRow}>
               <Text style={styles.detailPeriod}>{payment.period}</Text>
               <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{payment.status.toUpperCase()}</Text></View>
@@ -215,10 +208,8 @@ function PaymentDetailModal({ payment, visible, isOwner, onClose, onEdit, onDele
                 )}
               </View>
             )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </AnimatedModal>
   );
 }
 

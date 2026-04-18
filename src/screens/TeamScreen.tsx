@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, S
 import Toast from "react-native-toast-message";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
+import { AnimatedModal } from "../components/AnimatedModal";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
@@ -137,14 +138,12 @@ export function TeamScreen() {
     };
 
     return (
-      <Modal transparent visible={employeeFormOpen} animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Editar Perfil</Text>
-              <Pressable onPress={() => setEmployeeFormOpen(false)}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
-            </View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+      <AnimatedModal visible={employeeFormOpen} onRequestClose={() => setEmployeeFormOpen(false)} position="center" contentStyle={styles.modalCard}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Editar Perfil</Text>
+          <Pressable onPress={() => setEmployeeFormOpen(false)}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
+        </View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Nome Completo</Text>
                 <TextInput style={styles.fieldInput} value={fullName} onChangeText={setFullName} />
@@ -195,10 +194,8 @@ export function TeamScreen() {
                   <Text style={styles.primarySaveText}>Salvar Alterações</Text>
                 )}
               </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AnimatedModal>
     );
   }
 
@@ -287,11 +284,9 @@ export function TeamScreen() {
 
       <EmployeeFormModal />
 
-      <Modal transparent visible={workCrewFormOpen} animationType="fade">
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}><Text style={styles.modalTitle}>Equipe da Obra</Text><Pressable onPress={() => setWorkCrewFormOpen(false)}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable></View>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+      <AnimatedModal visible={workCrewFormOpen} onRequestClose={() => setWorkCrewFormOpen(false)} position="center" contentStyle={styles.modalCard}>
+        <View style={styles.modalHeader}><Text style={styles.modalTitle}>Equipe da Obra</Text><Pressable onPress={() => setWorkCrewFormOpen(false)}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable></View>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
               <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Empresa / Equipe *</Text><TextInput style={styles.fieldInput} value={workCrewDraft.companyName} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, companyName: value }))} placeholder="Ex: Empreiteira Silva" placeholderTextColor={colors.textMuted} /></View>
               <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Responsavel</Text><TextInput style={styles.fieldInput} value={workCrewDraft.responsibleName} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, responsibleName: value }))} placeholder="Nome do responsavel" placeholderTextColor={colors.textMuted} /></View>
               <View style={styles.fieldBlock}>
@@ -302,10 +297,8 @@ export function TeamScreen() {
               </View>
               <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Observacoes</Text><TextInput multiline style={[styles.fieldInput, styles.textArea]} value={workCrewDraft.observations} onChangeText={(value) => setWorkCrewDraft((current) => ({ ...current, observations: value }))} placeholder="Anotacoes..." placeholderTextColor={colors.textMuted} /></View>
               <Pressable style={styles.primarySave} onPress={handleSaveWorkCrew}>{upsertWorkCrew.isPending ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primarySaveText}>Salvar Equipe</Text>}</Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AnimatedModal>
     </AppScreen>
   );
 }

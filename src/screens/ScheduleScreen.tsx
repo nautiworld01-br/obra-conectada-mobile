@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -18,6 +17,7 @@ import { StageRow, StageStatus, useDeleteStage, useStages, useUpsertStage } from
 import { useProject } from "../hooks/useProject";
 import { AppIcon } from "../components/AppIcon";
 import { AppDatePicker } from "../components/AppDatePicker";
+import { AnimatedModal } from "../components/AnimatedModal";
 
 /**
  * Opções de status permitidas para as etapas da obra.
@@ -102,16 +102,14 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
   };
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.modalCard} onPress={() => undefined}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{stage ? "Editar" : "Nova"} Etapa</Text>
-            <Pressable onPress={onClose}>
-              <AppIcon name="X" size={24} color={colors.textMuted} />
-            </Pressable>
-          </View>
-          <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.modalCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>{stage ? "Editar" : "Nova"} Etapa</Text>
+        <Pressable onPress={onClose}>
+          <AppIcon name="X" size={24} color={colors.textMuted} />
+        </Pressable>
+      </View>
+      <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Nome da Etapa *</Text>
               <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Ex: Fundacao" />
@@ -174,10 +172,8 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
                 </Pressable>
               )}
             </View>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+      </ScrollView>
+    </AnimatedModal>
   );
 }
 

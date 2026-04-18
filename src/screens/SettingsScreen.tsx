@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Toast from "react-native-toast-message";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { AppIcon } from "../components/AppIcon";
 import { AppDatePicker } from "../components/AppDatePicker";
+import { AnimatedModal } from "../components/AnimatedModal";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { primaryModules } from "../config/modules";
@@ -71,71 +72,66 @@ function EditProjectModal({
   };
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Configurar Obra</Text>
-            <Pressable onPress={onClose}>
-              <AppIcon name="X" size={24} color={colors.textMuted} />
-            </Pressable>
-          </View>
-
-          <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Nome da obra *</Text>
-              <TextInput
-                placeholder="Ex: Reforma Obra 01"
-                placeholderTextColor={colors.textMuted}
-                style={styles.fieldInput}
-                value={name}
-                onChangeText={setName}
-              />
-            </View>
-
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Endereco</Text>
-              <TextInput
-                placeholder="Rua, Numero, Bairro ..."
-                placeholderTextColor={colors.textMuted}
-                style={styles.fieldInput}
-                value={address}
-                onChangeText={setAddress}
-              />
-            </View>
-
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Valor do Contrato (R$)</Text>
-              <TextInput
-                placeholder="Apenas numeros"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="numeric"
-                style={styles.fieldInput}
-                value={value}
-                onChangeText={setValue}
-              />
-            </View>
-
-            <View style={styles.fieldBlock}>
-              <AppDatePicker
-                label="Data de Inicio"
-                value={startDate}
-                onChange={setStartDate}
-              />
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [styles.saveButton, (loading || pressed) && styles.buttonPressed]}
-              onPress={handleSave}
-              disabled={loading}
-            >
-              {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Alteracoes</Text>}
-            </Pressable>
-          </ScrollView>
-        </View>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Configurar Obra</Text>
+        <Pressable onPress={onClose}>
+          <AppIcon name="X" size={24} color={colors.textMuted} />
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.fieldBlock}>
+          <Text style={styles.fieldLabel}>Nome da obra *</Text>
+          <TextInput
+            placeholder="Ex: Reforma Obra 01"
+            placeholderTextColor={colors.textMuted}
+            style={styles.fieldInput}
+            value={name}
+            onChangeText={setName}
+          />
+        </View>
+
+        <View style={styles.fieldBlock}>
+          <Text style={styles.fieldLabel}>Endereco</Text>
+          <TextInput
+            placeholder="Rua, Numero, Bairro ..."
+            placeholderTextColor={colors.textMuted}
+            style={styles.fieldInput}
+            value={address}
+            onChangeText={setAddress}
+          />
+        </View>
+
+        <View style={styles.fieldBlock}>
+          <Text style={styles.fieldLabel}>Valor do Contrato (R$)</Text>
+          <TextInput
+            placeholder="Apenas numeros"
+            placeholderTextColor={colors.textMuted}
+            keyboardType="numeric"
+            style={styles.fieldInput}
+            value={value}
+            onChangeText={setValue}
+          />
+        </View>
+
+        <View style={styles.fieldBlock}>
+          <AppDatePicker
+            label="Data de Inicio"
+            value={startDate}
+            onChange={setStartDate}
+          />
+        </View>
+
+        <Pressable
+          style={({ pressed }) => [styles.saveButton, (loading || pressed) && styles.buttonPressed]}
+          onPress={handleSave}
+          disabled={loading}
+        >
+          {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Alteracoes</Text>}
+        </Pressable>
+      </ScrollView>
+    </AnimatedModal>
   );
 }
 

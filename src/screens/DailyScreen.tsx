@@ -25,6 +25,7 @@ import {
   useDeleteDailyLog,
   useUpsertDailyLog,
 } from "../hooks/useDailyLogs";
+import { AnimatedModal } from "../components/AnimatedModal";
 
 type DayCell = {
   key: string;
@@ -325,24 +326,21 @@ function DailyLogForm({
     ]);
   };
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={handleClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Registro do Dia - {displayDate(date)}</Text>
-            <Pressable onPress={handleClose}>
-              <Text style={styles.closeIcon}>×</Text>
-            </Pressable>
-          </View>
+    <AnimatedModal visible={visible} onRequestClose={handleClose} position="center" contentStyle={styles.modalCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Registro do Dia - {displayDate(date)}</Text>
+        <Pressable onPress={handleClose}>
+          <Text style={styles.closeIcon}>×</Text>
+        </Pressable>
+      </View>
 
-          <ScrollView
-            style={styles.modalScroll}
-            contentContainerStyle={styles.modalContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-          >
+      <ScrollView
+        style={styles.modalScroll}
+        contentContainerStyle={styles.modalContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        nestedScrollEnabled
+      >
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Atividades realizadas *</Text>
               <TextInput
@@ -487,23 +485,18 @@ function DailyLogForm({
               </View>
             </View>
 
-            <Modal transparent animationType="fade" visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)}>
-              <View style={styles.confirmBackdrop}>
-                <Pressable style={StyleSheet.absoluteFill} onPress={() => setPendingRemoval(null)} />
-                <View style={styles.confirmCard}>
-                  <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
-                  <Text style={styles.confirmText}>Deseja remover este item da lista de uploads?</Text>
-                  <View style={styles.confirmActions}>
-                    <Pressable style={styles.confirmCancel} onPress={() => setPendingRemoval(null)}>
-                      <Text style={styles.confirmCancelText}>Nao</Text>
-                    </Pressable>
-                    <Pressable style={styles.confirmAccept} onPress={handleConfirmRemoval}>
-                      <Text style={styles.confirmAcceptText}>Sim</Text>
-                    </Pressable>
-                  </View>
-                </View>
+            <AnimatedModal visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)} position="center" contentStyle={styles.confirmCard}>
+              <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
+              <Text style={styles.confirmText}>Deseja remover este item da lista de uploads?</Text>
+              <View style={styles.confirmActions}>
+                <Pressable style={styles.confirmCancel} onPress={() => setPendingRemoval(null)}>
+                  <Text style={styles.confirmCancelText}>Nao</Text>
+                </Pressable>
+                <Pressable style={styles.confirmAccept} onPress={handleConfirmRemoval}>
+                  <Text style={styles.confirmAcceptText}>Sim</Text>
+                </Pressable>
               </View>
-            </Modal>
+            </AnimatedModal>
 
             {existingLog ? (
               <Pressable
@@ -527,10 +520,8 @@ function DailyLogForm({
             >
               {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Registro</Text>}
             </Pressable>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </AnimatedModal>
   );
 }
 
@@ -556,18 +547,15 @@ function DailyLogDetailsModal({
   const selectedEmployees = employees.filter((e) => employeeIds.includes(e.id));
 
   return (
-    <Modal transparent animationType="fade" visible={visible} onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-        <View style={styles.modalCard}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Detalhes do Dia - {displayDate(date)}</Text>
-            <Pressable onPress={onClose}>
-              <Text style={styles.closeIcon}>×</Text>
-            </Pressable>
-          </View>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
+      <View style={styles.modalHeader}>
+        <Text style={styles.modalTitle}>Detalhes do Dia - {displayDate(date)}</Text>
+        <Pressable onPress={onClose}>
+          <Text style={styles.closeIcon}>×</Text>
+        </Pressable>
+      </View>
 
-          <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Atividades realizadas</Text>
               <Text style={styles.detailValue}>{log.activities || "Nenhuma atividade descrita."}</Text>
@@ -626,10 +614,8 @@ function DailyLogDetailsModal({
             <Pressable style={styles.editButton} onPress={onEdit}>
               <Text style={styles.editButtonText}>Editar Registro</Text>
             </Pressable>
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      </ScrollView>
+    </AnimatedModal>
   );
 }
 

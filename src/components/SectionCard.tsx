@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInUp, LinearTransition } from "react-native-reanimated";
 import { colors } from "../config/theme";
 
 /**
@@ -19,11 +20,15 @@ type SectionCardProps = {
  */
 export function SectionCard({ title, subtitle, children }: SectionCardProps) {
   return (
-    <View style={styles.card}>
+    <Animated.View
+      entering={FadeInUp.duration(280)}
+      layout={LinearTransition.springify().damping(22).stiffness(200)}
+      style={styles.card}
+    >
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {children}
-    </View>
+    </Animated.View>
   );
 }
 

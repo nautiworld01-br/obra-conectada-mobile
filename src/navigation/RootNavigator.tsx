@@ -2,6 +2,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ComponentType, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Reanimated, { FadeInRight, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
@@ -212,7 +213,14 @@ function AppShell() {
         </Pressable>
         <Text style={styles.screenLabel}>{appRoutes.find(r => r.key === currentRouteKey)?.label}</Text>
       </View>
-      <View style={styles.screenArea}><ActiveScreen /></View>
+      <Reanimated.View
+        key={currentRouteKey}
+        entering={FadeInRight.duration(220)}
+        layout={LinearTransition.springify().damping(22).stiffness(200)}
+        style={styles.screenArea}
+      >
+        <ActiveScreen />
+      </Reanimated.View>
       <BottomNav routes={availableRoutes.filter(r => r.inBottomNav)} currentRouteKey={currentRouteKey} onNavigate={handleNavigate} />
       <SideMenu routes={availableRoutes.filter(r => r.inDrawer)} currentRouteKey={currentRouteKey} houseName={houseName} housePhotoUrl={project?.photo_url} isOwner={isOwner} isHouseMenuOpen={isHouseMenuOpen} visible={isSideMenuOpen} onClose={() => setIsSideMenuOpen(false)} onNavigate={handleNavigate} onToggleHouseMenu={() => setIsHouseMenuOpen(!isHouseMenuOpen)} onSignOut={handleSignOut} />
     </SafeAreaView>

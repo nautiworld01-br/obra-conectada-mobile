@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInDown, FadeInUp, LinearTransition } from "react-native-reanimated";
 import { colors } from "../config/theme";
 
 /**
@@ -21,16 +22,18 @@ type AppScreenProps = {
  */
 export function AppScreen({ title, titleColor, subtitle, children, scrollable = true }: AppScreenProps) {
   const content = (
-    <View style={styles.content}>
-      <View style={styles.header}>
+    <Animated.View style={styles.content} layout={LinearTransition.springify().damping(20).stiffness(180)}>
+      <Animated.View entering={FadeInDown.duration(260).springify()} style={styles.header}>
         <View style={styles.titleRow}>
           <Image source={require("../../assets/icon.png")} style={styles.headerLogo} />
           <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
         </View>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      </View>
-      {children}
-    </View>
+      </Animated.View>
+      <Animated.View entering={FadeInUp.duration(300).delay(40)} style={styles.body}>
+        {children}
+      </Animated.View>
+    </Animated.View>
   );
 
   return (
@@ -57,6 +60,9 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 16,
+    gap: 18,
+  },
+  body: {
     gap: 18,
   },
   header: {

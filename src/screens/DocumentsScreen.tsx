@@ -1,6 +1,7 @@
 import * as DocumentPicker from "expo-document-picker";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { AnimatedModal } from "../components/AnimatedModal";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -401,18 +402,15 @@ export function DocumentsScreen() {
         )}
       </SectionCard>
 
-      <Modal transparent animationType="fade" visible={formOpen} onRequestClose={() => setFormOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => { setFormOpen(false); resetForm(); }} />
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Novo documento</Text>
-              <Pressable onPress={() => { setFormOpen(false); resetForm(); }}>
-                <Text style={styles.closeIcon}>×</Text>
-              </Pressable>
-            </View>
+      <AnimatedModal visible={formOpen} onRequestClose={() => { setFormOpen(false); resetForm(); }} position="center" contentStyle={styles.modalCard}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Novo documento</Text>
+          <Pressable onPress={() => { setFormOpen(false); resetForm(); }}>
+            <Text style={styles.closeIcon}>×</Text>
+          </Pressable>
+        </View>
 
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent}>
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Titulo *</Text>
                 <TextInput
@@ -480,16 +478,11 @@ export function DocumentsScreen() {
               >
                 {createDocument.isPending ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>Salvar documento</Text>}
               </Pressable>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        </ScrollView>
+      </AnimatedModal>
 
       {/* Calendario Modal Padronizado */}
-      <Modal transparent animationType="fade" visible={calendarOpen} onRequestClose={() => setCalendarOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setCalendarOpen(false)} />
-          <View style={styles.calendarCard}>
+      <AnimatedModal visible={calendarOpen} onRequestClose={() => setCalendarOpen(false)} position="center" contentStyle={styles.calendarCard}>
             <View style={styles.calendarHeader}>
               <Pressable 
                 style={styles.calendarArrow} 
@@ -541,14 +534,9 @@ export function DocumentsScreen() {
                 <Text style={styles.clearText}>Limpar</Text>
               </Pressable>
             </View>
-          </View>
-        </View>
-      </Modal>
+      </AnimatedModal>
 
-      <Modal transparent animationType="fade" visible={confirmRemovePickedFile} onRequestClose={() => setConfirmRemovePickedFile(false)}>
-        <View style={styles.modalBackdrop}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => setConfirmRemovePickedFile(false)} />
-          <View style={styles.confirmCard}>
+      <AnimatedModal visible={confirmRemovePickedFile} onRequestClose={() => setConfirmRemovePickedFile(false)} position="center" contentStyle={styles.confirmCard}>
             <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
             <Text style={styles.confirmText}>Deseja remover este arquivo selecionado?</Text>
             <View style={styles.confirmActions}>
@@ -565,9 +553,7 @@ export function DocumentsScreen() {
                 <Text style={styles.confirmAcceptText}>Sim</Text>
               </Pressable>
             </View>
-          </View>
-        </View>
-      </Modal>
+      </AnimatedModal>
     </AppScreen>
   );
 }
