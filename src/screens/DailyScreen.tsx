@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -137,8 +137,19 @@ function DailyLogForm({
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
+  const previousVisibleRef = useRef(false);
+  const lastHydratedLogIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    const openedNow = visible && !previousVisibleRef.current;
+    const currentLogId = existingLog?.id ?? `new:${date}`;
+    const changedTargetLog = visible && lastHydratedLogIdRef.current !== currentLogId;
+
+    if (!openedNow && !changedTargetLog) {
+      previousVisibleRef.current = visible;
+      return;
+    }
+
     setActivities(existingLog?.activities ?? "");
     setWeather(existingLog?.weather ?? "");
     setObservations(existingLog?.observations ?? "");
@@ -147,7 +158,16 @@ function DailyLogForm({
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
     setPendingRemoval(null);
-  }, [existingLog, initialEmployeeIds, visible]);
+    lastHydratedLogIdRef.current = currentLogId;
+    previousVisibleRef.current = visible;
+  }, [date, existingLog, initialEmployeeIds, visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      previousVisibleRef.current = false;
+      lastHydratedLogIdRef.current = null;
+    }
+  }, [visible]);
 
   const handleToggleEmployee = (employeeId: string) => {
     setEmployeeIds((current) =>

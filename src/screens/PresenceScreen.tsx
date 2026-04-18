@@ -41,6 +41,14 @@ function getCalendarWeekOfMonth(dateStr: string) {
   return Math.floor(offsetDate / 7) + 1;
 }
 
+function countEmployeePresences(logs: { presenceIds: string[] }[], employeeId: string) {
+  return logs.filter((log) => log.presenceIds.includes(employeeId)).length;
+}
+
+function countEmployeeAbsences(logs: { presenceIds: string[] }[], employeeId: string) {
+  return logs.filter((log) => !log.presenceIds.includes(employeeId)).length;
+}
+
 export function PresenceScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [summaryMonth, setSummaryMonth] = useState<{ id: number; label: string } | null>(null);
@@ -61,8 +69,8 @@ export function PresenceScreen() {
     });
 
     const individualStats = activeEmployees.map(emp => {
-      const presences = monthLogs.filter(log => log.presenceIds.includes(emp.id)).length;
-      const absences = monthLogs.filter(log => log.presenceIds.length === 0).length;
+      const presences = countEmployeePresences(monthLogs, emp.id);
+      const absences = countEmployeeAbsences(monthLogs, emp.id);
       return { name: emp.full_name, role: emp.role, presences, absences };
     });
 
@@ -85,9 +93,8 @@ export function PresenceScreen() {
 
     return [1, 2, 3, 4, 5, 6].map(weekNum => {
       const series = activeEmployees.map(emp => {
-        const value = monthLogs.filter(log => 
-          log.presenceIds.includes(emp.id) && getCalendarWeekOfMonth(log.date) === weekNum
-        ).length;
+        const weekLogs = monthLogs.filter((log) => getCalendarWeekOfMonth(log.date) === weekNum);
+        const value = countEmployeePresences(weekLogs, emp.id);
         return { id: emp.id, color: emp.role === "marinheiro" ? "#2563EB" : "#8B5CF6", value };
       });
       return { label: `S${weekNum}`, series };
@@ -103,7 +110,7 @@ export function PresenceScreen() {
   const summary = useMemo(() => {
     if (!dailyLog) return { presentes: 0, faltas: 0 };
     const presentes = activeEmployees.filter(e => dailyLog.presenceIds.includes(e.id)).length;
-    let faltas = dailyLog.presenceIds.length === 0 ? activeEmployees.length : 0;
+    const faltas = Math.max(activeEmployees.length - presentes, 0);
     return { presentes, faltas };
   }, [dailyLog, activeEmployees]);
 
@@ -172,7 +179,6 @@ export function PresenceScreen() {
           <View style={styles.list}>
             {activeEmployees.map((employee) => {
               const isPresent = dailyLog?.presenceIds.includes(employee.id);
-              const isGlobalAbsence = dailyLog.presenceIds.length === 0;
               return (
                 <View key={employee.id} style={styles.employeeRow}>
                   <View style={styles.employeeInfo}>
@@ -184,10 +190,8 @@ export function PresenceScreen() {
                   </View>
                   {isPresent ? (
                     <View style={styles.statusBadgeSuccess}><Text style={styles.statusBadgeText}>Presente</Text></View>
-                  ) : isGlobalAbsence ? (
-                    <View style={styles.statusBadgeDanger}><Text style={styles.statusBadgeText}>Falta</Text></View>
                   ) : (
-                    <View style={styles.statusBadgeNeutral}><Text style={styles.statusBadgeTextNeutral}>—</Text></View>
+                    <View style={styles.statusBadgeDanger}><Text style={styles.statusBadgeText}>Falta</Text></View>
                   )}
                 </View>
               );
@@ -261,9 +265,9 @@ const styles = StyleSheet.create({
   yAxisText: { fontSize: 10, color: colors.textMuted, fontWeight: "600" },
   grid: { ...StyleSheet.absoluteFillObject, justifyContent: "space-between" },
   gridLine: { height: 1, backgroundColor: colors.cardBorder, width: "100%" },
-  barsWrapper: { flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "flex-end" },
-  weekCol: { alignItems: "center", flex: 1 },
-  barsGroup: { flexDirection: "row", alignItems: "flex-end", gap: 4, height: "100%" },
+  barsWrapper: { flex: 1, flexDirection: "row", justifyContent: "space-around", alignItems: "stretch" },
+  weekCol: { alignItems: "center", justifyContent: "flex-end", flex: 1, height: "100%" },
+  barsGroup: { flex: 1, flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 4, width: "100%" },
   bar: { width: 10, borderTopLeftRadius: 4, borderTopRightRadius: 4, minHeight: 2 },
   xAxisText: { fontSize: 10, color: colors.textMuted, fontWeight: "700", position: "absolute", bottom: -20 },
   legendWrapper: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center", gap: 12, borderTopWidth: 1, borderTopColor: colors.cardBorder, paddingTop: 12 },
