@@ -26,6 +26,7 @@ import {
   useUpsertDailyLog,
 } from "../hooks/useDailyLogs";
 import { AnimatedModal } from "../components/AnimatedModal";
+import { AppMediaUploadProgress } from "../lib/appMedia";
 
 type DayCell = {
   key: string;
@@ -138,6 +139,7 @@ function DailyLogForm({
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<AppMediaUploadProgress | null>(null);
   const previousVisibleRef = useRef(false);
   const lastHydratedLogIdRef = useRef<string | null>(null);
 
@@ -159,6 +161,7 @@ function DailyLogForm({
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
     setPendingRemoval(null);
+    setUploadProgress(null);
     lastHydratedLogIdRef.current = currentLogId;
     previousVisibleRef.current = visible;
   }, [date, existingLog, initialEmployeeIds, visible]);
@@ -167,6 +170,7 @@ function DailyLogForm({
     if (!visible) {
       previousVisibleRef.current = false;
       lastHydratedLogIdRef.current = null;
+      setUploadProgress(null);
     }
   }, [visible]);
 
@@ -258,6 +262,7 @@ function DailyLogForm({
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
+    setUploadProgress(null);
     onClose();
   };
 
@@ -271,13 +276,20 @@ function DailyLogForm({
 
     setUploading(true);
     setLocalError(null);
+    setUploadProgress({ progress: 0, message: "Preparando envio...", completedItems: 0, totalItems: 0 });
 
     try {
       const uploadedPhotos = await uploadAppMediaListIfNeeded({
         uris: photosUrls,
         pathPrefix: `${projectId}/photos`,
         fileBaseName: "photo",
-        bucket: "daily-logs"
+        bucket: "daily-logs",
+        onProgress: (progress) => {
+          setUploadProgress({
+            ...progress,
+            message: `Fotos: ${progress.message}`,
+          });
+        },
       });
 
       const uploadedVideos = await uploadAppMediaListIfNeeded({
@@ -286,8 +298,15 @@ function DailyLogForm({
         fileBaseName: "video",
         bucket: "daily-logs",
         contentType: "video/mp4",
+        onProgress: (progress) => {
+          setUploadProgress({
+            ...progress,
+            message: `Videos: ${progress.message}`,
+          });
+        },
       });
 
+      setUploadProgress({ progress: 100, message: "Salvando registro...", completedItems: 0, totalItems: 0 });
       await onSave({
         activities,
         weather,
@@ -301,6 +320,7 @@ function DailyLogForm({
       setLocalError(`Erro ao enviar arquivos: ${error instanceof Error ? error.message : "erro desconhecido"}`);
     } finally {
       setUploading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -354,6 +374,15 @@ function DailyLogForm({
             </View>
 
             {localError ? <Text style={styles.localError}>{localError}</Text> : null}
+
+            {uploadProgress ? (
+              <View style={styles.progressBlock}>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${uploadProgress.progress}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{Math.round(uploadProgress.progress)}% • {uploadProgress.message}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Clima</Text>
@@ -515,10 +544,11 @@ function DailyLogForm({
             ) : null}
 
             <Pressable
-              style={({ pressed }) => [styles.saveButton, (loading || pressed) && styles.buttonPressed]}
+              style={({ pressed }) => [styles.saveButton, ((loading || uploading) || pressed) && styles.buttonPressed]}
               onPress={() => void handleSave()}
+              disabled={loading || uploading}
             >
-              {loading ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Registro</Text>}
+              {(loading || uploading) ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.saveButtonText}>Salvar Registro</Text>}
             </Pressable>
       </ScrollView>
     </AnimatedModal>
@@ -1446,6 +1476,27 @@ const styles = StyleSheet.create({
   localError: {
     color: colors.danger,
     fontSize: 13,
+    lineHeight: 18,
+  },
+  progressBlock: {
+    gap: 8,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+  },
+  progressText: {
+    color: colors.textMuted,
+    fontSize: 12,
     lineHeight: 18,
   },
   buttonPressed: {

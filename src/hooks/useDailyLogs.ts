@@ -119,8 +119,7 @@ export function useDailyLogDetail(logId: string | null) {
   });
 }
 
-// Gerencia a criação ou atualização (upsert) de um log diário e suas presenças relacionadas.
-// future_fix: Transacionalidade do upsert e delete/insert de presenças deve ser garantida via RPC se possível.
+// Gerencia a criação ou atualização (upsert) de um log diário e suas presenças relacionadas via RPC transacional.
 export function useUpsertDailyLog() {
   const queryClient = useQueryClient();
 

@@ -22,6 +22,9 @@ export type ProjectDocumentRow = {
 };
 
 const EMPTY_DOCUMENTS: ProjectDocumentRow[] = [];
+const SIGNED_URL_TTL_SECONDS = 60;
+const SIGNED_URL_CACHE_BUFFER_MS = 10_000;
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
 
 // Hook para buscar e listar todos os documentos vinculados ao projeto atual.
 export function useDocuments() {
@@ -101,6 +104,7 @@ export function useCreateDocument() {
       return data as ProjectDocumentRow;
     },
     onSuccess: (_, variables) => {
+      signedUrlCache.delete(variables.filePath);
       queryClient.invalidateQueries({ queryKey: ["project-documents", variables.projectId] });
     },
   });
@@ -129,6 +133,7 @@ export function useDeleteDocument() {
       }
     },
     onSuccess: (_, variables) => {
+      signedUrlCache.delete(variables.filePath);
       queryClient.invalidateQueries({ queryKey: ["project-documents", variables.projectId] });
     },
   });
@@ -143,13 +148,26 @@ export function useSignedDocumentUrl() {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { data, error } = await supabase.storage.from("project-documents").createSignedUrl(payload.filePath, 60);
+      const cached = signedUrlCache.get(payload.filePath);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.url;
+      }
+
+      const { data, error } = await supabase.storage
+        .from("project-documents")
+        .createSignedUrl(payload.filePath, SIGNED_URL_TTL_SECONDS);
 
       if (error) {
         throw error;
       }
 
-      return data.signedUrl;
+      const signedUrl = data.signedUrl;
+      signedUrlCache.set(payload.filePath, {
+        url: signedUrl,
+        expiresAt: Date.now() + SIGNED_URL_TTL_SECONDS * 1000 - SIGNED_URL_CACHE_BUFFER_MS,
+      });
+
+      return signedUrl;
     },
   });
 }

@@ -3,12 +3,15 @@ import * as FileSystem from "expo-file-system/legacy";
 import { decode } from "base64-arraybuffer";
 import { supabase } from "./supabase";
 
+const DEFAULT_UPLOAD_TIMEOUT_MS = 120_000;
+
 type UploadLocalFileParams = {
   bucket: string;
   filePath: string;
   fileUri: string;
   contentType?: string | null;
   upsert?: boolean;
+  onProgress?: (progress: UploadProgress) => void;
 };
 
 type UploadLocalFilesToPublicUrlsParams = {
@@ -17,6 +20,11 @@ type UploadLocalFilesToPublicUrlsParams = {
   uris: string[];
   fileBaseName: string;
   contentType?: string | null;
+};
+
+export type UploadProgress = {
+  progress: number;
+  message: string;
 };
 
 /**
@@ -62,39 +70,53 @@ export async function uploadLocalFileToStorage({
   fileUri,
   contentType,
   upsert = true,
+  onProgress,
 }: UploadLocalFileParams) {
   if (!supabase) throw new Error("Supabase nao configurado.");
 
   let fileBody: any;
   const fileType = contentType || inferTypeFromUri(fileUri);
+  reportProgress(onProgress, 0, "Preparando arquivo...");
 
   try {
     if (Platform.OS === "web") {
       // Padrao Web: Fetch gera um Blob que o navegador entende nativamente
-      const response = await fetch(fileUri);
+      reportProgress(onProgress, 20, "Lendo arquivo no navegador...");
+      const response = await withTimeout(fetch(fileUri), DEFAULT_UPLOAD_TIMEOUT_MS, "Tempo esgotado ao preparar o arquivo para upload.");
       fileBody = await response.blob();
     } else {
       // Padrao Mobile: Le do disco como Base64 e decodifica para ArrayBuffer
       // Usamos a string 'base64' diretamente para evitar erros de constantes undefined em algumas versoes do Expo
-      const base64 = await FileSystem.readAsStringAsync(fileUri, {
-        encoding: "base64",
-      });
+      reportProgress(onProgress, 20, "Lendo arquivo do dispositivo...");
+      const base64 = await withTimeout(
+        FileSystem.readAsStringAsync(fileUri, {
+          encoding: "base64",
+        }),
+        DEFAULT_UPLOAD_TIMEOUT_MS,
+        "Tempo esgotado ao ler o arquivo local para upload.",
+      );
       fileBody = decode(base64);
     }
 
-    const { error } = await supabase.storage.from(bucket).upload(filePath, fileBody, {
-      upsert,
-      cacheControl: "3600",
-      contentType: fileType,
-    });
+    reportProgress(onProgress, 65, "Enviando arquivo...");
+    const { error } = await withTimeout(
+      supabase.storage.from(bucket).upload(filePath, fileBody, {
+        upsert,
+        cacheControl: "3600",
+        contentType: fileType,
+      }),
+      DEFAULT_UPLOAD_TIMEOUT_MS,
+      "Upload demorou demais. Tente novamente com uma conexao melhor ou um arquivo menor.",
+    );
 
     if (error) {
-      console.error("Supabase Storage Error:", error);
       throw error;
     }
+
+    reportProgress(onProgress, 100, "Upload concluido.");
   } catch (err) {
-    console.error("Erro fatal no upload universal:", err);
-    throw err;
+    const message = err instanceof Error ? err.message : "Falha inesperada no upload.";
+    throw new Error(message);
   }
 }
 
@@ -136,4 +158,34 @@ export async function uploadLocalFilesToPublicUrls({
     if (data?.publicUrl) uploadedUrls.push(data.publicUrl);
   }
   return uploadedUrls;
+}
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage));
+    }, timeoutMs);
+
+    promise.then(
+      (value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      },
+    );
+  });
+}
+
+function reportProgress(
+  onProgress: ((progress: UploadProgress) => void) | undefined,
+  progress: number,
+  message: string,
+) {
+  onProgress?.({
+    progress: Math.max(0, Math.min(100, progress)),
+    message,
+  });
 }

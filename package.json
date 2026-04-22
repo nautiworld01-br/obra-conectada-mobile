@@ -8,7 +8,11 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "export:web": "expo export --platform web && node scripts/postprocess-web-export.js"
+    "export:web": "expo export --platform web && node scripts/postprocess-web-export.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "node scripts/lint-checks.js",
+    "smoke": "node scripts/smoke-check.js",
+    "quality": "npm run typecheck && npm run lint && npm run smoke"
   },
   "dependencies": {
     "@expo/metro-runtime": "~6.1.2",

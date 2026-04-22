@@ -191,7 +191,6 @@ function AppShell() {
   // SEGURANCA SENIOR: Se o perfil sumiu do banco mas a sessao existe, desloga na hora.
   useEffect(() => {
     if (!profileLoading && !profile) {
-      console.log("Perfil nao encontrado. Encerrando sessao por seguranca...");
       void signOut();
     }
   }, [profile, profileLoading, signOut]);

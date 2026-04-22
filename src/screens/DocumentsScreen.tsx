@@ -1,6 +1,6 @@
 import * as DocumentPicker from "expo-document-picker";
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Alert, Linking, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AnimatedModal } from "../components/AnimatedModal";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
@@ -30,6 +30,19 @@ const categoryOptions: { value: DocumentCategory | "todos"; label: string }[] = 
 
 const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = ["janeiro", "fevereiro", "marco", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+const MAX_DOCUMENT_SIZE_BYTES = 15 * 1024 * 1024;
+const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "text/plain",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
+const ALLOWED_DOCUMENT_EXTENSIONS = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".jpg", ".jpeg", ".png", ".webp"]);
 
 // Funcoes utilitarias para formatacao de dados, calculo de status de vencimento e manipulacao de arquivos.
 // future_fix: extrair funcoes de data e bytes para um modulo de utilitarios compartilhado.
@@ -63,6 +76,31 @@ function formatBytes(value: number | null) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function inferExtension(fileName: string | null | undefined) {
+  if (!fileName) return "";
+  const normalized = fileName.trim().toLowerCase();
+  const dotIndex = normalized.lastIndexOf(".");
+  return dotIndex >= 0 ? normalized.slice(dotIndex) : "";
+}
+
+function validatePickedDocument(asset: DocumentPicker.DocumentPickerAsset) {
+  const extension = inferExtension(asset.name);
+  const mimeType = asset.mimeType?.toLowerCase() ?? null;
+  const typeAllowed =
+    (mimeType && ALLOWED_DOCUMENT_MIME_TYPES.has(mimeType)) ||
+    (extension && ALLOWED_DOCUMENT_EXTENSIONS.has(extension));
+
+  if (!typeAllowed) {
+    return "Formato nao suportado. Envie PDF, Word, Excel, TXT ou imagem (JPG/PNG/WebP).";
+  }
+
+  if (asset.size && asset.size > MAX_DOCUMENT_SIZE_BYTES) {
+    return `Arquivo muito grande. O limite atual e ${formatBytes(MAX_DOCUMENT_SIZE_BYTES)}.`;
+  }
+
+  return null;
 }
 
 // Determina o status visual do documento com base na proximidade do vencimento.
@@ -124,12 +162,14 @@ export function DocumentsScreen() {
   const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [confirmRemovePickedFile, setConfirmRemovePickedFile] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ progress: number; message: string } | null>(null);
   
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [datePickerMonth, setDatePickerMonth] = useState(() => new Date());
 
   const monthGrid = useMemo(() => buildMonthGrid(datePickerMonth), [datePickerMonth]);
   const monthLabel = `${monthLabels[datePickerMonth.getMonth()]} ${datePickerMonth.getFullYear()}`;
+  const isSavingDocument = createDocument.isPending || Boolean(uploadProgress);
 
   // Filtragem e calculo de resumo (total, vencidos, a vencer) para exibicao no topo da tela.
   // Memoriza os resultados para evitar recalculas desnecessarios em cada re-render.
@@ -157,7 +197,20 @@ export function DocumentsScreen() {
       return;
     }
 
-    setPickedFile(result.assets[0] ?? null);
+    const nextFile = result.assets[0] ?? null;
+    if (!nextFile) {
+      return;
+    }
+
+    const validationError = validatePickedDocument(nextFile);
+    if (validationError) {
+      setPickedFile(null);
+      setLocalError(validationError);
+      return;
+    }
+
+    setLocalError(null);
+    setPickedFile(nextFile);
   };
 
   const resetForm = () => {
@@ -167,6 +220,7 @@ export function DocumentsScreen() {
     setPickedFile(null);
     setLocalError(null);
     setConfirmRemovePickedFile(false);
+    setUploadProgress(null);
   };
 
   // Processo de salvamento: primeiro faz o upload do binario para o Storage e depois salva o metadado no DB.
@@ -187,6 +241,12 @@ export function DocumentsScreen() {
       return;
     }
 
+    const validationError = validatePickedDocument(pickedFile);
+    if (validationError) {
+      setLocalError(validationError);
+      return;
+    }
+
     if (!supabase) {
       setLocalError("Supabase nao configurado.");
       return;
@@ -194,6 +254,7 @@ export function DocumentsScreen() {
 
     try {
       setLocalError(null);
+      setUploadProgress({ progress: 5, message: "Preparando documento..." });
       const filePath = buildFilePath(project.id, category, pickedFile.name);
 
       await uploadLocalFileToStorage({
@@ -201,8 +262,10 @@ export function DocumentsScreen() {
         filePath,
         fileUri: pickedFile.uri,
         contentType: pickedFile.mimeType ?? "application/octet-stream",
+        onProgress: setUploadProgress,
       });
 
+      setUploadProgress({ progress: 100, message: "Salvando dados do documento..." });
       await createDocument.mutateAsync({
         projectId: project.id,
         userId: user.id,
@@ -218,9 +281,10 @@ export function DocumentsScreen() {
       resetForm();
       setFormOpen(false);
     } catch (error) {
-      console.error("Upload error:", error);
       const message = error instanceof Error ? error.message : "Não foi possível salvar o documento.";
       setLocalError(message);
+    } finally {
+      setUploadProgress(null);
     }
   };
 
@@ -253,23 +317,19 @@ export function DocumentsScreen() {
   };
 
   const handleDeleteDocument = (document: ProjectDocumentRow) => {
-    console.log("handleDeleteDocument acionado para:", document.id);
     if (!project?.id) {
-      console.error("Erro: project.id nao encontrado");
+      Alert.alert("Obra", "Configure a obra antes de excluir documentos.");
       return;
     }
 
     const performDelete = async () => {
       try {
-        console.log("Iniciando performDelete no Supabase...");
         await deleteDocument.mutateAsync({
           id: document.id,
           projectId: project.id,
           filePath: document.file_path,
         });
-        console.log("Exclusao concluida com sucesso no banco/storage.");
       } catch (error) {
-        console.error("Erro na execucao da exclusao:", error);
         const message = error instanceof Error ? error.message : "Não foi possível excluir o documento.";
         if (Platform.OS === "web") alert(message);
         else Alert.alert("Erro ao excluir", message);
@@ -277,14 +337,12 @@ export function DocumentsScreen() {
     };
 
     if (Platform.OS === "web") {
-      console.log("Plataforma detectada: WEB. Abrindo confirm...");
       if (window.confirm("Excluir documento? Esse arquivo sera removido da biblioteca da obra.")) {
         void performDelete();
       }
       return;
     }
 
-    console.log("Plataforma detectada: NATIVE. Abrindo Alert...");
     Alert.alert("Excluir documento?", "Esse arquivo sera removido da biblioteca da obra.", [
       { text: "Cancelar", style: "cancel" },
       {
@@ -467,16 +525,26 @@ export function DocumentsScreen() {
                     </Pressable>
                   </View>
                 ) : null}
+                <Text style={styles.helperText}>Permitidos: PDF, Word, Excel, TXT e imagens. Limite atual: {formatBytes(MAX_DOCUMENT_SIZE_BYTES)}.</Text>
               </View>
 
               {localError ? <Text style={styles.localError}>{localError}</Text> : null}
 
+              {uploadProgress ? (
+                <View style={styles.progressBlock}>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${uploadProgress.progress}%` }]} />
+                  </View>
+                  <Text style={styles.progressText}>{Math.round(uploadProgress.progress)}% • {uploadProgress.message}</Text>
+                </View>
+              ) : null}
+
               <Pressable
-                style={({ pressed }) => [styles.primaryButton, (pressed || createDocument.isPending) && styles.buttonPressed]}
+                style={({ pressed }) => [styles.primaryButton, (pressed || isSavingDocument) && styles.buttonPressed]}
                 onPress={() => void handleSave()}
-                disabled={createDocument.isPending}
+                disabled={isSavingDocument}
               >
-                {createDocument.isPending ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>Salvar documento</Text>}
+                {isSavingDocument ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.primaryButtonText}>Salvar documento</Text>}
               </Pressable>
         </ScrollView>
       </AnimatedModal>
@@ -688,6 +756,22 @@ const styles = StyleSheet.create({
   categoryChipText: { color: colors.text, fontSize: 13, fontWeight: "700" },
   categoryChipTextActive: { color: colors.primary },
   localError: { color: colors.danger, fontSize: 13 },
+  helperText: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
+  progressBlock: { gap: 8 },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+  },
+  progressText: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
   confirmCard: { width: "100%", maxWidth: 320, borderRadius: 18, backgroundColor: colors.surface, padding: 18, gap: 12 },
   confirmTitle: { fontSize: 16, fontWeight: "800", color: colors.text, textAlign: "center" },
   confirmText: { fontSize: 14, lineHeight: 21, color: colors.textMuted, textAlign: "center" },

@@ -217,7 +217,15 @@ Contrato atual da midia:
 ### App
 
 ```bash
-npx tsc --noEmit
+npm run quality
+```
+
+Comandos individuais:
+
+```bash
+npm run typecheck
+npm run lint
+npm run smoke
 ```
 
 ### Web local

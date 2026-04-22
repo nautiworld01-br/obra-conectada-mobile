@@ -27,8 +27,6 @@ export function useTeam() {
     queryFn: async (): Promise<TeamEmployeeRow[]> => {
       if (!supabase || !project?.id) return [];
 
-      console.log("Buscando funcionarios do projeto:", project.id);
-
       const { data: memberships, error: membershipError } = await supabase
         .from("project_members")
         .select("user_id")
@@ -58,8 +56,7 @@ export function useTeam() {
         console.error("Erro Supabase Equipe:", error);
         throw error;
       }
-      
-      console.log("Funcionarios encontrados:", data?.length);
+
       return (data ?? []).map(p => ({
         id: p.id,
         full_name: p.full_name,
@@ -94,7 +91,6 @@ export function useUpsertEmployee() {
     }) => {
       if (!supabase) throw new Error("Supabase nao configurado.");
 
-      console.log("Tentando atualizar perfil:", payload.id);
       const { data, error } = await supabase
         .from("profiles")
         .update({

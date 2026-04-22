@@ -30,6 +30,7 @@ import {
 import { useProfile } from "../hooks/useProfile";
 import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
+import { AppMediaUploadProgress } from "../lib/appMedia";
 
 const statusOptions: { value: UpdateStatus; label: string }[] = [
   { value: "no_prazo", label: "No Prazo" },
@@ -82,7 +83,7 @@ function getStatusColors(status: UpdateStatus) {
  * Modal de Formulario para Relatorios Semanais.
  */
 function UpdateFormModal(_: any) {
-  const { visible, update, projectId, loading, onClose, onSave } = _;
+  const { visible, update, projectId, loading, uploadProgress, onClose, onSave } = _;
   const yearWeeks = useMemo(() => generateYearWeeks(), []);
   const currentWeek = useMemo(() => yearWeeks.find(w => w.isCurrent)?.value || "", [yearWeeks]);
   const suggestSummary = useSuggestSummary();
@@ -206,6 +207,15 @@ function UpdateFormModal(_: any) {
             <Pressable style={({ pressed }) => [styles.primaryButton, (loading || pressed) && styles.buttonPressed]} onPress={handleSave}>
               {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar Relatório</Text>}
             </Pressable>
+
+            {uploadProgress ? (
+              <View style={styles.progressBlock}>
+                <View style={styles.progressTrack}>
+                  <View style={[styles.progressFill, { width: `${uploadProgress.progress}%` }]} />
+                </View>
+                <Text style={styles.progressText}>{Math.round(uploadProgress.progress)}% • {uploadProgress.message}</Text>
+              </View>
+            ) : null}
       </ScrollView>
 
       <Modal transparent visible={statusOpen} animationType="fade">
@@ -340,13 +350,37 @@ export function UpdatesScreen() {
   const [formOpen, setFormOpen] = useState(false);
   const [selectedUpdate, setSelectedUpdate] = useState<UpdateRow | null>(null);
   const [editingUpdate, setEditingUpdate] = useState<UpdateRow | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<AppMediaUploadProgress | null>(null);
 
   const handleSave = async (payload: any) => {
     if (!project?.id || !user?.id) return;
     try {
-      const uploadedPhotos = await uploadAppMediaListIfNeeded({ uris: payload.photos, pathPrefix: `projects/${project.id}/updates/photos`, fileBaseName: `upd_photo` });
-      const uploadedVideos = await uploadAppMediaListIfNeeded({ uris: payload.videos, pathPrefix: `projects/${project.id}/updates/videos`, fileBaseName: `upd_video`, contentType: "video/mp4" });
+      setUploadProgress({ progress: 0, message: "Preparando arquivos...", completedItems: 0, totalItems: 0 });
+      const uploadedPhotos = await uploadAppMediaListIfNeeded({
+        uris: payload.photos,
+        pathPrefix: `projects/${project.id}/updates/photos`,
+        fileBaseName: `upd_photo`,
+        onProgress: (progress) => {
+          setUploadProgress({
+            ...progress,
+            message: `Fotos: ${progress.message}`,
+          });
+        },
+      });
+      const uploadedVideos = await uploadAppMediaListIfNeeded({
+        uris: payload.videos,
+        pathPrefix: `projects/${project.id}/updates/videos`,
+        fileBaseName: `upd_video`,
+        contentType: "video/mp4",
+        onProgress: (progress) => {
+          setUploadProgress({
+            ...progress,
+            message: `Videos: ${progress.message}`,
+          });
+        },
+      });
       
+      setUploadProgress({ progress: 100, message: "Salvando relatório...", completedItems: 0, totalItems: 0 });
       await upsertUpdate.mutateAsync({ id: editingUpdate?.id, projectId: project.id, userId: user.id, ...payload, photos: uploadedPhotos, videos: uploadedVideos });
       
       // Fecha o modal primeiro
@@ -362,6 +396,8 @@ export function UpdatesScreen() {
       }, 100);
     } catch (e) { 
       Alert.alert("Erro", "Falha ao salvar o relatório."); 
+    } finally {
+      setUploadProgress(null);
     }
   };
 
@@ -419,7 +455,7 @@ export function UpdatesScreen() {
         </ScrollView>
       )}
 
-      <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} loading={upsertUpdate.isPending} onClose={() => setFormOpen(false)} onSave={handleSave} />
+      <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} loading={upsertUpdate.isPending || Boolean(uploadProgress)} uploadProgress={uploadProgress} onClose={() => setFormOpen(false)} onSave={handleSave} />
       <UpdateDetailModal update={selectedUpdate} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
         const performDelete = async () => {
           if (!selectedUpdate || !project?.id) return;
@@ -508,5 +544,20 @@ const styles = StyleSheet.create({
   dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.divider, borderRadius: 12 },
   dropdownText: { fontSize: 15, fontWeight: "600", color: colors.text },
   emptySearchText: { textAlign: "center", paddingVertical: 40, color: colors.textMuted },
-  buttonPressed: { opacity: 0.8 }
+  buttonPressed: { opacity: 0.8 },
+  progressBlock: { gap: 8 },
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  progressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+  },
+  progressText: { fontSize: 12, color: colors.textMuted, lineHeight: 18 }
 });

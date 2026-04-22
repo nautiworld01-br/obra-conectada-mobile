@@ -1,8 +1,15 @@
-import { uploadLocalFileToStorage } from "./storageUpload";
+import { uploadLocalFileToStorage, UploadProgress } from "./storageUpload";
 import { supabase } from "./supabase";
 
 // Configurações padrão para o armazenamento de mídia do aplicativo.
 const DEFAULT_BUCKET = "app-media";
+
+export type AppMediaUploadProgress = {
+  progress: number;
+  message: string;
+  completedItems: number;
+  totalItems: number;
+};
 
 // Verifica se uma URI já é um link remoto (http/https).
 // future_fix: Adicionar validação de formato de URL mais robusta se necessário.
@@ -68,9 +75,10 @@ export async function uploadAppMediaIfNeeded(params: {
   fileBaseName: string;
   contentType?: string | null;
   bucket?: string;
+  onProgress?: (progress: UploadProgress) => void;
 }) {
   let { uri } = params;
-  const { pathPrefix, fileBaseName, contentType, bucket } = params;
+  const { pathPrefix, fileBaseName, contentType, bucket, onProgress } = params;
   if (!uri || !uri.trim()) return null;
   uri = uri.trim();
 
@@ -87,6 +95,7 @@ export async function uploadAppMediaIfNeeded(params: {
     filePath,
     fileUri: uri,
     contentType: inferredType,
+    onProgress,
   });
 
   const { data } = supabase.storage.from(targetBucket).getPublicUrl(filePath);
@@ -101,8 +110,20 @@ export async function uploadAppMediaListIfNeeded(params: {
   fileBaseName: string;
   contentType?: string | null;
   bucket?: string;
+  onProgress?: (progress: AppMediaUploadProgress) => void;
 }) {
   const results: string[] = [];
+  const totalItems = params.uris.length;
+
+  if (!totalItems) {
+    params.onProgress?.({
+      progress: 100,
+      message: "Nenhum arquivo para enviar.",
+      completedItems: 0,
+      totalItems: 0,
+    });
+    return results;
+  }
 
   for (const [index, uri] of params.uris.entries()) {
     const uploaded = await uploadAppMediaIfNeeded({
@@ -111,11 +132,27 @@ export async function uploadAppMediaListIfNeeded(params: {
       fileBaseName: `${params.fileBaseName}_${index + 1}`,
       contentType: params.contentType,
       bucket: params.bucket,
+      onProgress: ({ progress, message }) => {
+        const aggregateProgress = ((index + progress / 100) / totalItems) * 100;
+        params.onProgress?.({
+          progress: aggregateProgress,
+          message: `${message} (${index + 1}/${totalItems})`,
+          completedItems: index,
+          totalItems,
+        });
+      },
     });
 
     if (uploaded) {
       results.push(uploaded);
     }
+
+    params.onProgress?.({
+      progress: ((index + 1) / totalItems) * 100,
+      message: `Arquivo ${index + 1} de ${totalItems} concluido.`,
+      completedItems: index + 1,
+      totalItems,
+    });
   }
 
   return results;
