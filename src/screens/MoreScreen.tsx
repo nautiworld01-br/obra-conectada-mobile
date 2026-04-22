@@ -1,7 +1,7 @@
 import * as ImagePicker from "expo-image-picker";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, Image, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { AnimatedModal } from "../components/AnimatedModal";
@@ -14,16 +14,19 @@ import { supabase } from "../lib/supabase";
 
 /**
  * Tela de Perfil (Mais): Gestao de dados pessoais e foto de perfil do usuario.
- * future_fix: Adicionar botao de 'Excluir Conta' conforme diretrizes da Apple/Google.
  */
 export function MoreScreen() {
   const queryClient = useQueryClient();
-  const { user, signOut } = useAuth();
+  const { user, reauthenticate, signOut } = useAuth();
   const { fullName, avatarUrl, occupationLabel, initials } = useProfile();
   const [editVisible, setEditVisible] = useState(false);
+  const [deleteVisible, setDeleteVisible] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftAvatar, setDraftAvatar] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [confirmRemoveAvatar, setConfirmRemoveAvatar] = useState(false);
 
   // Sincroniza estado com dados reais ao abrir modal de edicao.
@@ -34,6 +37,13 @@ export function MoreScreen() {
       setConfirmRemoveAvatar(false);
     }
   }, [avatarUrl, editVisible, fullName]);
+
+  useEffect(() => {
+    if (deleteVisible) {
+      setCurrentPassword("");
+      setDeleteError(null);
+    }
+  }, [deleteVisible]);
 
   /**
    * Dispara seletor de imagem nativo para trocar a foto de perfil.
@@ -81,31 +91,45 @@ export function MoreScreen() {
     finally { setSaving(false); }
   };
 
-  /**
-   * Executa a exclusao definitiva da conta do usuario.
-   * future_fix: Adicionar logica para verificar se o usuario e o UNICO proprietario de uma obra antes de permitir exclusao.
-   */
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Excluir conta?",
-      "Esta acao e IRREVERSIVEL. Todos os seus dados pessoais e acesso a obra serao removidos.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        { 
-          text: "Excluir Definitivamente", 
-          style: "destructive", 
-          onPress: async () => {
-            if (!supabase) return;
-            const { error } = await supabase.rpc("delete_user_account");
-            if (error) {
-              Alert.alert("Erro ao excluir", "Não foi possível remover sua conta agora. Tente novamente mais tarde.");
-            } else {
-              await signOut();
-            }
-          } 
-        },
-      ]
-    );
+  const getDeleteAccountErrorMessage = (message?: string) => {
+    if (!message) {
+      return "Não foi possível remover sua conta agora. Tente novamente mais tarde.";
+    }
+
+    if (message.includes("ultimo proprietario")) {
+      return "Esta conta é o último proprietário da obra e não pode ser excluída enquanto não houver outro proprietário ativo.";
+    }
+
+    return message;
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!supabase || !user) return;
+    if (!currentPassword) {
+      setDeleteError("Informe sua senha atual para confirmar a exclusão.");
+      return;
+    }
+
+    setDeleting(true);
+    setDeleteError(null);
+
+    const reauthResult = await reauthenticate(currentPassword);
+    if (reauthResult.error) {
+      setDeleteError("Senha atual incorreta ou sessão inválida. Confirme sua identidade para continuar.");
+      setDeleting(false);
+      return;
+    }
+
+    const { error } = await supabase.rpc("delete_user_account");
+    if (error) {
+      setDeleteError(getDeleteAccountErrorMessage(error.message));
+      setDeleting(false);
+      return;
+    }
+
+    setDeleteVisible(false);
+    setDeleting(false);
+    await signOut();
   };
 
   return (
@@ -118,7 +142,7 @@ export function MoreScreen() {
           </View>
           <View style={styles.profileActions}>
             <Pressable style={styles.editButton} onPress={() => setEditVisible(true)}><Text style={styles.editButtonText}>Editar perfil</Text></Pressable>
-            <Pressable style={styles.deleteAccountButton} onPress={handleDeleteAccount}><Text style={styles.deleteAccountText}>Excluir conta</Text></Pressable>
+            <Pressable style={styles.deleteAccountButton} onPress={() => setDeleteVisible(true)}><Text style={styles.deleteAccountText}>Excluir conta</Text></Pressable>
           </View>
         </SectionCard>
       </AppScreen>
@@ -133,6 +157,43 @@ export function MoreScreen() {
         <View style={styles.modalActions}>
           <Pressable style={styles.cancelButton} onPress={() => setEditVisible(false)}><Text>Cancelar</Text></Pressable>
           <Pressable style={styles.saveButton} onPress={() => void handleSaveProfile()}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Salvar</Text>}</Pressable>
+        </View>
+      </AnimatedModal>
+
+      <AnimatedModal visible={deleteVisible} onRequestClose={() => !deleting && setDeleteVisible(false)} position="center" contentStyle={styles.modalCard} dismissOnBackdropPress={!deleting}>
+        <Text style={styles.modalTitle}>Excluir conta</Text>
+        <Text style={styles.deleteDescription}>
+          Esta ação é irreversível. Para continuar, confirme sua senha atual.
+        </Text>
+        <View style={styles.deleteNotice}>
+          <Text style={styles.deleteNoticeText}>
+            Seus dados pessoais, vínculo com a obra e acesso à conta serão removidos. Se esta conta for o último proprietário da obra, a exclusão será bloqueada.
+          </Text>
+        </View>
+        <View style={styles.formBlock}>
+          <Text style={styles.formLabel}>Email</Text>
+          <TextInput style={[styles.formInput, styles.formInputDisabled]} value={user?.email ?? ""} editable={false} />
+        </View>
+        <View style={styles.formBlock}>
+          <Text style={styles.formLabel}>Senha atual</Text>
+          <TextInput
+            style={styles.formInput}
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
+            placeholder="Digite sua senha para confirmar"
+            placeholderTextColor={colors.textMuted}
+            secureTextEntry
+            editable={!deleting}
+          />
+        </View>
+        {deleteError ? <Text style={styles.deleteError}>{deleteError}</Text> : null}
+        <View style={styles.deleteModalActions}>
+          <Pressable style={styles.cancelButton} onPress={() => setDeleteVisible(false)} disabled={deleting}>
+            <Text>Cancelar</Text>
+          </Pressable>
+          <Pressable style={styles.deleteConfirmButton} onPress={() => void handleDeleteAccount()} disabled={deleting}>
+            {deleting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.deleteConfirmText}>Excluir conta definitivamente</Text>}
+          </Pressable>
         </View>
       </AnimatedModal>
     </>
@@ -163,8 +224,16 @@ const styles = StyleSheet.create({
   formBlock: { gap: 8 },
   formLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   formInput: { minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, paddingHorizontal: 14, fontSize: 15 },
+  formInputDisabled: { color: colors.textMuted },
   modalActions: { flexDirection: "row", gap: 12 },
+  deleteModalActions: { gap: 12 },
   cancelButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.surfaceMuted },
   saveButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },
   saveButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
+  deleteDescription: { fontSize: 14, lineHeight: 22, color: colors.textMuted, textAlign: "center" },
+  deleteNotice: { borderRadius: 16, borderWidth: 1, borderColor: colors.dangerLight, backgroundColor: colors.dangerLight, padding: 14 },
+  deleteNoticeText: { color: colors.danger, fontSize: 13, lineHeight: 20 },
+  deleteError: { color: colors.danger, fontSize: 13, lineHeight: 20 },
+  deleteConfirmButton: { minHeight: 56, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.danger },
+  deleteConfirmText: { color: colors.surface, fontSize: 15, lineHeight: 20, fontWeight: "800", textAlign: "center" },
 });

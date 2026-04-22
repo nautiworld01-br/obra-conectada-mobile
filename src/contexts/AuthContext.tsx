@@ -23,6 +23,7 @@ type AuthContextValue = {
   isConfigured: boolean;
   passwordRecoveryActive: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  reauthenticate: (password: string) => Promise<{ error?: string }>;
   requestPasswordReset: (email: string) => Promise<{ error?: string }>;
   updatePassword: (password: string) => Promise<{ error?: string }>;
   finishPasswordRecovery: (options?: { signOut?: boolean }) => Promise<void>;
@@ -172,6 +173,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       async signIn(email, password) {
         if (!supabase) return { error: "Configure as variáveis de ambiente." };
         const { error } = await supabase.auth.signInWithPassword({ email, password });
+        return error ? { error: error.message } : {};
+      },
+      async reauthenticate(password) {
+        if (!supabase) return { error: "Configure as variáveis de ambiente." };
+        if (!user?.email) return { error: "Não foi possível validar a sessão atual." };
+        const { error } = await supabase.auth.signInWithPassword({ email: user.email, password });
         return error ? { error: error.message } : {};
       },
       async requestPasswordReset(email) {
