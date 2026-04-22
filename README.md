@@ -1,7 +1,7 @@
 # Obra Conectada Mobile
 
-Aplicativo mobile em `Expo + React Native + Supabase` para administrar uma unica casa/obra.  
-Este repositório passou a ser a base principal do projeto. O app web/remix nao e mais a fonte de verdade.
+Aplicacao em `Expo + React Native + Supabase` usada hoje com foco em `web/PWA` para administrar uma unica casa/obra.
+Este repositório e a base principal do projeto.
 
 ## Visao geral
 
@@ -25,7 +25,6 @@ Principio de produto atual:
 - `@tanstack/react-query`
 - `Supabase Auth + Database + Storage`
 - `PWA/web exportada via GitHub Pages`
-- `Expo Go` para preview local durante o desenvolvimento
 
 ## Estrutura principal
 
@@ -46,11 +45,13 @@ Mesmo que alguma migration tenha sido aplicada antes a partir de outra pasta, da
 ### Estado atual relevante do banco
 
 - `profiles` guarda `full_name`, `avatar_url`, `is_owner`, `is_employee`
+- `project_members` define vinculacao do usuario com a obra e o papel operacional
 - `daily_logs` possui suporte a:
   - `photos_urls`
   - `videos_urls`
 - `rooms` existe como tabela propria para reaproveitamento em outras areas
 - bucket `daily-logs` e usado para midia do `Dia a Dia`
+- funcoes de auth relevantes como `has_owner_registered`, `is_member_of_project`, `can_write_project` e `delete_user_account` devem estar versionadas em `supabase/migrations`
 
 ## Auth e ocupacao
 
@@ -66,6 +67,19 @@ Observacao de seguranca:
 
 - a UI usa `profiles` como fonte de verdade operacional para ocupacao
 - nao devemos espalhar decisao de permissao por `user_metadata` em telas novas
+
+### Recuperacao de senha
+
+Fluxo atual:
+
+- `Esqueci a senha` envia email pelo Supabase Auth
+- o retorno usa `redirectTo` web apontando para a propria PWA
+- a tela `ResetPasswordScreen` abre no navegador ao detectar `type=recovery` e a sessao temporaria do link
+- a redefinicao e concluida com `supabase.auth.updateUser({ password })`
+
+Para teste local, a `Redirect URL` no Supabase deve incluir:
+
+- `http://localhost:8081/obra-conectada-mobile/`
 
 ## Variaveis de ambiente
 
@@ -116,6 +130,7 @@ Contrato atual da midia:
 
 - login
 - cadastro
+- recuperacao de senha web/PWA
 - perfil com edicao
 - configuracao da casa
 - `Dia a Dia`
@@ -147,27 +162,41 @@ Contrato atual da midia:
 
 - A tela de `Presença` não possui mais lançamento manual por parte do proprietário.
 - Os dados de frequência são derivados automaticamente do `Diário de Obra` (`Daily Logs`).
-- **Regras de negócio:**
-  - **Presente**: Funcionário foi selecionado na lista de presença do Diário daquele dia.
-  - **Falta**: O Diário do dia foi preenchido, mas o funcionário não foi incluído.
-  - **Pendente**: O Diário de Obra para a data selecionada ainda não foi preenchido.
-- **Objetivo**: Garantir que o Diário de Obra seja a única "fonte de verdade" operacional, eliminando o erro humano e o retrabalho de marcar presença em dois lugares diferentes.
+- Regras de negócio:
+  - `Presente`: Funcionário foi selecionado na lista de presença do Diário daquele dia.
+  - `Falta`: O Diário do dia foi preenchido, mas o funcionário não foi incluído.
+  - `Pendente`: O Diário de Obra para a data selecionada ainda não foi preenchido.
+- Objetivo: garantir que o Diário de Obra seja a única fonte de verdade operacional.
 
 ### Atualizações recentes
 
-#### Automação da Presença
-- Transformação da `PresenceScreen` em um relatório de leitura.
-- Atualização do hook `useDailyLogs` para trazer IDs de presença via join (`daily_log_employees`).
-- Remoção da necessidade de persistência manual na tabela `attendance` para o fluxo diário.
+#### Recuperacao de senha web/PWA
+
+- remocao da estrategia de deep link nativo
+- adocao de `redirectTo` web para a propria PWA
+- criacao da `ResetPasswordScreen` para redefinicao no navegador
+- fluxo validado localmente em `http://localhost:8081/obra-conectada-mobile/`
+
+#### Exclusao de conta endurecida
+
+- listagem da equipe passou a respeitar `project_members` do projeto atual
+- migration `20260422004933_harden_account_deletion_functions.sql` criada para versionar e endurecer as funcoes de exclusao
+- autoexclusao agora bloqueia apagar o ultimo proprietario
+- exclusao de terceiros exige mesmo projeto e nao permite remover outro proprietario por esse fluxo
+
+#### Automacao da Presenca
+
+- transformacao da `PresenceScreen` em um relatorio de leitura
+- atualizacao do hook `useDailyLogs` para trazer IDs de presença via join (`daily_log_employees`)
+- remocao da necessidade de persistencia manual na tabela `attendance` para o fluxo diario
 
 #### Consolidacao de auth e ocupacao
-
 
 - ocupacao removida da tela de login
 - criacao de `useProfile` para centralizar nome, avatar e papel
 - dashboard, drawer, perfil e configuracao da casa passaram a ler essa fonte central
 
-### Consolidacao do `Dia a Dia`
+#### Consolidacao do `Dia a Dia`
 
 - upload de fotos e videos ligado ao Storage
 - formalizacao das colunas `photos_urls` e `videos_urls`
@@ -180,7 +209,7 @@ Contrato atual da midia:
 - `master` removida
 - publicacao web feita a partir do artefato gerado em `dist/`
 - `GitHub Pages` deve usar o workflow de Actions deste repositório
-- preview mobile feito localmente com `Expo Go`
+- o foco atual de validacao e `web/PWA`
 - este repositorio nao usa mais `EAS Update`
 
 ## Como validar rapidamente
@@ -191,7 +220,7 @@ Contrato atual da midia:
 npx tsc --noEmit
 ```
 
-### Expo local
+### Web local
 
 ```bash
 npm start
@@ -203,11 +232,25 @@ ou
 npm run start:tunnel
 ```
 
-Para abrir no celular durante o desenvolvimento:
+Abrir no navegador em:
 
-- usar `Expo Go`
-- iniciar com `npm start` ou `npm run start:tunnel`
-- escanear o QR code exibido pelo Expo
+- `http://localhost:8081/obra-conectada-mobile/`
+
+### Teste da recuperacao de senha
+
+Antes do teste, configurar no Supabase:
+
+- `Authentication` > `URL Configuration`
+- adicionar `http://localhost:8081/obra-conectada-mobile/` em `Redirect URLs`
+
+Fluxo de validacao:
+
+- abrir a PWA local
+- usar `Esqueci a senha`
+- abrir o email recebido
+- confirmar retorno para a PWA na tela de redefinicao
+- salvar a nova senha
+- validar login com a senha nova
 
 ### Publicacao web no Pages
 
@@ -239,4 +282,3 @@ npx supabase db push --db-url "postgresql://postgres:SENHA@db.PROJECT_REF.supaba
 - este README deve ser atualizado sempre que mudarmos regra de permissao, fonte de verdade do banco ou pipeline de deploy
 - se surgir uma migration nova, ela deve nascer neste repo
 - se uma mudanca for aplicada direto no Supabase, ela precisa voltar para `supabase/migrations` antes de ser considerada concluida
-atual
