@@ -52,15 +52,6 @@
     ],
     "runtimeVersion": {
       "policy": "appVersion"
-    },
-    "updates": {
-      "url": "https://u.expo.dev/7d5d6b6d-f29d-4369-8daf-8cf360b43f6c"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "7d5d6b6d-f29d-4369-8daf-8cf360b43f6c"
-      }
-    },
-    "owner": "gabriiell_lim"
+    }
   }
 }

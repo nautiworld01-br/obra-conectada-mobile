@@ -5,6 +5,14 @@ import type { Occupation } from "../hooks/useProfile";
 import { env } from "../lib/env";
 import { supabase } from "../lib/supabase";
 
+function getPasswordResetRedirectUrl() {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return undefined;
+  }
+
+  return `${window.location.origin}${window.location.pathname}?reset-password=1`;
+}
+
 /**
  * Define a estrutura de dados e funcoes disponiveis globalmente via contexto de autenticacao.
  */
@@ -13,7 +21,11 @@ type AuthContextValue = {
   session: Session | null;
   loading: boolean;
   isConfigured: boolean;
+  passwordRecoveryActive: boolean;
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
+  requestPasswordReset: (email: string) => Promise<{ error?: string }>;
+  updatePassword: (password: string) => Promise<{ error?: string }>;
+  finishPasswordRecovery: (options?: { signOut?: boolean }) => Promise<void>;
   signUp: (payload: {
     fullName: string;
     email: string;
@@ -34,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [passwordRecoveryActive, setPasswordRecoveryActive] = useState(false);
   const appState = useRef(AppState.currentState);
 
   // Inicializa a sessao e monitora mudancas de estado (Auth e Ciclo de Vida do App).
@@ -47,9 +60,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
+    const handleIncomingRecovery = async (url: string | null) => {
+      if (!url || Platform.OS !== "web") return;
+
+      try {
+        const parsedUrl = new URL(url);
+        const queryParams = new URLSearchParams(parsedUrl.search);
+        const hashParams = new URLSearchParams(parsedUrl.hash.startsWith("#") ? parsedUrl.hash.slice(1) : parsedUrl.hash);
+        const accessToken = hashParams.get("access_token") ?? queryParams.get("access_token");
+        const refreshToken = hashParams.get("refresh_token") ?? queryParams.get("refresh_token");
+        const type = hashParams.get("type") ?? queryParams.get("type");
+        const isRecoveryLink = type === "recovery" || queryParams.get("reset-password") === "1";
+
+        if (accessToken && refreshToken) {
+          const { error } = await client.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (error) throw error;
+        }
+
+        if (mounted && isRecoveryLink) {
+          setPasswordRecoveryActive(true);
+        }
+      } catch (err) {
+        console.error("Auth recovery link error:", err);
+      }
+    };
+
     // Recupera a sessao inicial do storage local.
     const initializeSession = async () => {
       try {
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          await handleIncomingRecovery(window.location.href);
+        }
+
         const { data: { session: initialSession }, error } = await client.auth.getSession();
         if (error) throw error;
         
@@ -71,12 +117,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
+        if (event === "PASSWORD_RECOVERY") {
+          setPasswordRecoveryActive(true);
+        }
+        if (event === "SIGNED_OUT") {
+          setPasswordRecoveryActive(false);
+        }
         setLoading(false);
       }
     });
 
     // REFORCO: Ao voltar do segundo plano, verifica se a sessao ainda e valida.
-    // Essencial para o Expo Go nao perder o login apos horas de inatividade.
+    // Mantem a sessao viva quando a aba volta ao foco apos inatividade.
     const appStateSubscription = AppState.addEventListener("change", (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === "active") {
         void client.auth.refreshSession();
@@ -116,10 +168,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       loading,
       isConfigured: env.hasSupabaseConfig,
+      passwordRecoveryActive,
       async signIn(email, password) {
         if (!supabase) return { error: "Configure as variáveis de ambiente." };
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         return error ? { error: error.message } : {};
+      },
+      async requestPasswordReset(email) {
+        if (!supabase) return { error: "Configure as variáveis de ambiente." };
+        const redirectTo = getPasswordResetRedirectUrl();
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo,
+        });
+        return error ? { error: error.message } : {};
+      },
+      async updatePassword(password) {
+        if (!supabase) return { error: "Configure as variáveis de ambiente." };
+        const { error } = await supabase.auth.updateUser({ password });
+        return error ? { error: error.message } : {};
+      },
+      async finishPasswordRecovery(options) {
+        setPasswordRecoveryActive(false);
+
+        if (Platform.OS === "web" && typeof window !== "undefined") {
+          window.history.replaceState({}, "", window.location.pathname);
+        }
+
+        if (options?.signOut && supabase) {
+          await supabase.auth.signOut();
+        }
       },
       async signUp({ fullName, email, password, occupation }) {
         if (!supabase) return { error: "Configure as variáveis de ambiente." };
@@ -138,7 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       checkOwnerExists,
     };
-  }, [loading, session, user]);
+  }, [loading, passwordRecoveryActive, session, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

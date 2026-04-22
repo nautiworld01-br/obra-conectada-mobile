@@ -19,6 +19,7 @@ import type { Occupation } from "../hooks/useProfile";
 type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
+  ResetPassword: undefined;
   App: undefined;
 };
 

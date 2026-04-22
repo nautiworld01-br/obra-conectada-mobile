@@ -16,6 +16,7 @@ import { LoginScreen } from "../screens/LoginScreen";
 import { MoreScreen } from "../screens/MoreScreen";
 import { PaymentsScreen } from "../screens/PaymentsScreen";
 import { PresenceScreen } from "../screens/PresenceScreen";
+import { ResetPasswordScreen } from "../screens/ResetPasswordScreen";
 import { ScheduleScreen } from "../screens/ScheduleScreen";
 import { SettingsScreen } from "../screens/SettingsScreen";
 import { SignUpScreen } from "../screens/SignUpScreen";
@@ -23,7 +24,7 @@ import { TeamScreen } from "../screens/TeamScreen";
 import { UpdatesScreen } from "../screens/UpdatesScreen";
 import { AppIcon, IconName } from "../components/AppIcon";
 
-type RootStackParamList = { Login: undefined; SignUp: undefined; App: undefined; };
+type RootStackParamList = { Login: undefined; SignUp: undefined; ResetPassword: undefined; App: undefined; };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -238,14 +239,14 @@ function AppShell() {
 }
 
 export function RootNavigator() {
-  const { loading, session } = useAuth();
+  const { loading, passwordRecoveryActive, session } = useAuth();
 
   if (loading) return <View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.primary} /></View>;
 
   return (
     <NavigationContainer theme={navigationTheme}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {session ? <Stack.Screen name="App" component={AppShell} /> : (
+        {passwordRecoveryActive ? <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} /> : session ? <Stack.Screen name="App" component={AppShell} /> : (
           <><Stack.Screen name="Login" component={LoginScreen} /><Stack.Screen name="SignUp" component={SignUpScreen} /></>
         )}
       </Stack.Navigator>

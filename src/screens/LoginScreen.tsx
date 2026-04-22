@@ -19,6 +19,7 @@ import { useAuth } from "../contexts/AuthContext";
 type RootStackParamList = {
   Login: undefined;
   SignUp: undefined;
+  ResetPassword: undefined;
   App: undefined;
 };
 
@@ -29,11 +30,13 @@ type Props = NativeStackScreenProps<RootStackParamList, "Login">;
  * Gerencia a autenticacao de usuarios via Supabase Auth.
  */
 export function LoginScreen({ navigation }: Props) {
-  const { signIn, loading, isConfigured } = useAuth();
+  const { signIn, requestPasswordReset, loading, isConfigured } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [recoveryMode, setRecoveryMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   /**
@@ -43,6 +46,7 @@ export function LoginScreen({ navigation }: Props) {
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
+    setFeedback(null);
     const result = await signIn(email.trim(), password);
     if (result.error) {
       setError(result.error);
@@ -50,16 +54,30 @@ export function LoginScreen({ navigation }: Props) {
     setSubmitting(false);
   };
 
-  /**
-   * Gerencia links secundarios como criacao de conta ou recuperacao.
-   * future_fix: Integrar fluxo de 'Esqueci a Senha' nativo assim que o SMTP do Supabase estiver configurado.
-   */
-  const handleSecondaryAction = (action: "signup" | "recovery") => {
-    setError(
-      action === "signup"
-        ? ""
-        : "Recuperação de senha ainda não foi aberta no mobile. Use o app web temporariamente.",
-    );
+  const handlePasswordRecovery = async () => {
+    const normalizedEmail = email.trim();
+
+    if (!normalizedEmail) {
+      setError("Informe seu email para receber o link de recuperação.");
+      setFeedback(null);
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    setFeedback(null);
+
+    const result = await requestPasswordReset(normalizedEmail);
+
+    if (result.error) {
+      setError(result.error);
+      setSubmitting(false);
+      return;
+    }
+
+    setFeedback("Se o email estiver cadastrado, enviaremos um link de recuperação para sua caixa de entrada.");
+    setRecoveryMode(false);
+    setSubmitting(false);
   };
 
   return (
@@ -77,25 +95,44 @@ export function LoginScreen({ navigation }: Props) {
               <Text style={styles.label}>Email</Text>
               <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="voce@email.com" placeholderTextColor={colors.textMuted} style={styles.input} value={email} onChangeText={setEmail} />
             </View>
-            <View style={styles.fieldGroup}>
-              <Text style={styles.label}>Senha</Text>
-              <View style={styles.passwordRow}>
-                <TextInput placeholder="Digite sua senha" placeholderTextColor={colors.textMuted} secureTextEntry={!showPassword} style={styles.passwordInput} value={password} onChangeText={setPassword} />
-                <Pressable style={({ pressed }) => [styles.passwordToggle, pressed && styles.buttonPressed]} onPress={() => setShowPassword((value) => !value)}>
-                  <Text style={styles.passwordToggleText}>{showPassword ? "Ocultar" : "Ver"}</Text>
-                </Pressable>
+            {!recoveryMode ? (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Senha</Text>
+                <View style={styles.passwordRow}>
+                  <TextInput placeholder="Digite sua senha" placeholderTextColor={colors.textMuted} secureTextEntry={!showPassword} style={styles.passwordInput} value={password} onChangeText={setPassword} />
+                  <Pressable style={({ pressed }) => [styles.passwordToggle, pressed && styles.buttonPressed]} onPress={() => setShowPassword((value) => !value)}>
+                    <Text style={styles.passwordToggleText}>{showPassword ? "Ocultar" : "Ver"}</Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
+            ) : (
+              <View style={styles.recoveryCard}>
+                <Text style={styles.recoveryTitle}>Recuperar senha</Text>
+                <Text style={styles.recoveryDescription}>
+                  Vamos enviar um link para redefinir sua senha no email informado acima.
+                </Text>
+              </View>
+            )}
 
             {error ? <Text style={styles.error}>{error}</Text> : null}
-            <Pressable disabled={loading || submitting} onPress={handleSubmit} style={({ pressed }) => [styles.button, (loading || submitting || pressed) && styles.buttonPressed]}>
-              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Entrar</Text>}
+            {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
+            <Pressable disabled={loading || submitting} onPress={recoveryMode ? handlePasswordRecovery : handleSubmit} style={({ pressed }) => [styles.button, (loading || submitting || pressed) && styles.buttonPressed]}>
+              {submitting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>{recoveryMode ? "Enviar link" : "Entrar"}</Text>}
             </Pressable>
 
             <View style={styles.secondaryActions}>
-              <Pressable onPress={() => { setError(null); navigation.navigate("SignUp"); }}><Text style={styles.secondaryLink}>Criar conta</Text></Pressable>
-              <Pressable onPress={() => handleSecondaryAction("recovery")}><Text style={styles.secondaryLinkMuted}>Esqueci a senha</Text></Pressable>
+              <Pressable onPress={() => { setError(null); setFeedback(null); setRecoveryMode(false); navigation.navigate("SignUp"); }}><Text style={styles.secondaryLink}>Criar conta</Text></Pressable>
+              <Pressable
+                onPress={() => {
+                  setError(null);
+                  setFeedback(null);
+                  setRecoveryMode((value) => !value);
+                }}
+              >
+                <Text style={styles.secondaryLinkMuted}>{recoveryMode ? "Voltar para login" : "Esqueci a senha"}</Text>
+              </Pressable>
             </View>
+            {!isConfigured ? <Text style={styles.helperText}>As credenciais do Supabase precisam estar configuradas para autenticação e recuperação de senha.</Text> : null}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -125,7 +162,12 @@ const styles = StyleSheet.create({
   buttonPressed: { opacity: 0.8 },
   buttonText: { color: colors.surface, fontSize: 15, fontWeight: "700" },
   error: { color: colors.danger, fontSize: 13, lineHeight: 20 },
+  feedback: { color: colors.success, fontSize: 13, lineHeight: 20 },
   secondaryActions: { paddingTop: 4, flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 16 },
   secondaryLink: { color: colors.primary, fontSize: 14, fontWeight: "700" },
   secondaryLinkMuted: { color: colors.textMuted, fontSize: 14, fontWeight: "600" },
+  recoveryCard: { gap: 6, borderRadius: 18, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, padding: 14 },
+  recoveryTitle: { fontSize: 14, fontWeight: "800", color: colors.text },
+  recoveryDescription: { fontSize: 13, lineHeight: 20, color: colors.textMuted },
+  helperText: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
 });
