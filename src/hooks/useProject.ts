@@ -26,16 +26,27 @@ export function useProject() {
   const { isOwner } = useProfile();
 
   const query = useQuery({
-    queryKey: ["project-main"],
+    queryKey: ["project-main", user?.id, isOwner],
     enabled: Boolean(user?.id && supabase),
     queryFn: async (): Promise<MobileProject | null> => {
       if (!supabase || !user) return null;
 
-      // Busca diretamente o primeiro projeto (Casa) cadastrado no sistema
+      const { data: membership, error: membershipError } = await supabase
+        .from("project_members")
+        .select("project_id, role")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (membershipError) throw membershipError;
+      if (!membership?.project_id) return null;
+
+      // Busca o projeto vinculado ao usuario logado.
       const { data: project, error: projectError } = await supabase
         .from("projects")
         .select("id, name, address, photo_url, total_contract_value, rooms, external_spaces, observations, start_date")
-        .limit(1)
+        .eq("id", membership.project_id)
         .maybeSingle();
 
       if (projectError) throw projectError;
@@ -43,7 +54,7 @@ export function useProject() {
 
       return {
         ...project,
-        userRole: isOwner ? "proprietario" : "funcionario",
+        userRole: membership.role ?? (isOwner ? "proprietario" : "funcionario"),
       };
     },
   });

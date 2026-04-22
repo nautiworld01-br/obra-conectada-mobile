@@ -140,42 +140,22 @@ export function useUpsertDailyLog() {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { data: log, error: logError } = await supabase
-        .from("daily_logs")
-        .upsert(
-          {
-            project_id: payload.projectId,
-            date: payload.date,
-            activities: payload.activities,
-            weather: payload.weather,
-            observations: payload.observations,
-            created_by: payload.createdBy,
-            photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,
-            videos_urls: payload.videosUrls?.length ? payload.videosUrls : null,
-          },
-          { onConflict: "project_id,date" },
-        )
-        .select("id, date, activities, weather, observations, created_by, project_id, photos_urls, videos_urls")
+      const { data: log, error } = await supabase
+        .rpc("upsert_daily_log_with_employees", {
+          p_project_id: payload.projectId,
+          p_date: payload.date,
+          p_activities: payload.activities,
+          p_weather: payload.weather,
+          p_observations: payload.observations,
+          p_created_by: payload.createdBy,
+          p_employee_ids: payload.employeeIds,
+          p_photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,
+          p_videos_urls: payload.videosUrls?.length ? payload.videosUrls : null,
+        })
         .single();
 
-      if (logError) {
-        throw logError;
-      }
-
-      const { error: deleteError } = await supabase.from("daily_log_employees").delete().eq("log_id", log.id);
-
-      if (deleteError) {
-        throw deleteError;
-      }
-
-      if (payload.employeeIds.length > 0) {
-        const { error: insertEmployeesError } = await supabase
-          .from("daily_log_employees")
-          .insert(payload.employeeIds.map((employeeId) => ({ log_id: log.id, employee_id: employeeId })));
-
-        if (insertEmployeesError) {
-          throw insertEmployeesError;
-        }
+      if (error) {
+        throw error;
       }
 
       return log;
