@@ -5,6 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import Toast, { BaseToast, ErrorToast, ToastConfig } from "react-native-toast-message";
 import { AuthProvider } from "../contexts/AuthContext";
 import { colors } from "../config/theme";
+import { AppErrorBoundary } from "../components/AppErrorBoundary";
 
 const toastConfig: ToastConfig = {
   success: (props) => (
@@ -30,7 +31,6 @@ const toastConfig: ToastConfig = {
 /**
  * Agregador de Provedores: Centraliza todos os contextos e configuracoes globais do app.
  * Mantem a arvore de componentes limpa e garante a ordem correta das dependencias.
- * future_fix: Adicionar ErrorBoundary global para capturar crashes e exibir uma tela amigavel.
  */
 export function AppProviders({ children }: { children: ReactNode }) {
   // Inicializa o cliente do React Query para gerenciamento de cache e estado assincrono.
@@ -38,12 +38,14 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          {children}
-          <Toast config={toastConfig} topOffset={18} visibilityTime={2400} />
-        </AuthProvider>
-      </QueryClientProvider>
+      <AppErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            {children}
+            <Toast config={toastConfig} topOffset={18} visibilityTime={2400} />
+          </AuthProvider>
+        </QueryClientProvider>
+      </AppErrorBoundary>
     </SafeAreaProvider>
   );
 }

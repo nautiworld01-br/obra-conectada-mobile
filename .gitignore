@@ -32,6 +32,8 @@ yarn-error.*
 .env
 .env.
 .env*.local
+README.local.md
+.playwright-mcp/
 
 # typescript
 *.tsbuildinfo
