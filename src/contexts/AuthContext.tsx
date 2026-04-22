@@ -13,6 +13,14 @@ function getPasswordResetRedirectUrl() {
   return `${window.location.origin}${window.location.pathname}?reset-password=1`;
 }
 
+function getAuthRedirectUrl() {
+  if (Platform.OS !== "web" || typeof window === "undefined") {
+    return undefined;
+  }
+
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
 /**
  * Define a estrutura de dados e funcoes disponiveis globalmente via contexto de autenticacao.
  */
@@ -25,6 +33,7 @@ type AuthContextValue = {
   signIn: (email: string, password: string) => Promise<{ error?: string }>;
   reauthenticate: (password: string) => Promise<{ error?: string }>;
   requestPasswordReset: (email: string) => Promise<{ error?: string }>;
+  resendSignUpConfirmation: (email: string) => Promise<{ error?: string }>;
   updatePassword: (password: string) => Promise<{ error?: string }>;
   finishPasswordRecovery: (options?: { signOut?: boolean }) => Promise<void>;
   signUp: (payload: {
@@ -32,7 +41,7 @@ type AuthContextValue = {
     email: string;
     password: string;
     occupation: Occupation;
-  }) => Promise<{ error?: string }>;
+  }) => Promise<{ error?: string; requiresEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   checkOwnerExists: () => Promise<boolean>;
 };
@@ -189,6 +198,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         return error ? { error: error.message } : {};
       },
+      async resendSignUpConfirmation(email) {
+        if (!supabase) return { error: "Configure as variáveis de ambiente." };
+        const emailRedirectTo = getAuthRedirectUrl();
+        const { error } = await supabase.auth.resend({
+          type: "signup",
+          email,
+          options: {
+            emailRedirectTo,
+          },
+        });
+        return error ? { error: error.message } : {};
+      },
       async updatePassword(password) {
         if (!supabase) return { error: "Configure as variáveis de ambiente." };
         const { error } = await supabase.auth.updateUser({ password });
@@ -211,11 +232,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return { error: "Já existe um proprietário registrado." };
         }
         // Cria usuario e anexa metadados para sincronizacao automatica com a tabela profiles via Trigger.
-        const { error } = await supabase.auth.signUp({
+        const emailRedirectTo = getAuthRedirectUrl();
+        const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { data: { full_name: fullName.trim(), is_owner: occupation === "owner", is_employee: occupation === "employee", occupation } },
+          options: {
+            emailRedirectTo,
+            data: { full_name: fullName.trim(), is_owner: occupation === "owner", is_employee: occupation === "employee", occupation },
+          },
         });
-        return error ? { error: error.message } : {};
+        if (error) {
+          return { error: error.message };
+        }
+
+        const requiresEmailConfirmation = !!data.user && !data.session;
+        return { requiresEmailConfirmation };
       },
       async signOut() {
         if (supabase) await supabase.auth.signOut();

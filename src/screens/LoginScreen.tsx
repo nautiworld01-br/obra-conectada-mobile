@@ -15,6 +15,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
+import { getSuggestedEmail, normalizeEmail, validateLoginInput, isValidEmail } from "../lib/authValidation";
 
 type RootStackParamList = {
   Login: undefined;
@@ -39,15 +40,18 @@ export function LoginScreen({ navigation }: Props) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  /**
-   * Dispara o processo de login.
-   * future_fix: Implementar validacao de formato de email no frontend antes de enviar ao servidor.
-   */
   const handleSubmit = async () => {
+    const validation = validateLoginInput(email, password);
+    if ("error" in validation) {
+      setError(validation.error ?? "Confira os dados informados.");
+      setFeedback(null);
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     setFeedback(null);
-    const result = await signIn(email.trim(), password);
+    const result = await signIn(validation.normalizedEmail, password);
     if (result.error) {
       setError(result.error);
     }
@@ -55,10 +59,22 @@ export function LoginScreen({ navigation }: Props) {
   };
 
   const handlePasswordRecovery = async () => {
-    const normalizedEmail = email.trim();
-
+    const normalizedEmail = normalizeEmail(email);
     if (!normalizedEmail) {
       setError("Informe seu email para receber o link de recuperação.");
+      setFeedback(null);
+      return;
+    }
+
+    if (!isValidEmail(normalizedEmail)) {
+      setError("Informe um email válido para receber o link de recuperação.");
+      setFeedback(null);
+      return;
+    }
+
+    const suggestedEmail = getSuggestedEmail(normalizedEmail);
+    if (suggestedEmail) {
+      setError(`Confira seu email. Você quis dizer ${suggestedEmail}?`);
       setFeedback(null);
       return;
     }
@@ -93,7 +109,7 @@ export function LoginScreen({ navigation }: Props) {
             <Text style={styles.formTitle}>Entrar</Text>
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Email</Text>
-              <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="voce@email.com" placeholderTextColor={colors.textMuted} style={styles.input} value={email} onChangeText={setEmail} />
+              <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" placeholder="voce@email.com" placeholderTextColor={colors.textMuted} style={styles.input} value={email} onChangeText={(value) => setEmail(value)} />
             </View>
             {!recoveryMode ? (
               <View style={styles.fieldGroup}>

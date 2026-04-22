@@ -15,6 +15,7 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import type { Occupation } from "../hooks/useProfile";
+import { validateSignUpInput } from "../lib/authValidation";
 
 type RootStackParamList = {
   Login: undefined;
@@ -27,10 +28,9 @@ type Props = NativeStackScreenProps<RootStackParamList, "SignUp">;
 
 /**
  * Tela de Cadastro: Registro de novos usuarios.
- * future_fix: Adicionar validacao de força de senha no frontend.
  */
 export function SignUpScreen({ navigation }: Props) {
-  const { signUp, loading, checkOwnerExists } = useAuth();
+  const { signUp, resendSignUpConfirmation, loading, checkOwnerExists } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -38,6 +38,9 @@ export function SignUpScreen({ navigation }: Props) {
   const [occupation, setOccupation] = useState<Occupation>("employee");
   const [ownerExists, setOwnerExists] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState<string | null>(null);
+  const [resendingConfirmation, setResendingConfirmation] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checkingOwner, setCheckingOwner] = useState(true);
 
@@ -62,21 +65,53 @@ export function SignUpScreen({ navigation }: Props) {
    * Dispara a criacao de conta no Supabase.
    */
   const handleSubmit = async () => {
-    if (!fullName.trim() || !email.trim() || !password) {
-      setError("Preencha todos os campos.");
+    const validation = validateSignUpInput(fullName, email, password);
+    if ("error" in validation) {
+      setError(validation.error ?? "Confira os dados informados.");
+      setFeedback(null);
       return;
     }
+
     setSubmitting(true);
     setError(null);
-    const result = await signUp({ fullName: fullName.trim(), email: email.trim(), password, occupation });
+    setFeedback(null);
+    const result = await signUp({ fullName: validation.trimmedName, email: validation.normalizedEmail, password, occupation });
 
     if (result.error) {
       setError(result.error);
       setSubmitting(false);
       return;
     }
+
+    if (result.requiresEmailConfirmation) {
+      setPendingConfirmationEmail(validation.normalizedEmail);
+      setFeedback("Conta criada. Confirme o email enviado para ativar seu acesso.");
+      setSubmitting(false);
+      return;
+    }
+
     navigation.replace("Login");
     setSubmitting(false);
+  };
+
+  const handleResendConfirmation = async () => {
+    if (!pendingConfirmationEmail) {
+      return;
+    }
+
+    setResendingConfirmation(true);
+    setError(null);
+    setFeedback(null);
+    const result = await resendSignUpConfirmation(pendingConfirmationEmail);
+
+    if (result.error) {
+      setError(result.error);
+      setResendingConfirmation(false);
+      return;
+    }
+
+    setFeedback("Reenviamos o email de confirmação. Verifique sua caixa de entrada e spam.");
+    setResendingConfirmation(false);
   };
 
   return (
@@ -143,12 +178,24 @@ export function SignUpScreen({ navigation }: Props) {
                 <TextInput placeholder="Crie uma senha" placeholderTextColor={colors.textMuted} secureTextEntry={!showPassword} style={styles.passwordInput} value={password} onChangeText={setPassword} />
                 <Pressable style={({ pressed }) => [styles.passwordToggle, pressed && styles.buttonPressed]} onPress={() => setShowPassword((v) => !v)}><Text style={styles.passwordToggleText}>{showPassword ? "Ocultar" : "Ver"}</Text></Pressable>
               </View>
+              <Text style={styles.helperText}>Use pelo menos 8 caracteres, combinando letras e números.</Text>
             </View>
 
             {error && <Text style={styles.error}>{error}</Text>}
+            {feedback && <Text style={styles.feedback}>{feedback}</Text>}
             <Pressable disabled={loading || submitting || checkingOwner} onPress={handleSubmit} style={({ pressed }) => [styles.button, (loading || submitting || pressed) && styles.buttonPressed]}>
               {(submitting || checkingOwner) ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.buttonText}>Criar conta</Text>}
             </Pressable>
+
+            {pendingConfirmationEmail ? (
+              <Pressable
+                disabled={resendingConfirmation}
+                onPress={handleResendConfirmation}
+                style={({ pressed }) => [styles.secondaryButton, (resendingConfirmation || pressed) && styles.buttonPressed]}
+              >
+                {resendingConfirmation ? <ActivityIndicator color={colors.primary} /> : <Text style={styles.secondaryButtonText}>Reenviar confirmação</Text>}
+              </Pressable>
+            ) : null}
 
             <View style={styles.secondaryActions}>
               <Pressable onPress={() => navigation.goBack()}><Text style={styles.secondaryLink}>Voltar para entrar</Text></Pressable>
@@ -191,7 +238,11 @@ const styles = StyleSheet.create({
   button: { borderRadius: 16, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },
   buttonPressed: { opacity: 0.8 },
   buttonText: { color: colors.surface, fontSize: 15, fontWeight: "700" },
+  secondaryButton: { borderRadius: 16, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft, paddingVertical: 15, alignItems: "center" },
+  secondaryButtonText: { color: colors.primary, fontSize: 15, fontWeight: "700" },
   error: { color: colors.danger, fontSize: 13, lineHeight: 20 },
+  feedback: { color: colors.success, fontSize: 13, lineHeight: 20 },
+  helperText: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
   secondaryActions: { paddingTop: 4, alignItems: "center" },
   secondaryLink: { color: colors.primary, fontSize: 14, fontWeight: "700" },
 });
