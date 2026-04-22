@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
@@ -21,20 +20,38 @@ export type TeamEmployeeRow = {
  */
 export function useTeam() {
   const { project, isLoading: projectLoading } = useProject();
-  const queryClient = useQueryClient();
 
   const employeesQuery = useQuery({
-    queryKey: ["employees", "all"],
-    enabled: Boolean(supabase),
+    queryKey: ["employees", project?.id],
+    enabled: Boolean(supabase && project?.id),
     queryFn: async (): Promise<TeamEmployeeRow[]> => {
-      if (!supabase) return [];
+      if (!supabase || !project?.id) return [];
 
-      console.log("Buscando funcionarios (is_owner = false)...");
-      // Busca todos os perfis que nao sao proprietarios no sistema
+      console.log("Buscando funcionarios do projeto:", project.id);
+
+      const { data: memberships, error: membershipError } = await supabase
+        .from("project_members")
+        .select("user_id")
+        .eq("project_id", project.id)
+        .neq("role", "proprietario");
+
+      if (membershipError) {
+        console.error("Erro Supabase Team Membership:", membershipError);
+        throw membershipError;
+      }
+
+      const memberIds = (memberships ?? [])
+        .map((membership) => membership.user_id)
+        .filter((value): value is string => Boolean(value));
+
+      if (!memberIds.length) {
+        return [];
+      }
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id, full_name, avatar_url, is_owner, is_employee, status, occupation_role")
-        .eq("is_owner", false)
+        .in("id", memberIds)
         .order("full_name", { ascending: true });
 
       if (error) {
@@ -107,10 +124,12 @@ export function useUpsertEmployee() {
  */
 export function useDeleteEmployee() {
   const queryClient = useQueryClient();
+  const { project } = useProject();
 
   return useMutation({
     mutationFn: async (payload: { id: string }) => {
       if (!supabase) throw new Error("Supabase nao configurado.");
+      if (!project?.id) throw new Error("Projeto nao carregado.");
 
       // Chama a RPC para deletar o registro do banco
       const { error } = await supabase.rpc("delete_user_account", {
