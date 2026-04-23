@@ -164,14 +164,14 @@ function UpdateFormModal(_: any) {
   };
 
   return (
-    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.modalCard}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>{update ? "Editar" : "Novo"} Relatório</Text>
         <Pressable onPress={onClose}>
           <AppIcon name="X" size={24} color={colors.textMuted} />
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Semana do Relatório *</Text>
               <Pressable style={styles.selectField} onPress={() => setWeekOpen(true)}>
@@ -284,21 +284,23 @@ function UpdateFormModal(_: any) {
  */
 function UpdateDetailModal(_: any) {
   const { update, roomName, visible, isOwner, onClose, onEdit, onDelete, onReview } = _;
+  const [comment, setComment] = useState("");
+
+  useEffect(() => { setComment(update?.owner_comments || ""); }, [update, visible]);
+
   if (!update) return null;
-  const [comment, setComment] = useState(update.owner_comments || "");
   const statusStyle = getStatusColors(update.status);
 
-  useEffect(() => { setComment(update.owner_comments || ""); }, [update, visible]);
-
   return (
-    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.detailCard}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.detailCard}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>Relatório Semanal</Text>
         <Pressable onPress={onClose} hitSlop={10}>
           <AppIcon name="X" size={24} color={colors.textMuted} />
         </Pressable>
       </View>
-      <ScrollView 
+      <ScrollView
+        style={styles.modalScroll}
         contentContainerStyle={styles.modalContent} 
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -721,11 +723,12 @@ const styles = StyleSheet.create({
   commentBadge: { fontSize: 12, color: colors.primary, fontWeight: "700" },
   cardRoom: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
-  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
-  detailCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  modalCard: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, height: "86%", overflow: "hidden" },
+  detailCard: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, height: "86%", overflow: "hidden" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
-  modalContent: { gap: 16 },
+  modalScroll: { flex: 1, minHeight: 0 },
+  modalContent: { gap: 16, paddingBottom: 20, flexGrow: 1 },
   fieldBlock: { gap: 4 },
   fieldLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },

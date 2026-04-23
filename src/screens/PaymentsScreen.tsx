@@ -129,12 +129,12 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
   };
 
   return (
-    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.modalCard}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>{payment ? "Editar" : "Novo"} Pagamento</Text>
         <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
       </View>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
+      <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalContent} keyboardShouldPersistTaps="handled">
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Referência</Text><View style={styles.row}><Pressable style={[styles.selectField, {flex: 2}]} onPress={() => setMonthOpen(true)}><Text style={styles.selectFieldText}>{draft.periodMonth}</Text></Pressable><TextInput style={[styles.fieldInput, {flex: 1}]} value={draft.periodYear} onChangeText={v => setDraft(c => ({...c, periodYear: v}))} keyboardType="numeric" /></View></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Valor (R$)</Text><TextInput style={styles.fieldInput} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v}))} keyboardType="numeric" placeholder="0.00" /></View>
             <View style={styles.fieldBlock}><AppDatePicker label="Vencimento" value={draft.dueDate} onChange={(v) => setDraft(c => ({ ...c, dueDate: v }))} /></View>
@@ -158,12 +158,12 @@ function PaymentDetailModal({ payment, visible, isOwner, onClose, onEdit, onDele
   if (!payment) return null;
   const statusStyle = getStatusColors(payment.status);
   return (
-    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.detailCard}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.detailCard}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>Detalhe do Pagamento</Text>
         <Pressable onPress={onClose}><AppIcon name="X" size={24} color={colors.textMuted} /></Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.detailRow}>
               <Text style={styles.detailPeriod}>{payment.period}</Text>
               <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{payment.status.toUpperCase()}</Text></View>
@@ -522,11 +522,12 @@ const styles = StyleSheet.create({
   statusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   statusPillText: { fontSize: 10, fontWeight: "800" },
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
-  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
-  detailCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  modalCard: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, height: "86%", overflow: "hidden" },
+  detailCard: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, height: "86%", overflow: "hidden" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
-  modalContent: { gap: 16 },
+  modalScroll: { flex: 1, minHeight: 0 },
+  modalContent: { gap: 16, paddingBottom: 20, flexGrow: 1 },
   fieldBlock: { gap: 6 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },

@@ -2,7 +2,7 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { ComponentType, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Animated, Easing, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Reanimated, { FadeInRight, LinearTransition } from "react-native-reanimated";
+import Reanimated, { FadeIn, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
@@ -236,7 +236,7 @@ function AppShell() {
       </View>
       <Reanimated.View
         key={currentRouteKey}
-        entering={FadeInRight.duration(220)}
+        entering={FadeIn.duration(180)}
         layout={LinearTransition.springify().damping(22).stiffness(200)}
         style={styles.screenArea}
       >

@@ -145,14 +145,14 @@ function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, 
   };
 
   return (
-    <AnimatedModal visible={visible} onRequestClose={onClose} position="bottom" contentStyle={styles.modalCard}>
+    <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
       <View style={styles.modalHeader}>
         <Text style={styles.modalTitle}>{stage ? "Editar" : "Nova"} Etapa</Text>
         <Pressable onPress={onClose}>
           <AppIcon name="X" size={24} color={colors.textMuted} />
         </Pressable>
       </View>
-      <ScrollView contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Nome da Etapa *</Text>
               <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Ex: Fundacao" />
@@ -598,10 +598,11 @@ const styles = StyleSheet.create({
   stageProgressTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.05)", overflow: "hidden" },
   stageProgressFill: { height: "100%", backgroundColor: colors.primary },
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
-  modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
+  modalCard: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, height: "86%", overflow: "hidden" },
   modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
   modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
-  modalContent: { gap: 16 },
+  modalScroll: { flex: 1, minHeight: 0 },
+  modalContent: { gap: 16, paddingBottom: 20, flexGrow: 1 },
   fieldBlock: { gap: 4 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
