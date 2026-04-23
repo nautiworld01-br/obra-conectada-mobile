@@ -5,5 +5,5 @@
     "module": "ESNext",
     "forceConsistentCasingInFileNames": true
   },
-  "exclude": ["dist", "node_modules", "docs"]
+  "exclude": ["dist", "node_modules", "docs", "supabase/functions"]
 }

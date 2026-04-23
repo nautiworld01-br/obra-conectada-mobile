@@ -32,7 +32,10 @@ yarn-error.*
 .env
 .env.
 .env*.local
+supabase/functions/.env
 README.local.md
+README.local.notify.md
+Feedback_Gemini_e_ChatGPT_para_notificacoes
 .playwright-mcp/
 
 # typescript

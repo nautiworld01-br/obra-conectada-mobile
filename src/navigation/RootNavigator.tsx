@@ -203,6 +203,27 @@ function AppShell() {
 
   const availableRoutes = useMemo(() => appRoutes.filter(r => !r.ownerOnly || isOwner), [isOwner]);
 
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const routeKey = params.get("notifyRoute");
+    if (!routeKey || !availableRoutes.some((route) => route.key === routeKey)) {
+      return;
+    }
+
+    setCurrentRouteKey(routeKey);
+    params.delete("notifyRoute");
+    params.delete("notifyEntityId");
+    params.delete("notifyEvent");
+
+    const nextSearch = params.toString();
+    const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, [availableRoutes]);
+
   const handleNavigate = (routeKey: string) => { setCurrentRouteKey(routeKey); setIsHouseMenuOpen(false); setIsSideMenuOpen(false); };
 
   return (

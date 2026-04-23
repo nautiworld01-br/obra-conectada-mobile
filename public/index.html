@@ -2,6 +2,7 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
+    <title>Obra Conectada</title>
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <link rel="manifest" href="./manifest.json" />
@@ -16,7 +17,11 @@
           return;
         }
 
-        if (isLocalhost) {
+        var allowLocalServiceWorker =
+          window.localStorage &&
+          window.localStorage.getItem("obra-sw-local") === "enabled";
+
+        if (isLocalhost && !allowLocalServiceWorker) {
           window.addEventListener("load", function () {
             navigator.serviceWorker.getRegistrations().then(function (registrations) {
               registrations.forEach(function (registration) {

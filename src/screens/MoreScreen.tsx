@@ -8,7 +8,9 @@ import { AnimatedModal } from "../components/AnimatedModal";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { buildInitials, useProfile } from "../hooks/useProfile";
+import { usePushNotifications } from "../hooks/usePushNotifications";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
+import { getErrorMessage } from "../lib/errorMessage";
 import { deleteFileFromStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
 
@@ -19,6 +21,7 @@ export function MoreScreen() {
   const queryClient = useQueryClient();
   const { user, reauthenticate, signOut } = useAuth();
   const { fullName, avatarUrl, occupationLabel, initials } = useProfile();
+  const pushNotifications = usePushNotifications();
   const [editVisible, setEditVisible] = useState(false);
   const [deleteVisible, setDeleteVisible] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -132,6 +135,36 @@ export function MoreScreen() {
     await signOut();
   };
 
+  const handleEnableNotifications = async () => {
+    try {
+      await pushNotifications.subscribe();
+      Alert.alert("Notificações", "Notificações ativadas neste navegador.");
+    } catch (error) {
+      Alert.alert("Notificações", getErrorMessage(error, "Não foi possível ativar notificações."));
+    }
+  };
+
+  const handleDisableNotifications = async () => {
+    try {
+      await pushNotifications.unsubscribe();
+      Alert.alert("Notificações", "Notificações desativadas neste navegador.");
+    } catch (error) {
+      Alert.alert("Notificações", getErrorMessage(error, "Não foi possível desativar notificações."));
+    }
+  };
+
+  const handleSendTestNotification = async () => {
+    try {
+      const result = await pushNotifications.sendTest();
+      Alert.alert("Notificações", `Teste enviado para ${result.sent}/${result.total} inscrição ativa.`);
+    } catch (error) {
+      Alert.alert("Notificações", getErrorMessage(error, "Não foi possível enviar a notificação de teste."));
+    }
+  };
+
+  const notificationCopy = getNotificationStateCopy(pushNotifications.supportState);
+  const notificationBusy = pushNotifications.isSubscribing || pushNotifications.isUnsubscribing || pushNotifications.isSendingTest;
+
   return (
     <>
       <AppScreen title="Perfil" subtitle="Seus dados pessoais.">
@@ -143,6 +176,34 @@ export function MoreScreen() {
           <View style={styles.profileActions}>
             <Pressable style={styles.editButton} onPress={() => setEditVisible(true)}><Text style={styles.editButtonText}>Editar perfil</Text></Pressable>
             <Pressable style={styles.deleteAccountButton} onPress={() => setDeleteVisible(true)}><Text style={styles.deleteAccountText}>Excluir conta</Text></Pressable>
+          </View>
+        </SectionCard>
+
+        <SectionCard title="Notificações" subtitle="Receba avisos importantes da obra neste navegador.">
+          <View style={styles.notificationBlock}>
+            <Text style={styles.notificationTitle}>{notificationCopy.title}</Text>
+            <Text style={styles.notificationDescription}>{notificationCopy.description}</Text>
+            {pushNotifications.supportState === "subscribed" ? (
+              <View style={styles.notificationActions}>
+                <Pressable style={styles.notificationPrimaryButton} onPress={() => void handleSendTestNotification()} disabled={notificationBusy}>
+                  {pushNotifications.isSendingTest ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.notificationPrimaryText}>Enviar teste</Text>}
+                </Pressable>
+                <Pressable style={styles.notificationSecondaryButton} onPress={() => void handleDisableNotifications()} disabled={notificationBusy}>
+                  {pushNotifications.isUnsubscribing ? <ActivityIndicator color={colors.text} /> : <Text style={styles.notificationSecondaryText}>Desativar neste navegador</Text>}
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={[
+                  styles.notificationPrimaryButton,
+                  !notificationCopy.canEnable && styles.notificationButtonDisabled,
+                ]}
+                onPress={() => void handleEnableNotifications()}
+                disabled={!notificationCopy.canEnable || notificationBusy}
+              >
+                {pushNotifications.isSubscribing ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.notificationPrimaryText}>Ativar notificações</Text>}
+              </Pressable>
+            )}
           </View>
         </SectionCard>
       </AppScreen>
@@ -200,6 +261,46 @@ export function MoreScreen() {
   );
 }
 
+function getNotificationStateCopy(state: ReturnType<typeof usePushNotifications>["supportState"]) {
+  if (state === "subscribed") {
+    return {
+      title: "Notificações ativadas",
+      description: "Este navegador já pode receber avisos importantes da obra.",
+      canEnable: false,
+    };
+  }
+
+  if (state === "permission_denied") {
+    return {
+      title: "Permissão bloqueada",
+      description: "Ative as notificações nas configurações do navegador ou do sistema para continuar.",
+      canEnable: false,
+    };
+  }
+
+  if (state === "missing_vapid_key") {
+    return {
+      title: "Configuração pendente",
+      description: "A chave pública VAPID ainda não foi configurada neste build.",
+      canEnable: false,
+    };
+  }
+
+  if (state === "unsupported") {
+    return {
+      title: "Indisponível neste dispositivo",
+      description: "Este navegador não suporta notificações push para PWA.",
+      canEnable: false,
+    };
+  }
+
+  return {
+    title: "Ativar notificações",
+    description: "Você receberá apenas avisos importantes. Quem cria uma ação não recebe push da própria ação.",
+    canEnable: true,
+  };
+}
+
 const styles = StyleSheet.create({
   profileRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   avatarShell: { width: 72, height: 72, borderRadius: 24, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
@@ -209,6 +310,15 @@ const styles = StyleSheet.create({
   name: { fontSize: 22, fontWeight: "800", color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted },
   profileActions: { gap: 10, marginTop: 20 },
+  notificationBlock: { gap: 12 },
+  notificationActions: { gap: 10 },
+  notificationTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+  notificationDescription: { fontSize: 14, lineHeight: 21, color: colors.textMuted },
+  notificationPrimaryButton: { minHeight: 50, borderRadius: 16, paddingHorizontal: 16, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.primary },
+  notificationPrimaryText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
+  notificationSecondaryButton: { minHeight: 50, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted },
+  notificationSecondaryText: { color: colors.text, fontSize: 15, fontWeight: "800" },
+  notificationButtonDisabled: { backgroundColor: colors.textMuted, opacity: 0.6 },
   editButton: { borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },
   editButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
   deleteAccountButton: { paddingVertical: 10, alignItems: "center" },
