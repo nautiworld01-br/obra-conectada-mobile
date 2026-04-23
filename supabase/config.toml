@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.daily-log-updated-push]
 verify_jwt = false
+
+[functions.register-push-subscription]
+verify_jwt = false

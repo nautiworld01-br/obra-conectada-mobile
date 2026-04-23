@@ -89,25 +89,26 @@ export async function subscribeToPushNotifications(userId: string) {
     }));
 
   const serialized = serializePushSubscription(subscription);
-  const { error } = await supabase.from("push_subscriptions").upsert(
-    {
-      user_id: userId,
+  await registerPushSubscription(serialized);
+}
+
+async function registerPushSubscription(serialized: { endpoint: string; p256dh: string; auth: string }) {
+  if (!supabase) {
+    throw new Error("Supabase nao configurado.");
+  }
+
+  const { error } = await supabase.functions.invoke("register-push-subscription", {
+    body: {
       endpoint: serialized.endpoint,
       p256dh: serialized.p256dh,
       auth: serialized.auth,
-      user_agent: navigator.userAgent,
+      userAgent: navigator.userAgent,
       platform: navigator.platform,
-      status: "active",
-      last_seen_at: new Date().toISOString(),
-      last_failure_at: null,
-      failure_code: null,
-      revoked_at: null,
     },
-    { onConflict: "endpoint" },
-  );
+  });
 
   if (error) {
-    throw new Error(`Falha ao salvar inscricao push: ${getErrorMessage(error)}`);
+    throw new Error(`Falha ao salvar inscricao push: ${await getFunctionErrorMessage(error)}`);
   }
 }
 
@@ -123,25 +124,7 @@ export async function reconcilePushSubscription(userId: string) {
   }
 
   const serialized = serializePushSubscription(subscription);
-  await supabase
-    .from("push_subscriptions")
-    .upsert(
-      {
-        user_id: userId,
-        endpoint: serialized.endpoint,
-        p256dh: serialized.p256dh,
-        auth: serialized.auth,
-        user_agent: navigator.userAgent,
-        platform: navigator.platform,
-        status: "active",
-        last_seen_at: new Date().toISOString(),
-        last_failure_at: null,
-        failure_code: null,
-        revoked_at: null,
-      },
-      { onConflict: "endpoint" },
-    )
-    .throwOnError();
+  await registerPushSubscription(serialized);
 }
 
 export async function unsubscribeFromPushNotifications(userId: string) {
