@@ -161,6 +161,23 @@ export function useUpsertDailyLog() {
         throw withSchemaDriftContext(error, "RPC upsert_daily_log_with_employees");
       }
 
+      const savedDailyLog = log as DailyLogRow;
+      const { data: savedLog } = await supabase
+        .from("daily_logs")
+        .select("updated_at")
+        .eq("id", savedDailyLog.id)
+        .maybeSingle();
+
+      if (savedLog?.updated_at) {
+        void supabase.functions.invoke("daily-log-updated-push", {
+          body: {
+            logId: savedDailyLog.id,
+            projectId: payload.projectId,
+            observedUpdatedAt: savedLog.updated_at,
+          },
+        });
+      }
+
       return log;
     },
     onSuccess: (_, variables) => {

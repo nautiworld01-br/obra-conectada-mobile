@@ -1,2 +1,5 @@
 [functions.self-test-push]
 verify_jwt = false
+
+[functions.daily-log-updated-push]
+verify_jwt = false
