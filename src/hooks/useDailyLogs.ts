@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { useProject } from "./useProject";
 
 // Tipos que representam a estrutura de dados dos registros diários e funcionários.
@@ -51,7 +52,7 @@ export function useDailyLogs() {
         .order("date", { ascending: false })
         .range(from, to);
 
-      if (error) throw error;
+      if (error) throw withSchemaDriftContext(error, "consulta de diarios com room_id e presencas");
 
       return (data ?? []).map(log => ({
         ...log,
@@ -112,7 +113,7 @@ export function useDailyLogDetail(logId: string | null) {
         .eq("log_id", logId);
 
       if (error) {
-        throw error;
+        throw withSchemaDriftContext(error, "detalhe de presencas do diario");
       }
 
       return (data ?? []).map((item) => item.employee_id);
@@ -157,7 +158,7 @@ export function useUpsertDailyLog() {
         .single();
 
       if (error) {
-        throw error;
+        throw withSchemaDriftContext(error, "RPC upsert_daily_log_with_employees");
       }
 
       return log;

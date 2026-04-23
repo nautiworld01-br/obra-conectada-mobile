@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
@@ -30,7 +31,7 @@ export function useRooms() {
         .order("name", { ascending: true });
 
       if (error) {
-        throw error;
+        throw withSchemaDriftContext(error, "consulta da tabela rooms");
       }
 
       return (data ?? EMPTY_ROOMS) as RoomRow[];

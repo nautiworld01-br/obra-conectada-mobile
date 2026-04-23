@@ -24,6 +24,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
 import { useProject } from "../hooks/useProject";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
+import { getErrorMessage } from "../lib/errorMessage";
+import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { deleteFileFromStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
 
@@ -84,7 +86,7 @@ export function HouseFormScreen() {
     enabled: Boolean(project?.id && supabase),
     queryFn: async () => {
       const { data, error } = await supabase!.from("rooms").select("id, name").eq("project_id", project!.id).order("display_order");
-      if (error) throw error;
+      if (error) throw withSchemaDriftContext(error, "consulta da tabela rooms na configuracao da obra");
       return data;
     },
   });
@@ -154,7 +156,7 @@ export function HouseFormScreen() {
         p_employees: processedEmployees
       });
 
-      if (error) throw error;
+      if (error) throw withSchemaDriftContext(error, "RPC upsert_full_project");
 
       await queryClient.invalidateQueries({ queryKey: ["project"] });
       await queryClient.invalidateQueries({ queryKey: ["house-rooms"] });
@@ -168,7 +170,7 @@ export function HouseFormScreen() {
       });
     } catch (e) {
       console.error(e);
-      Alert.alert("Erro", "Falha ao sincronizar dados da obra.");
+      Alert.alert("Erro", getErrorMessage(e, "Falha ao sincronizar dados da obra."));
     } finally {
       setSaving(false);
     }
