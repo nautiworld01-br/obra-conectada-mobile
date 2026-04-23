@@ -16,69 +16,76 @@ type PushSubscriptionRow = {
 };
 
 Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+  try {
+    if (request.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders });
+    }
+
+    if (request.method !== "POST") {
+      return json({ error: "Metodo nao permitido." }, 405);
+    }
+
+    const supabaseUrl = getRequiredEnv("SUPABASE_URL");
+    const supabaseAnonKey = getRequiredEnv("SUPABASE_ANON_KEY");
+    const supabaseServiceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
+    const vapidPublicKey = getRequiredEnv("VAPID_PUBLIC_KEY");
+    const vapidPrivateKey = getRequiredEnv("VAPID_PRIVATE_KEY");
+    const vapidSubject = getRequiredEnv("VAPID_SUBJECT");
+    const authorization = request.headers.get("Authorization");
+
+    if (!authorization) {
+      return json({ error: "Usuario nao autenticado." }, 401);
+    }
+
+    const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authorization } },
+    });
+    const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
+    const { data: userData, error: userError } = await userClient.auth.getUser();
+
+    if (userError || !userData.user) {
+      return json({ error: "Sessao invalida." }, 401);
+    }
+
+    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+
+    const { data: subscriptions, error: subscriptionsError } = await adminClient
+      .from("push_subscriptions")
+      .select("id, user_id, endpoint, p256dh, auth")
+      .eq("user_id", userData.user.id)
+      .eq("status", "active")
+      .is("revoked_at", null)
+      .returns<PushSubscriptionRow[]>();
+
+    if (subscriptionsError) {
+      return json({ error: subscriptionsError.message }, 500);
+    }
+
+    if (!subscriptions?.length) {
+      return json({ error: "Nenhuma inscricao push ativa encontrada para este usuario." }, 404);
+    }
+
+    const payload = JSON.stringify({
+      title: "Obra Conectada",
+      body: "Notificacao de teste ativada com sucesso.",
+      tag: "self-test-push",
+      eventKey: `self-test-push:${userData.user.id}:${Date.now()}`,
+      routeKey: "mais",
+      url: "/obra-conectada-mobile/",
+    });
+
+    const results = await Promise.all(
+      subscriptions.map((subscription) => sendToSubscription(adminClient, subscription, payload)),
+    );
+
+    const sent = results.filter((result) => result.sent).length;
+    return json({ sent, total: results.length });
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "Falha inesperada na Edge Function." },
+      500,
+    );
   }
-
-  if (request.method !== "POST") {
-    return json({ error: "Metodo nao permitido." }, 405);
-  }
-
-  const supabaseUrl = getRequiredEnv("SUPABASE_URL");
-  const supabaseAnonKey = getRequiredEnv("SUPABASE_ANON_KEY");
-  const supabaseServiceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
-  const vapidPublicKey = getRequiredEnv("VAPID_PUBLIC_KEY");
-  const vapidPrivateKey = getRequiredEnv("VAPID_PRIVATE_KEY");
-  const vapidSubject = getRequiredEnv("VAPID_SUBJECT");
-  const authorization = request.headers.get("Authorization");
-
-  if (!authorization) {
-    return json({ error: "Usuario nao autenticado." }, 401);
-  }
-
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
-    global: { headers: { Authorization: authorization } },
-  });
-  const adminClient = createClient(supabaseUrl, supabaseServiceRoleKey);
-  const { data: userData, error: userError } = await userClient.auth.getUser();
-
-  if (userError || !userData.user) {
-    return json({ error: "Sessao invalida." }, 401);
-  }
-
-  webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-
-  const { data: subscriptions, error: subscriptionsError } = await adminClient
-    .from("push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth")
-    .eq("user_id", userData.user.id)
-    .eq("status", "active")
-    .is("revoked_at", null)
-    .returns<PushSubscriptionRow[]>();
-
-  if (subscriptionsError) {
-    return json({ error: subscriptionsError.message }, 500);
-  }
-
-  if (!subscriptions?.length) {
-    return json({ error: "Nenhuma inscricao push ativa encontrada para este usuario." }, 404);
-  }
-
-  const payload = JSON.stringify({
-    title: "Obra Conectada",
-    body: "Notificacao de teste ativada com sucesso.",
-    tag: "self-test-push",
-    eventKey: `self-test-push:${userData.user.id}:${Date.now()}`,
-    routeKey: "mais",
-    url: "/obra-conectada-mobile/",
-  });
-
-  const results = await Promise.all(
-    subscriptions.map((subscription) => sendToSubscription(adminClient, subscription, payload)),
-  );
-
-  const sent = results.filter((result) => result.sent).length;
-  return json({ sent, total: results.length });
 });
 
 async function sendToSubscription(

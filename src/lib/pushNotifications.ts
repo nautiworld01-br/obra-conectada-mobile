@@ -186,7 +186,7 @@ export async function sendSelfTestPushNotification() {
   });
 
   if (error) {
-    throw new Error(`Falha ao enviar notificacao de teste: ${getErrorMessage(error)}`);
+    throw new Error(`Falha ao enviar notificacao de teste: ${await getFunctionErrorMessage(error)}`);
   }
 
   return data as { sent: number; total: number };
@@ -238,4 +238,28 @@ function urlBase64ToUint8Array(base64String: string) {
   }
 
   return outputArray;
+}
+
+async function getFunctionErrorMessage(error: unknown) {
+  const context = error && typeof error === "object" && "context" in error ? (error as { context?: unknown }).context : null;
+
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json();
+      if (body && typeof body === "object" && "error" in body && typeof body.error === "string") {
+        return body.error;
+      }
+    } catch (_jsonError) {
+      try {
+        const text = await context.clone().text();
+        if (text) {
+          return text;
+        }
+      } catch (_textError) {
+        // Fall back to the SDK error below.
+      }
+    }
+  }
+
+  return getErrorMessage(error);
 }
