@@ -106,6 +106,33 @@ Deno.serve(async (request) => {
       return json({ status: "skipped", reason: "stale_start" });
     }
 
+    await logSkipped(adminClient, initialLog.created_by, initialLog.id, "daily_log_updated:queued");
+
+    const backgroundTask = handleDebouncedDailyLogPush(adminClient, payload, {
+      vapidPublicKey,
+      vapidPrivateKey,
+      vapidSubject,
+    });
+    const edgeRuntime = (globalThis as unknown as {
+      EdgeRuntime?: { waitUntil?: (promise: Promise<unknown>) => void };
+    }).EdgeRuntime;
+    edgeRuntime?.waitUntil ? edgeRuntime.waitUntil(backgroundTask) : void backgroundTask;
+
+    return json({ status: "queued" }, 202);
+  } catch (error) {
+    return json(
+      { error: error instanceof Error ? error.message : "Falha inesperada na Edge Function." },
+      500,
+    );
+  }
+});
+
+async function handleDebouncedDailyLogPush(
+  adminClient: ReturnType<typeof createClient>,
+  payload: Required<DailyLogEventPayload>,
+  vapid: { vapidPublicKey: string; vapidPrivateKey: string; vapidSubject: string },
+) {
+  try {
     await delay(DEBOUNCE_MS);
 
     const { data: currentLog, error: currentLogError } = await adminClient
@@ -116,15 +143,21 @@ Deno.serve(async (request) => {
       .maybeSingle<DailyLogRow>();
 
     if (currentLogError || !currentLog) {
-      return json({ error: currentLogError?.message ?? "Diario nao encontrado apos debounce." }, 404);
+      await logSkipped(
+        adminClient,
+        currentLog?.created_by ?? null,
+        payload.logId,
+        `daily_log_updated:not_found:${currentLogError?.message ?? "missing"}`,
+      );
+      return;
     }
 
     if (currentLog.updated_at !== payload.observedUpdatedAt) {
       await logSkipped(adminClient, currentLog.created_by, payload.logId, "daily_log_updated:debounced");
-      return json({ status: "skipped", reason: "debounced" });
+      return;
     }
 
-    webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
+    webpush.setVapidDetails(vapid.vapidSubject, vapid.vapidPublicKey, vapid.vapidPrivateKey);
 
     const { data: recipients, error: recipientsError } = await adminClient
       .from("project_members")
@@ -134,13 +167,14 @@ Deno.serve(async (request) => {
       .returns<ProjectMemberRow[]>();
 
     if (recipientsError) {
-      return json({ error: recipientsError.message }, 500);
+      await logSkipped(adminClient, currentLog.created_by, currentLog.id, `daily_log_updated:recipients:${recipientsError.message}`);
+      return;
     }
 
     const recipientIds = (recipients ?? []).map((recipient) => recipient.user_id);
     if (!recipientIds.length) {
       await logSkipped(adminClient, currentLog.created_by, currentLog.id, "daily_log_updated:no_recipients");
-      return json({ status: "skipped", reason: "no_recipients" });
+      return;
     }
 
     const { data: subscriptions, error: subscriptionsError } = await adminClient
@@ -152,16 +186,17 @@ Deno.serve(async (request) => {
       .returns<PushSubscriptionRow[]>();
 
     if (subscriptionsError) {
-      return json({ error: subscriptionsError.message }, 500);
+      await logSkipped(adminClient, currentLog.created_by, currentLog.id, `daily_log_updated:subscriptions:${subscriptionsError.message}`);
+      return;
     }
 
     if (!subscriptions?.length) {
       await logSkipped(adminClient, currentLog.created_by, currentLog.id, "daily_log_updated:no_subscriptions");
-      return json({ status: "skipped", reason: "no_subscriptions" });
+      return;
     }
 
     const authorName = await getAuthorName(adminClient, currentLog.created_by);
-    const results = await Promise.all(
+    await Promise.all(
       subscriptions.map((subscription) =>
         sendToSubscription(adminClient, subscription, {
           title: "Diario de obra atualizado",
@@ -174,18 +209,15 @@ Deno.serve(async (request) => {
         })
       ),
     );
-
-    return json({
-      sent: results.filter((result) => result.sent).length,
-      total: results.length,
-    });
   } catch (error) {
-    return json(
-      { error: error instanceof Error ? error.message : "Falha inesperada na Edge Function." },
-      500,
+    await logSkipped(
+      adminClient,
+      null,
+      payload.logId,
+      `daily_log_updated:unexpected:${error instanceof Error ? error.message : "unknown"}`,
     );
   }
-});
+}
 
 async function sendToSubscription(
   adminClient: ReturnType<typeof createClient>,
@@ -284,7 +316,7 @@ async function getAuthorName(adminClient: ReturnType<typeof createClient>, autho
 
 async function logSkipped(
   adminClient: ReturnType<typeof createClient>,
-  userId: string,
+  userId: string | null,
   logId: string,
   reason: string,
 ) {
