@@ -7,15 +7,13 @@ import {
   Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-import DraggableFlatList, {
-  RenderItemParams,
-  ScaleDecorator,
-} from "react-native-draggable-flatlist";
+import Animated, { LinearTransition } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { AppScreen } from "../components/AppScreen";
 import { AppIcon } from "../components/AppIcon";
@@ -62,7 +60,6 @@ export function HouseFormScreen() {
   const [address, setAddress] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [rooms, setRooms] = useState<RoomItem[]>([]);
-  const roomListHeight = Math.min(rooms.length * 56, 300);
   const [roomModalVisible, setRoomModalVisible] = useState(false);
   const [roomDraft, setRoomDraft] = useState("");
   const [observations, setObservations] = useState("");
@@ -177,27 +174,16 @@ export function HouseFormScreen() {
     }
   };
 
-  const renderRoomItem = useCallback(({ item, drag, isActive }: RenderItemParams<RoomItem>) => {
-    return (
-      <ScaleDecorator>
-        <Pressable
-          onLongPress={drag}
-          disabled={isActive}
-          style={[
-            styles.roomListItem,
-            isActive && { backgroundColor: colors.primarySoft, borderColor: colors.primary }
-          ]}
-        >
-          <View style={styles.roomItemInfo}>
-            <AppIcon name="GripVertical" size={20} color={colors.textMuted} />
-            <Text style={styles.roomItemText}>{item.name}</Text>
-          </View>
-          <Pressable onPress={() => setRooms(c => c.filter(r => r.name !== item.name))}>
-            <AppIcon name="Trash2" size={18} color={colors.danger} />
-          </Pressable>
-        </Pressable>
-      </ScaleDecorator>
-    );
+  const moveRoom = useCallback((index: number, direction: -1 | 1) => {
+    setRooms((current) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+
+      const next = [...current];
+      const [movedRoom] = next.splice(index, 1);
+      next.splice(targetIndex, 0, movedRoom);
+      return next;
+    });
   }, []);
 
   if (projectLoading) return <View style={styles.center}><ActivityIndicator color={colors.primary} /></View>;
@@ -217,23 +203,48 @@ export function HouseFormScreen() {
         <View style={[styles.card, { paddingBottom: 8 }]}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardTitle}>Cômodos e Áreas</Text>
-            <Text style={styles.helperTextSmall}>Segure para ordenar</Text>
+            <Text style={styles.helperTextSmall}>Use as setas para ordenar</Text>
           </View>
           
           <View style={styles.roomContainer}>
             {rooms.length > 0 ? (
-              <View style={styles.roomListWrapper}>
-                <DraggableFlatList
-                  data={rooms}
-                  onDragEnd={({ data }) => setRooms(data)}
-                  keyExtractor={(item) => item.name}
-                  renderItem={renderRoomItem}
-                  nestedScrollEnabled
-                  scrollEnabled
-                  style={{ height: roomListHeight }}
-                  contentContainerStyle={styles.roomListContent}
-                />
-              </View>
+              <ScrollView
+                nestedScrollEnabled
+                style={styles.roomListWrapper}
+                contentContainerStyle={styles.roomListContent}
+                showsVerticalScrollIndicator
+              >
+                {rooms.map((room, index) => (
+                  <Animated.View
+                    key={room.id ?? `${room.name}-${index}`}
+                    layout={LinearTransition.springify().damping(22).stiffness(180)}
+                    style={styles.roomListItem}
+                  >
+                    <View style={styles.roomItemInfo}>
+                      <View style={styles.roomOrderControls}>
+                        <Pressable
+                          style={[styles.roomOrderButton, index === 0 && styles.roomOrderButtonDisabled]}
+                          disabled={index === 0}
+                          onPress={() => moveRoom(index, -1)}
+                        >
+                          <AppIcon name="ChevronUp" size={16} color={index === 0 ? colors.textMuted : colors.primary} />
+                        </Pressable>
+                        <Pressable
+                          style={[styles.roomOrderButton, index === rooms.length - 1 && styles.roomOrderButtonDisabled]}
+                          disabled={index === rooms.length - 1}
+                          onPress={() => moveRoom(index, 1)}
+                        >
+                          <AppIcon name="ChevronDown" size={16} color={index === rooms.length - 1 ? colors.textMuted : colors.primary} />
+                        </Pressable>
+                      </View>
+                      <Text style={styles.roomItemText}>{room.name}</Text>
+                    </View>
+                    <Pressable onPress={() => setRooms(c => c.filter((_, roomIndex) => roomIndex !== index))}>
+                      <AppIcon name="Trash2" size={18} color={colors.danger} />
+                    </Pressable>
+                  </Animated.View>
+                ))}
+              </ScrollView>
             ) : (
               <Text style={styles.emptyText}>Nenhum cômodo adicionado.</Text>
             )}
@@ -309,7 +320,7 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
   input: { backgroundColor: colors.surfaceMuted, borderRadius: 12, padding: 14, fontSize: 15, borderWidth: 1, borderColor: colors.cardBorder },
   roomContainer: { gap: 12 },
-  roomListWrapper: { maxHeight: 300, overflow: "hidden" },
+  roomListWrapper: { maxHeight: 300 },
   roomListContent: { paddingBottom: 4 },
   roomListItem: { 
     flexDirection: "row", 
@@ -323,6 +334,16 @@ const styles = StyleSheet.create({
     marginBottom: 8
   },
   roomItemInfo: { flexDirection: "row", alignItems: "center", gap: 10 },
+  roomOrderControls: { flexDirection: "row", gap: 4 },
+  roomOrderButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.primarySoft,
+  },
+  roomOrderButtonDisabled: { opacity: 0.35 },
   roomItemText: { fontSize: 15, fontWeight: "600", color: colors.text },
   addRoomBtn: { 
     flexDirection: "row", 
