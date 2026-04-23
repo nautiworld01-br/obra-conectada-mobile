@@ -152,6 +152,7 @@ function DailyLogForm({
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
   const [roomId, setRoomId] = useState<string | null>(existingLog?.room_id ?? null);
+  const [roomDropdownOpen, setRoomDropdownOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
@@ -174,6 +175,7 @@ function DailyLogForm({
     setObservations(existingLog?.observations ?? "");
     setEmployeeIds(initialEmployeeIds);
     setRoomId(existingLog?.room_id ?? null);
+    setRoomDropdownOpen(false);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -188,6 +190,7 @@ function DailyLogForm({
       previousVisibleRef.current = false;
       lastHydratedLogIdRef.current = null;
       setUploadProgress(null);
+      setRoomDropdownOpen(false);
     }
   }, [visible]);
 
@@ -428,23 +431,44 @@ function DailyLogForm({
 
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
+              <View style={styles.selectBlock}>
                 <Pressable
-                  style={[styles.optionChip, roomId === null && styles.optionChipActive]}
-                  onPress={() => setRoomId(null)}
+                  style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
+                  onPress={() => setRoomDropdownOpen((current) => !current)}
                 >
-                  <Text style={[styles.optionChipText, roomId === null && styles.optionChipTextActive]}>Sem cômodo</Text>
+                  <Text style={styles.selectButtonText}>
+                    {roomId === null ? "Sem cômodo" : rooms.find((room) => room.id === roomId)?.name ?? "Cômodo"}
+                  </Text>
+                  <AppIcon name={roomDropdownOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
                 </Pressable>
-                {rooms.map((room) => (
-                  <Pressable
-                    key={room.id}
-                    style={[styles.optionChip, roomId === room.id && styles.optionChipActive]}
-                    onPress={() => setRoomId(room.id)}
-                  >
-                    <Text style={[styles.optionChipText, roomId === room.id && styles.optionChipTextActive]}>{room.name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                {roomDropdownOpen ? (
+                  <View style={styles.selectMenu}>
+                    <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                      <Pressable
+                        style={[styles.selectOption, roomId === null && styles.selectOptionActive]}
+                        onPress={() => {
+                          setRoomId(null);
+                          setRoomDropdownOpen(false);
+                        }}
+                      >
+                        <Text style={[styles.selectOptionText, roomId === null && styles.selectOptionTextActive]}>Sem cômodo</Text>
+                      </Pressable>
+                      {rooms.map((room) => (
+                        <Pressable
+                          key={room.id}
+                          style={[styles.selectOption, roomId === room.id && styles.selectOptionActive]}
+                          onPress={() => {
+                            setRoomId(room.id);
+                            setRoomDropdownOpen(false);
+                          }}
+                        >
+                          <Text style={[styles.selectOptionText, roomId === room.id && styles.selectOptionTextActive]}>{room.name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
             </View>
 
             <View style={styles.fieldBlock}>
@@ -717,6 +741,7 @@ export function DailyScreen() {
   const [mediaFilter, setMediaFilter] = useState<"todos" | "com_midia" | "sem_midia">("todos");
   const [sortOrder, setSortOrder] = useState<MonthLogSortOrder>("recentes");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [roomFilterDropdownOpen, setRoomFilterDropdownOpen] = useState(false);
 
   // Mapeamento dos logs por data para facilitar a verificacao de registros no calendario.
   // Otimiza a performance de renderizacao da grade mensal (O(1) para cada dia).
@@ -1001,7 +1026,13 @@ export function DailyScreen() {
               </View>
             </View>
 
-            <Pressable style={styles.filtersDropdownButton} onPress={() => setFiltersOpen((current) => !current)}>
+            <Pressable
+              style={styles.filtersDropdownButton}
+              onPress={() => {
+                setFiltersOpen((current) => !current);
+                setRoomFilterDropdownOpen(false);
+              }}
+            >
               <View style={styles.filtersDropdownInfo}>
                 <AppIcon name="SlidersHorizontal" size={16} color={colors.primary} />
                 <Text style={styles.filtersDropdownTitle}>Filtros da lista</Text>
@@ -1033,23 +1064,48 @@ export function DailyScreen() {
                       </Text>
                     </View>
                   </View>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                  <View style={styles.selectBlock}>
                     <Pressable
-                      style={[styles.chip, roomFilter === "todos" && styles.chipActive]}
-                      onPress={() => setRoomFilter("todos")}
+                      style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
+                      onPress={() => setRoomFilterDropdownOpen((current) => !current)}
                     >
-                      <Text style={[styles.chipText, roomFilter === "todos" && styles.chipTextActive]}>Todos os cômodos</Text>
+                      <Text style={styles.selectButtonText}>
+                        {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                      </Text>
+                      <AppIcon name={roomFilterDropdownOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
                     </Pressable>
-                    {rooms.map((room) => (
-                      <Pressable
-                        key={room.id}
-                        style={[styles.chip, roomFilter === room.id && styles.chipActive]}
-                        onPress={() => setRoomFilter(room.id)}
-                      >
-                        <Text style={[styles.chipText, roomFilter === room.id && styles.chipTextActive]}>{room.name}</Text>
-                      </Pressable>
-                    ))}
-                  </ScrollView>
+                    {roomFilterDropdownOpen ? (
+                      <View style={styles.selectMenu}>
+                        <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                          <Pressable
+                            style={[styles.selectOption, roomFilter === "todos" && styles.selectOptionActive]}
+                            onPress={() => {
+                              setRoomFilter("todos");
+                              setRoomFilterDropdownOpen(false);
+                            }}
+                          >
+                            <Text style={[styles.selectOptionText, roomFilter === "todos" && styles.selectOptionTextActive]}>
+                              Todos os cômodos
+                            </Text>
+                          </Pressable>
+                          {rooms.map((room) => (
+                            <Pressable
+                              key={room.id}
+                              style={[styles.selectOption, roomFilter === room.id && styles.selectOptionActive]}
+                              onPress={() => {
+                                setRoomFilter(room.id);
+                                setRoomFilterDropdownOpen(false);
+                              }}
+                            >
+                              <Text style={[styles.selectOptionText, roomFilter === room.id && styles.selectOptionTextActive]}>
+                                {room.name}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+                  </View>
                 </View>
 
                 <View style={styles.sortRow}>
@@ -1641,6 +1697,56 @@ const styles = StyleSheet.create({
   textAreaMedium: {
     minHeight: 90,
     textAlignVertical: "top",
+  },
+  selectBlock: {
+    gap: 8,
+  },
+  selectButton: {
+    minHeight: 46,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  selectButtonText: {
+    flex: 1,
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  selectMenu: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  selectMenuScroll: {
+    maxHeight: 220,
+  },
+  selectOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
+  },
+  selectOptionActive: {
+    backgroundColor: colors.primarySoft,
+  },
+  selectOptionText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  selectOptionTextActive: {
+    color: colors.primary,
+    fontWeight: "800",
   },
   employeeList: {
     flexDirection: "row",

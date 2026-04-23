@@ -62,6 +62,7 @@ export function HouseFormScreen() {
   const [address, setAddress] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [rooms, setRooms] = useState<RoomItem[]>([]);
+  const roomListHeight = Math.min(rooms.length * 56, 300);
   const [roomModalVisible, setRoomModalVisible] = useState(false);
   const [roomDraft, setRoomDraft] = useState("");
   const [observations, setObservations] = useState("");
@@ -221,13 +222,16 @@ export function HouseFormScreen() {
           
           <View style={styles.roomContainer}>
             {rooms.length > 0 ? (
-              <View style={{ maxHeight: 300 }}>
+              <View style={styles.roomListWrapper}>
                 <DraggableFlatList
                   data={rooms}
                   onDragEnd={({ data }) => setRooms(data)}
                   keyExtractor={(item) => item.name}
                   renderItem={renderRoomItem}
-                  scrollEnabled={false}
+                  nestedScrollEnabled
+                  scrollEnabled
+                  style={{ height: roomListHeight }}
+                  contentContainerStyle={styles.roomListContent}
                 />
               </View>
             ) : (
@@ -305,6 +309,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
   input: { backgroundColor: colors.surfaceMuted, borderRadius: 12, padding: 14, fontSize: 15, borderWidth: 1, borderColor: colors.cardBorder },
   roomContainer: { gap: 12 },
+  roomListWrapper: { maxHeight: 300, overflow: "hidden" },
+  roomListContent: { paddingBottom: 4 },
   roomListItem: { 
     flexDirection: "row", 
     alignItems: "center", 
