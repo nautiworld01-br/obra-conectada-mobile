@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import webpush from "web-push";
 
-const DEBOUNCE_MS = 60_000;
+const DEBOUNCE_MS = 15_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
