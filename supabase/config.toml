@@ -1,0 +1,2 @@
+[functions.self-test-push]
+verify_jwt = false

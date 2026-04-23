@@ -1,5 +1,5 @@
-const APP_SHELL_CACHE = "obra-conectada-shell-v3";
-const STATIC_CACHE = "obra-conectada-static-v3";
+const APP_SHELL_CACHE = "obra-conectada-shell-v4";
+const STATIC_CACHE = "obra-conectada-static-v4";
 const PRECACHE_URLS = ["./", "./index.html", "./manifest.json", "./icon.png", "./icon-192.png", "./icon-512.png", "./favicon.ico"];
 const DEFAULT_NOTIFICATION_URL = "./";
 
@@ -51,7 +51,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.endsWith(".ico");
 
   if (isStaticAsset) {
-    event.respondWith(staleWhileRevalidate(request));
+    event.respondWith(networkFirstStatic(request));
   }
 });
 
@@ -132,6 +132,26 @@ async function staleWhileRevalidate(request) {
     .catch(() => null);
 
   return cachedResponse || networkResponsePromise;
+}
+
+async function networkFirstStatic(request) {
+  const cache = await caches.open(STATIC_CACHE);
+
+  try {
+    const response = await fetch(request);
+    if (response && response.ok) {
+      await cache.put(request, response.clone());
+    }
+
+    return response;
+  } catch (error) {
+    const cachedResponse = await cache.match(request);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    throw error;
+  }
 }
 
 function parsePushPayload(event) {
