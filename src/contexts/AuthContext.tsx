@@ -5,6 +5,11 @@ import type { Occupation } from "../hooks/useProfile";
 import { env } from "../lib/env";
 import { supabase } from "../lib/supabase";
 
+function isInvalidRefreshTokenError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.toLowerCase().includes("invalid refresh token");
+}
+
 function getPasswordResetRedirectUrl() {
   if (Platform.OS !== "web" || typeof window === "undefined") {
     return undefined;
@@ -70,6 +75,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     let mounted = true;
 
+    const clearInvalidLocalSession = async () => {
+      try {
+        await client.auth.signOut({ scope: "local" });
+      } catch (_signOutError) {
+        // Local storage may already be inconsistent; state cleanup below is enough for UI recovery.
+      }
+
+      if (mounted) {
+        setSession(null);
+        setUser(null);
+      }
+    };
+
     const handleIncomingRecovery = async (url: string | null) => {
       if (!url || Platform.OS !== "web") return;
 
@@ -107,14 +125,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const { data: { session: initialSession }, error } = await client.auth.getSession();
-        if (error) throw error;
+        if (error) {
+          if (isInvalidRefreshTokenError(error)) {
+            await clearInvalidLocalSession();
+            return;
+          }
+
+          throw error;
+        }
         
         if (mounted) {
           setSession(initialSession);
           setUser(initialSession?.user ?? null);
         }
       } catch (err) {
-        console.error("Auth init error:", err);
+        if (isInvalidRefreshTokenError(err)) {
+          await clearInvalidLocalSession();
+        } else {
+          console.error("Auth init error:", err);
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -141,7 +170,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Mantem a sessao viva quando a aba volta ao foco apos inatividade.
     const appStateSubscription = AppState.addEventListener("change", (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === "active") {
-        void client.auth.refreshSession();
+        void client.auth.refreshSession().then(({ error }) => {
+          if (error && isInvalidRefreshTokenError(error)) {
+            void clearInvalidLocalSession();
+          }
+        });
       }
       appState.current = nextAppState;
     });
