@@ -230,10 +230,13 @@ export function TeamScreen() {
                           try {
                             await deleteEmployee.mutateAsync({ id: employee.id });
                             Toast.show({ type: "success", text1: "Conta removida" });
-                          } catch (e) { Alert.alert("Erro", "Falha ao remover conta."); }
+                          } catch (e) {
+                            const message = e instanceof Error ? e.message : "Falha ao remover conta.";
+                            Alert.alert("Erro ao remover conta", message);
+                          }
                         };
                         if (Platform.OS === "web") { if (window.confirm("Remover conta permanentemente?")) void performDelete(); }
-                        else { Alert.alert("Excluir?", "Remover conta do sistema?", [{ text: "Não" }, { text: "Sim", style: "destructive", onPress: () => void performDelete() }]); }
+                        else { Alert.alert("Excluir?", "Remover conta do sistema?", [{ text: "Não", style: "cancel" }, { text: "Sim", style: "destructive", onPress: () => void performDelete() }]); }
                       }}><Text style={[styles.secondaryActionText, styles.dangerText]}>Remover</Text></Pressable>
                     </View>
                   )}
