@@ -10,7 +10,6 @@ export type MobileProject = {
   address: string | null;
   photo_url: string | null;
   total_contract_value: number | null;
-  rooms: string[] | null;
   external_spaces: string[] | null;
   observations: string | null;
   start_date: string | null;
@@ -45,7 +44,7 @@ export function useProject() {
       // Busca o projeto vinculado ao usuario logado.
       const { data: project, error: projectError } = await supabase
         .from("projects")
-        .select("id, name, address, photo_url, total_contract_value, rooms, external_spaces, observations, start_date")
+        .select("id, name, address, photo_url, total_contract_value, external_spaces, observations, start_date")
         .eq("id", membership.project_id)
         .maybeSingle();
 

@@ -31,12 +31,22 @@ import { useProfile } from "../hooks/useProfile";
 import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
 import { AppMediaUploadProgress } from "../lib/appMedia";
+import { useRooms } from "../hooks/useRooms";
 
 const statusOptions: { value: UpdateStatus; label: string }[] = [
   { value: "no_prazo", label: "No Prazo" },
   { value: "adiantado", label: "Adiantado" },
   { value: "atrasado", label: "Atrasado" },
 ];
+
+const sortOptions = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "antigos", label: "Mais antigos" },
+  { value: "aprovados", label: "Aprovados primeiro" },
+  { value: "comentados", label: "Comentados primeiro" },
+] as const;
+
+type UpdateSortOrder = (typeof sortOptions)[number]["value"];
 
 /**
  * Gera a lista de semanas do ano atual para o seletor.
@@ -83,7 +93,7 @@ function getStatusColors(status: UpdateStatus) {
  * Modal de Formulario para Relatorios Semanais.
  */
 function UpdateFormModal(_: any) {
-  const { visible, update, projectId, loading, uploadProgress, onClose, onSave } = _;
+  const { visible, update, projectId, rooms, loading, uploadProgress, onClose, onSave } = _;
   const yearWeeks = useMemo(() => generateYearWeeks(), []);
   const currentWeek = useMemo(() => yearWeeks.find(w => w.isCurrent)?.value || "", [yearWeeks]);
   const suggestSummary = useSuggestSummary();
@@ -91,7 +101,7 @@ function UpdateFormModal(_: any) {
   const [draft, setDraft] = useState({
     weekRef: "", summary: "", status: "no_prazo" as UpdateStatus,
     servicesCompleted: "", servicesNotCompleted: "",
-    photos: [] as string[], videos: [] as string[]
+    photos: [] as string[], videos: [] as string[], roomId: null as string | null
   });
   
   const [statusOpen, setStatusOpen] = useState(false);
@@ -107,6 +117,7 @@ function UpdateFormModal(_: any) {
         servicesNotCompleted: stringifyList(update?.services_not_completed),
         photos: update?.photos ?? [],
         videos: update?.videos ?? [],
+        roomId: update?.room_id ?? null,
       });
     }
   }, [update, visible, currentWeek]);
@@ -177,6 +188,20 @@ function UpdateFormModal(_: any) {
               </Pressable>
             </View>
             
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
+                <Pressable style={[styles.optionChip, draft.roomId === null && styles.optionChipActive]} onPress={() => setDraft(c => ({ ...c, roomId: null }))}>
+                  <Text style={[styles.optionChipText, draft.roomId === null && styles.optionChipTextActive]}>Sem cômodo</Text>
+                </Pressable>
+                {rooms.map((room: { id: string; name: string }) => (
+                  <Pressable key={room.id} style={[styles.optionChip, draft.roomId === room.id && styles.optionChipActive]} onPress={() => setDraft(c => ({ ...c, roomId: room.id }))}>
+                    <Text style={[styles.optionChipText, draft.roomId === room.id && styles.optionChipTextActive]}>{room.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
             <View style={styles.fieldBlock}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>Resumo das Atividades *</Text>
@@ -258,7 +283,7 @@ function UpdateFormModal(_: any) {
  * Detalhes do Relatorio com Interacao.
  */
 function UpdateDetailModal(_: any) {
-  const { update, visible, isOwner, onClose, onEdit, onDelete, onReview } = _;
+  const { update, roomName, visible, isOwner, onClose, onEdit, onDelete, onReview } = _;
   if (!update) return null;
   const [comment, setComment] = useState(update.owner_comments || "");
   const statusStyle = getStatusColors(update.status);
@@ -282,6 +307,7 @@ function UpdateDetailModal(_: any) {
               <Text style={styles.detailWeek}>Semana {update.week_ref}</Text>
               <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{update.status.toUpperCase()}</Text></View>
             </View>
+            {roomName ? <Text style={styles.detailLabel}>Cômodo: {roomName}</Text> : null}
             <Text style={styles.detailSummary}>{update.summary}</Text>
             
             {/* Seção de Midias */}
@@ -343,6 +369,7 @@ export function UpdatesScreen() {
   const { user } = useAuth();
   const { isOwner } = useProfile();
   const { project, updates, isLoading } = useUpdates();
+  const { rooms } = useRooms();
   const upsertUpdate = useUpsertUpdate();
   const deleteUpdate = useDeleteUpdate();
   const updateReview = useUpdateReview();
@@ -351,6 +378,59 @@ export function UpdatesScreen() {
   const [selectedUpdate, setSelectedUpdate] = useState<UpdateRow | null>(null);
   const [editingUpdate, setEditingUpdate] = useState<UpdateRow | null>(null);
   const [uploadProgress, setUploadProgress] = useState<AppMediaUploadProgress | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<UpdateStatus | "todos">("todos");
+  const [roomFilter, setRoomFilter] = useState<string | "todos">("todos");
+  const [sortOrder, setSortOrder] = useState<UpdateSortOrder>("recentes");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const roomNameById = useMemo(
+    () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
+    [rooms],
+  );
+  const filteredUpdates = useMemo(() => {
+    return [...updates]
+      .filter((update) => {
+        const roomName = update.room_id ? roomNameById[update.room_id] ?? "" : "";
+        const query = searchQuery.trim().toLowerCase();
+        const matchesSearch =
+          query.length === 0 ||
+          update.week_ref.toLowerCase().includes(query) ||
+          update.summary.toLowerCase().includes(query) ||
+          roomName.toLowerCase().includes(query);
+        const matchesStatus = statusFilter === "todos" || update.status === statusFilter;
+        const matchesRoom = roomFilter === "todos" || update.room_id === roomFilter;
+        return matchesSearch && matchesStatus && matchesRoom;
+      })
+      .sort((a, b) => {
+        if (sortOrder === "aprovados") {
+          const approvalComparison = Number(Boolean(b.approved)) - Number(Boolean(a.approved));
+          if (approvalComparison !== 0) return approvalComparison;
+        }
+
+        if (sortOrder === "comentados") {
+          const commentComparison = Number(Boolean(b.owner_comments)) - Number(Boolean(a.owner_comments));
+          if (commentComparison !== 0) return commentComparison;
+        }
+
+        const direction = sortOrder === "antigos" ? 1 : -1;
+        const primaryA = a.date ?? a.created_at ?? "";
+        const primaryB = b.date ?? b.created_at ?? "";
+        const primaryComparison = primaryA.localeCompare(primaryB);
+
+        if (primaryComparison !== 0) {
+          return primaryComparison * direction;
+        }
+
+        return a.week_ref.localeCompare(b.week_ref) * direction;
+      });
+  }, [updates, roomNameById, roomFilter, searchQuery, sortOrder, statusFilter]);
+  const summary = useMemo(() => {
+    const total = updates.length;
+    const approved = updates.filter((update) => update.approved).length;
+    const commented = updates.filter((update) => Boolean(update.owner_comments)).length;
+    const withRoom = updates.filter((update) => Boolean(update.room_id)).length;
+    return { total, approved, commented, withRoom };
+  }, [updates]);
 
   const handleSave = async (payload: any) => {
     if (!project?.id || !user?.id) return;
@@ -426,6 +506,17 @@ export function UpdatesScreen() {
         <View><Text style={styles.title}>Relatórios</Text><Text style={styles.subtitle}>Acompanhamento semanal</Text></View>
         <Pressable style={styles.newButton} onPress={() => { setEditingUpdate(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable>
       </View>
+      <View style={styles.filterSection}>
+        <View style={styles.searchBar}>
+          <AppIcon name="Search" size={18} color={colors.textMuted} />
+          <TextInput style={styles.searchInput} placeholder="Buscar relatório..." value={searchQuery} onChangeText={setSearchQuery} />
+          {searchQuery !== "" ? (
+            <Pressable onPress={() => setSearchQuery("")}>
+              <AppIcon name="XCircle" size={18} color={colors.textMuted} />
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
 
       {isLoading ? (
         <View style={styles.loadingWrap}>
@@ -433,9 +524,109 @@ export function UpdatesScreen() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          {updates.length === 0 ? (
+          <View style={styles.summaryGrid}>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryCount}>{summary.total}</Text>
+              <Text style={styles.summaryLabel}>Total</Text>
+            </View>
+            <View style={[styles.summaryCard, styles.summaryCardApproved]}>
+              <Text style={[styles.summaryCount, styles.summaryCountApproved]}>{summary.approved}</Text>
+              <Text style={[styles.summaryLabel, styles.summaryLabelApproved]}>Aprovados</Text>
+            </View>
+            <View style={[styles.summaryCard, styles.summaryCardCommented]}>
+              <Text style={[styles.summaryCount, styles.summaryCountCommented]}>{summary.commented}</Text>
+              <Text style={[styles.summaryLabel, styles.summaryLabelCommented]}>Comentados</Text>
+            </View>
+            <View style={styles.summaryCard}>
+              <Text style={styles.summaryCount}>{summary.withRoom}</Text>
+              <Text style={styles.summaryLabel}>Com cômodo</Text>
+            </View>
+          </View>
+          <Pressable style={styles.filtersDropdownButton} onPress={() => setFiltersOpen((current) => !current)}>
+            <View style={styles.filtersDropdownInfo}>
+              <AppIcon name="SlidersHorizontal" size={16} color={colors.primary} />
+              <Text style={styles.filtersDropdownTitle}>Filtros da lista</Text>
+            </View>
+            <View style={styles.filtersDropdownBadges}>
+              <View style={styles.activeBadge}>
+                <AppIcon name="MapPinned" size={12} color={colors.primary} />
+                <Text style={styles.activeBadgeText}>
+                  {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                </Text>
+              </View>
+              <View style={styles.activeBadge}>
+                <AppIcon name="ArrowUpDown" size={12} color={colors.primary} />
+                <Text style={styles.activeBadgeText}>{sortOptions.find((option) => option.value === sortOrder)?.label}</Text>
+              </View>
+              <AppIcon name={filtersOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+            </View>
+          </Pressable>
+          {filtersOpen ? (
+            <View style={styles.filtersDropdownPanel}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                {[{ value: "todos", label: "Todos" }, ...statusOptions].map((option) => (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.chip, statusFilter === option.value && styles.chipActive]}
+                    onPress={() => setStatusFilter(option.value as UpdateStatus | "todos")}
+                  >
+                    <Text style={[styles.chipText, statusFilter === option.value && styles.chipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <View style={styles.sortRow}>
+                <View style={styles.sortHeaderRow}>
+                  <Text style={styles.sortLabel}>Cômodo</Text>
+                  <View style={styles.activeBadge}>
+                    <AppIcon name="MapPinned" size={12} color={colors.primary} />
+                    <Text style={styles.activeBadgeText}>
+                      {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                    </Text>
+                  </View>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                  <Pressable
+                    style={[styles.chip, roomFilter === "todos" && styles.chipActive]}
+                    onPress={() => setRoomFilter("todos")}
+                  >
+                    <Text style={[styles.chipText, roomFilter === "todos" && styles.chipTextActive]}>Todos os cômodos</Text>
+                  </Pressable>
+                  {rooms.map((room) => (
+                    <Pressable
+                      key={room.id}
+                      style={[styles.chip, roomFilter === room.id && styles.chipActive]}
+                      onPress={() => setRoomFilter(room.id)}
+                    >
+                      <Text style={[styles.chipText, roomFilter === room.id && styles.chipTextActive]}>{room.name}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+              <View style={styles.sortRow}>
+                <View style={styles.sortHeaderRow}>
+                  <Text style={styles.sortLabel}>Ordenação</Text>
+                  <View style={styles.activeBadge}>
+                    <AppIcon name="ArrowUpDown" size={12} color={colors.primary} />
+                    <Text style={styles.activeBadgeText}>{sortOptions.find((option) => option.value === sortOrder)?.label}</Text>
+                  </View>
+                </View>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                  {sortOptions.map((option) => (
+                    <Pressable
+                      key={option.value}
+                      style={[styles.chip, sortOrder === option.value && styles.chipActive]}
+                      onPress={() => setSortOrder(option.value)}
+                    >
+                      <Text style={[styles.chipText, sortOrder === option.value && styles.chipTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          ) : null}
+          {filteredUpdates.length === 0 ? (
             <Text style={styles.emptySearchText}>Nenhum relatório semanal registrado ainda.</Text>
-          ) : updates.map(u => (
+          ) : filteredUpdates.map(u => (
             <Pressable 
               key={u.id} 
               style={styles.updateCard} 
@@ -449,14 +640,15 @@ export function UpdatesScreen() {
                 {u.approved && <AppIcon name="CheckCircle2" size={18} color={colors.success} />}
               </View>
               <Text style={styles.cardSummary} numberOfLines={2}>{u.summary}</Text>
+              {u.room_id ? <Text style={styles.cardRoom}>Cômodo: {roomNameById[u.room_id] ?? "Cômodo removido"}</Text> : null}
               {u.owner_comments && <View style={styles.commentBadgeRow}><AppIcon name="MessageSquare" size={12} color={colors.primary} /><Text style={styles.commentBadge}>Comentado</Text></View>}
             </Pressable>
           ))}
         </ScrollView>
       )}
 
-      <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} loading={upsertUpdate.isPending || Boolean(uploadProgress)} uploadProgress={uploadProgress} onClose={() => setFormOpen(false)} onSave={handleSave} />
-      <UpdateDetailModal update={selectedUpdate} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
+      <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} rooms={rooms} loading={upsertUpdate.isPending || Boolean(uploadProgress)} uploadProgress={uploadProgress} onClose={() => setFormOpen(false)} onSave={handleSave} />
+      <UpdateDetailModal update={selectedUpdate} roomName={selectedUpdate?.room_id ? roomNameById[selectedUpdate.room_id] ?? "Cômodo removido" : null} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
         const performDelete = async () => {
           if (!selectedUpdate || !project?.id) return;
           try {
@@ -492,13 +684,42 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 13, color: colors.textMuted },
   newButton: { borderRadius: 12, backgroundColor: colors.secondary, paddingHorizontal: 14, paddingVertical: 12 },
   newButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
+  filterSection: { paddingTop: 12 },
+  searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
+  searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.text },
   content: { paddingTop: 16, paddingBottom: 32, gap: 12 },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  summaryCard: { minWidth: 96, flexGrow: 1, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 12, gap: 4 },
+  summaryCardApproved: { backgroundColor: colors.successLight, borderColor: colors.success },
+  summaryCardCommented: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  summaryCount: { fontSize: 20, fontWeight: "900", color: colors.text },
+  summaryCountApproved: { color: colors.success },
+  summaryCountCommented: { color: colors.primary },
+  summaryLabel: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
+  summaryLabelApproved: { color: colors.success },
+  summaryLabelCommented: { color: colors.primary },
+  filtersDropdownButton: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 14, paddingVertical: 12 },
+  filtersDropdownInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
+  filtersDropdownTitle: { fontSize: 14, fontWeight: "800", color: colors.text },
+  filtersDropdownBadges: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  filtersDropdownPanel: { gap: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, padding: 12 },
+  activeBadge: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 10, paddingVertical: 6 },
+  activeBadgeText: { fontSize: 11, fontWeight: "800", color: colors.primary },
+  filterChips: { gap: 8 },
+  chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.cardBorder },
+  chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  chipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  chipTextActive: { color: colors.surface },
+  sortRow: { gap: 8 },
+  sortHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  sortLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
   updateCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 6 },
   cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cardWeek: { fontSize: 16, fontWeight: "800", color: colors.text },
   cardSummary: { fontSize: 14, color: colors.textMuted, lineHeight: 20 },
   commentBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 },
   commentBadge: { fontSize: 12, color: colors.primary, fontWeight: "700" },
+  cardRoom: { fontSize: 12, color: colors.textMuted, fontWeight: "600" },
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
   modalCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
   detailCard: { backgroundColor: colors.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, maxHeight: "90%" },
@@ -508,6 +729,11 @@ const styles = StyleSheet.create({
   fieldBlock: { gap: 4 },
   fieldLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
+  optionChipsRow: { gap: 8, paddingVertical: 4 },
+  optionChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted },
+  optionChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  optionChipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  optionChipTextActive: { color: colors.primary },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
   textArea: { minHeight: 120, textAlignVertical: "top" },
   selectField: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted },
@@ -518,6 +744,7 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: colors.surface, fontWeight: "800", fontSize: 15 },
   detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   detailWeek: { fontSize: 22, fontWeight: "800", color: colors.text },
+  detailLabel: { fontSize: 13, color: colors.textMuted, fontWeight: "600" },
   statusPill: { borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   statusPillText: { fontSize: 11, fontWeight: "800" },
   detailSummary: { fontSize: 15, lineHeight: 24, color: colors.text },

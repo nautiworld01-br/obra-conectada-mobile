@@ -12,11 +12,13 @@ export type StageRow = {
   name: string;
   category: string | null;
   responsible: string | null;
+  room_id: string | null;
   planned_start: string | null;
   planned_end: string | null;
   observations: string | null;
   percent_complete: number | null;
   status: StageStatus;
+  created_at?: string;
 };
 
 // Hook para buscar todas as etapas do cronograma vinculadas ao projeto atual.
@@ -33,7 +35,7 @@ export function useStages() {
 
       const { data, error } = await supabase
         .from("schedule_stages")
-        .select("id, project_id, name, category, responsible, planned_start, planned_end, observations, percent_complete, status")
+        .select("id, project_id, name, category, responsible, room_id, planned_start, planned_end, observations, percent_complete, status, created_at")
         .eq("project_id", project.id)
         .order("planned_start", { ascending: true, nullsFirst: false });
 
@@ -64,6 +66,7 @@ export function useUpsertStage() {
       name: string;
       category?: string | null;
       responsible?: string | null;
+      roomId?: string | null;
       plannedStart: string | null;
       plannedEnd: string | null;
       observations?: string | null;
@@ -82,6 +85,7 @@ export function useUpsertStage() {
         name: payload.name,
         category: payload.category || null,
         responsible: payload.responsible || null,
+        room_id: payload.roomId || null,
         planned_start: payload.plannedStart,
         planned_end: payload.plannedEnd,
         observations: payload.observations || null,
@@ -94,7 +98,7 @@ export function useUpsertStage() {
           .from("schedule_stages")
           .update(stagePayload)
           .eq("id", payload.id)
-          .select("id, project_id, name, category, responsible, planned_start, planned_end, observations, percent_complete, status")
+          .select("id, project_id, name, category, responsible, room_id, planned_start, planned_end, observations, percent_complete, status, created_at")
           .single();
 
         if (error) {
@@ -107,7 +111,7 @@ export function useUpsertStage() {
       const { data, error } = await supabase
         .from("schedule_stages")
         .insert(stagePayload)
-        .select("id, project_id, name, category, responsible, planned_start, planned_end, observations, percent_complete, status")
+        .select("id, project_id, name, category, responsible, room_id, planned_start, planned_end, observations, percent_complete, status, created_at")
         .single();
 
       if (error) {

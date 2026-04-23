@@ -22,6 +22,7 @@ export type UpdateRow = {
   photos: string[] | null;
   videos: string[] | null;
   stage_id: string | null;
+  room_id: string | null;
   approved: boolean | null;
   owner_comments: string | null;
   created_at: string;
@@ -82,6 +83,7 @@ export function useUpsertUpdate() {
         observations: payload.observations || null,
         photos: payload.photos,
         videos: payload.videos,
+        room_id: payload.roomId || null,
         owner_comments: payload.ownerComments || null,
       };
 

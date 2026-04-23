@@ -15,6 +15,7 @@ import { colors } from "../config/theme";
 import { Validator } from "../lib/validation";
 import { StageRow, StageStatus, useDeleteStage, useStages, useUpsertStage } from "../hooks/useStages";
 import { useProject } from "../hooks/useProject";
+import { useRooms } from "../hooks/useRooms";
 import { AppIcon } from "../components/AppIcon";
 import { AppDatePicker } from "../components/AppDatePicker";
 import { AnimatedModal } from "../components/AnimatedModal";
@@ -30,6 +31,16 @@ const statusOptions: { value: StageStatus; label: string }[] = [
   { value: "bloqueado", label: "Bloqueado" },
 ];
 
+const sortOptions = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "antigos", label: "Mais antigos" },
+  { value: "atrasadas", label: "Mais atrasadas" },
+  { value: "maior_progresso", label: "Maior progresso" },
+  { value: "menor_progresso", label: "Menor progresso" },
+] as const;
+
+type StageSortOrder = (typeof sortOptions)[number]["value"];
+
 /**
  * Define as cores visuais de fundo e destaque baseadas no status da etapa.
  */
@@ -43,6 +54,21 @@ function getStageStatusColors(status: StageStatus) {
   }
 }
 
+function getStatusCountCardColors(status: StageStatus) {
+  switch (status) {
+    case "concluido":
+      return { backgroundColor: colors.successLight, borderColor: colors.success, textColor: colors.success };
+    case "em_andamento":
+      return { backgroundColor: colors.infoLight, borderColor: colors.info, textColor: colors.info };
+    case "atrasado":
+      return { backgroundColor: colors.dangerLight, borderColor: colors.danger, textColor: colors.danger };
+    case "bloqueado":
+      return { backgroundColor: colors.surfaceMuted, borderColor: colors.textMuted, textColor: colors.textMuted };
+    default:
+      return { backgroundColor: colors.surface, borderColor: colors.cardBorder, textColor: colors.text };
+  }
+}
+
 /**
  * Formata data ISO para exibicao brasileira.
  */
@@ -52,13 +78,28 @@ function toDisplayDate(value: string | null) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+function getStageDelayWeight(stage: StageRow) {
+  if (stage.status === "atrasado") return 3;
+  if (stage.status === "bloqueado") return 2;
+  if (!stage.planned_end) return 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const plannedEnd = new Date(`${stage.planned_end}T00:00:00`);
+
+  if (Number.isNaN(plannedEnd.getTime())) return 0;
+  if (plannedEnd.getTime() < today.getTime() && stage.status !== "concluido") return 1;
+  return 0;
+}
+
 /**
  * Formulario de Etapa: Criacao e edicao de marcos do cronograma.
  */
-function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelete }: any) {
+function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, onDelete }: any) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [responsible, setResponsible] = useState("");
+  const [roomId, setRoomId] = useState<string | null>(null);
   const [status, setStatus] = useState<StageStatus>("nao_iniciado");
   const [plannedStart, setPlannedStart] = useState("");
   const [plannedEnd, setPlannedEnd] = useState("");
@@ -70,6 +111,7 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
       setName(stage?.name ?? "");
       setCategory(stage?.category ?? "");
       setResponsible(stage?.responsible ?? "");
+      setRoomId(stage?.room_id ?? null);
       setStatus(stage?.status ?? "nao_iniciado");
       setPlannedStart(stage?.planned_start ?? "");
       setPlannedEnd(stage?.planned_end ?? "");
@@ -94,6 +136,7 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
       name: name.trim(), 
       category, 
       responsible, 
+      roomId,
       status, 
       plannedStart: plannedStart || null, 
       plannedEnd: plannedEnd || null, 
@@ -115,6 +158,20 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
               <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Ex: Fundacao" />
             </View>
             
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
+                <Pressable style={[styles.optionChip, roomId === null && styles.optionChipActive]} onPress={() => setRoomId(null)}>
+                  <Text style={[styles.optionChipText, roomId === null && styles.optionChipTextActive]}>Sem cômodo</Text>
+                </Pressable>
+                {rooms.map((room: { id: string; name: string }) => (
+                  <Pressable key={room.id} style={[styles.optionChip, roomId === room.id && styles.optionChipActive]} onPress={() => setRoomId(room.id)}>
+                    <Text style={[styles.optionChipText, roomId === room.id && styles.optionChipTextActive]}>{room.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+
             <View style={styles.fieldBlock}>
               <AppDatePicker 
                 label="Início Planejado" 
@@ -183,6 +240,7 @@ function StageForm({ stage, visible, loading, deleting, onClose, onSave, onDelet
  */
 export function ScheduleScreen() {
   const { project } = useProject();
+  const { rooms } = useRooms();
   const { stages, isLoading } = useStages();
   const upsertStage = useUpsertStage();
   const deleteStage = useDeleteStage();
@@ -190,17 +248,73 @@ export function ScheduleScreen() {
   const [selectedStage, setSelectedStage] = useState<StageRow | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StageStatus | "todos">("todos");
+  const [roomFilter, setRoomFilter] = useState<string | "todos">("todos");
+  const [sortOrder, setSortOrder] = useState<StageSortOrder>("recentes");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const roomNameById = useMemo(
+    () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
+    [rooms],
+  );
 
   /**
    * Filtra as etapas em tempo real baseado no nome e no status selecionado.
    */
   const filteredStages = useMemo(() => {
-    return stages.filter(s => {
+    return [...stages].filter(s => {
       const matchSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchStatus = statusFilter === "todos" || s.status === statusFilter;
-      return matchSearch && matchStatus;
+      const matchRoom = roomFilter === "todos" || s.room_id === roomFilter;
+      return matchSearch && matchStatus && matchRoom;
+    }).sort((a, b) => {
+      if (sortOrder === "atrasadas") {
+        const delayWeightComparison = getStageDelayWeight(b) - getStageDelayWeight(a);
+        if (delayWeightComparison !== 0) {
+          return delayWeightComparison;
+        }
+
+        const endDateComparison = (a.planned_end ?? "").localeCompare(b.planned_end ?? "");
+        if (endDateComparison !== 0) {
+          return endDateComparison;
+        }
+
+        return a.name.localeCompare(b.name);
+      }
+
+      if (sortOrder === "maior_progresso" || sortOrder === "menor_progresso") {
+        const direction = sortOrder === "maior_progresso" ? -1 : 1;
+        const progressComparison = ((a.percent_complete ?? 0) - (b.percent_complete ?? 0)) * direction;
+        if (progressComparison !== 0) {
+          return progressComparison;
+        }
+
+        const startDateComparison = (a.planned_start ?? "").localeCompare(b.planned_start ?? "");
+        if (startDateComparison !== 0) {
+          return startDateComparison * direction;
+        }
+
+        return a.name.localeCompare(b.name) * direction;
+      }
+
+      const direction = sortOrder === "recentes" ? -1 : 1;
+      const primaryA = a.created_at ?? a.planned_start ?? "";
+      const primaryB = b.created_at ?? b.planned_start ?? "";
+      const primaryComparison = primaryA.localeCompare(primaryB);
+
+      if (primaryComparison !== 0) {
+        return primaryComparison * direction;
+      }
+
+      const fallbackA = a.planned_start ?? "";
+      const fallbackB = b.planned_start ?? "";
+      const fallbackComparison = fallbackA.localeCompare(fallbackB);
+
+      if (fallbackComparison !== 0) {
+        return fallbackComparison * direction;
+      }
+
+      return a.name.localeCompare(b.name) * direction;
     });
-  }, [stages, searchQuery, statusFilter]);
+  }, [stages, searchQuery, statusFilter, roomFilter, sortOrder]);
 
   /**
    * Consolida o progresso geral da obra para o dashboard.
@@ -209,7 +323,11 @@ export function ScheduleScreen() {
     const total = stages.length;
     const completed = stages.filter(s => s.status === "concluido").length;
     const overallPercent = total > 0 ? Math.round(stages.reduce((sum, s) => sum + (s.percent_complete ?? 0), 0) / total) : 0;
-    return { total, completed, overallPercent };
+    const statusCounts = statusOptions.map((option) => ({
+      ...option,
+      count: stages.filter((stage) => stage.status === option.value).length,
+    }));
+    return { total, completed, overallPercent, statusCounts };
   }, [stages]);
 
   const handleDelete = () => {
@@ -253,34 +371,136 @@ export function ScheduleScreen() {
             </Pressable>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
-          {[{value: "todos", label: "Todos"}, ...statusOptions].map(opt => (<Pressable key={opt.value} style={[styles.chip, statusFilter === opt.value && styles.chipActive]} onPress={() => setStatusFilter(opt.value as any)}><Text style={[styles.chipText, statusFilter === opt.value && styles.chipTextActive]}>{opt.label}</Text></Pressable>))}
-        </ScrollView>
       </View>
 
-      {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <View style={styles.progressCard}>
-            <View style={styles.progressHeader}><Text style={styles.progressTitle}>Progresso Geral</Text><Text style={styles.progressPercent}>{summary.overallPercent}%</Text></View>
-            <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${summary.overallPercent}%` }]} /></View>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.progressCard}>
+          <View style={styles.progressHeader}><Text style={styles.progressTitle}>Progresso Geral</Text><Text style={styles.progressPercent}>{summary.overallPercent}%</Text></View>
+          <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${summary.overallPercent}%` }]} /></View>
+        </View>
+        <View style={styles.statusSummaryGrid}>
+          <View style={styles.statusSummaryCard}>
+            <Text style={styles.statusSummaryCount}>{summary.total}</Text>
+            <Text style={styles.statusSummaryLabel}>Total</Text>
           </View>
+          {summary.statusCounts.map((item) => {
+            const tone = getStatusCountCardColors(item.value);
+            return (
+              <View
+                key={item.value}
+                style={[
+                  styles.statusSummaryCard,
+                  {
+                    backgroundColor: tone.backgroundColor,
+                    borderColor: tone.borderColor,
+                  },
+                ]}
+              >
+                <Text style={[styles.statusSummaryCount, { color: tone.textColor }]}>{item.count}</Text>
+                <Text style={[styles.statusSummaryLabel, { color: tone.textColor }]}>{item.label}</Text>
+              </View>
+            );
+          })}
+        </View>
+        <Pressable style={styles.filtersDropdownButton} onPress={() => setFiltersOpen((current) => !current)}>
+          <View style={styles.filtersDropdownInfo}>
+            <AppIcon name="SlidersHorizontal" size={16} color={colors.primary} />
+            <Text style={styles.filtersDropdownTitle}>Filtros da lista</Text>
+          </View>
+          <View style={styles.filtersDropdownBadges}>
+            <View style={styles.sortActiveBadge}>
+              <AppIcon name="MapPinned" size={12} color={colors.primary} />
+              <Text style={styles.sortActiveBadgeText}>
+                {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+              </Text>
+            </View>
+            <View style={styles.sortActiveBadge}>
+              <AppIcon name="ArrowUpDown" size={12} color={colors.primary} />
+              <Text style={styles.sortActiveBadgeText}>{sortOptions.find((option) => option.value === sortOrder)?.label}</Text>
+            </View>
+            <AppIcon name={filtersOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+          </View>
+        </Pressable>
+        {filtersOpen ? (
+          <View style={styles.filtersDropdownPanel}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+              {[{value: "todos", label: "Todos"}, ...statusOptions].map(opt => (<Pressable key={opt.value} style={[styles.chip, statusFilter === opt.value && styles.chipActive]} onPress={() => setStatusFilter(opt.value as any)}><Text style={[styles.chipText, statusFilter === opt.value && styles.chipTextActive]}>{opt.label}</Text></Pressable>))}
+            </ScrollView>
+            <View style={styles.sortRow}>
+              <View style={styles.sortHeaderRow}>
+                <Text style={styles.sortLabel}>Cômodo</Text>
+                <View style={styles.sortActiveBadge}>
+                  <AppIcon name="MapPinned" size={12} color={colors.primary} />
+                  <Text style={styles.sortActiveBadgeText}>
+                    {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                  </Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                <Pressable
+                  style={[styles.chip, styles.sortChip, roomFilter === "todos" && styles.chipActive]}
+                  onPress={() => setRoomFilter("todos")}
+                >
+                  <Text style={[styles.chipText, roomFilter === "todos" && styles.chipTextActive]}>Todos os cômodos</Text>
+                </Pressable>
+                {rooms.map((room) => (
+                  <Pressable
+                    key={room.id}
+                    style={[styles.chip, styles.sortChip, roomFilter === room.id && styles.chipActive]}
+                    onPress={() => setRoomFilter(room.id)}
+                  >
+                    <Text style={[styles.chipText, roomFilter === room.id && styles.chipTextActive]}>{room.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+            <View style={styles.sortRow}>
+              <View style={styles.sortHeaderRow}>
+                <Text style={styles.sortLabel}>Ordenação</Text>
+                <View style={styles.sortActiveBadge}>
+                  <AppIcon name="ArrowUpDown" size={12} color={colors.primary} />
+                  <Text style={styles.sortActiveBadgeText}>{sortOptions.find((option) => option.value === sortOrder)?.label}</Text>
+                </View>
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                {sortOptions.map((option) => (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.chip, styles.sortChip, sortOrder === option.value && styles.chipActive]}
+                    onPress={() => setSortOrder(option.value)}
+                  >
+                    <Text style={[styles.chipText, sortOrder === option.value && styles.chipTextActive]}>{option.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        ) : null}
+        {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
+          <>
           {filteredStages.map((s) => {
             const c = getStageStatusColors(s.status);
             return (
               <Pressable key={s.id} style={[styles.stageCard, { backgroundColor: c.cardBackground }]} onPress={() => { setSelectedStage(s); setFormOpen(true); }}>
                 <View style={styles.stageHeader}>
-                  <View style={{flex: 1}}><Text style={styles.stageName}>{s.name}</Text><Text style={styles.stageMeta}>Prev: {s.planned_start ? toDisplayDate(s.planned_start) : "—"} até {s.planned_end ? toDisplayDate(s.planned_end) : "—"}</Text></View>
+                  <View style={{flex: 1}}>
+                    <Text style={styles.stageName}>{s.name}</Text>
+                    <Text style={styles.stageMeta}>Prev: {s.planned_start ? toDisplayDate(s.planned_start) : "—"} até {s.planned_end ? toDisplayDate(s.planned_end) : "—"}</Text>
+                    {s.room_id ? <Text style={styles.stageMeta}>Cômodo: {roomNameById[s.room_id] ?? "Cômodo removido"}</Text> : null}
+                  </View>
                   <View style={[styles.stageStatusPill, { backgroundColor: c.pillBackground }]}><Text style={[styles.stageStatusText, { color: c.pillText }]}>{statusOptions.find(o => o.value === s.status)?.label}</Text></View>
                 </View>
                 <View style={styles.stageProgressTrack}><View style={[styles.stageProgressFill, { width: `${s.percent_complete ?? 0}%` }]} /></View>
               </Pressable>
             );
           })}
-        </ScrollView>
-      )}
+          </>
+        )}
+      </ScrollView>
 
       <StageForm 
         stage={selectedStage} 
+        rooms={rooms}
         visible={formOpen} 
         loading={upsertStage.isPending} 
         deleting={deleteStage.isPending} 
@@ -309,6 +529,45 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   chipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
   chipTextActive: { color: colors.surface },
+  filtersDropdownButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  filtersDropdownInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
+  filtersDropdownTitle: { fontSize: 14, fontWeight: "800", color: colors.text },
+  filtersDropdownBadges: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  filtersDropdownPanel: {
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    padding: 12,
+  },
+  sortRow: { gap: 8 },
+  sortHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  sortLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  sortActiveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  sortActiveBadgeText: { fontSize: 11, fontWeight: "800", color: colors.primary },
+  sortChip: { minHeight: 34, justifyContent: "center" },
   content: { paddingBottom: 32, gap: 12 },
   progressCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, gap: 10 },
   progressHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
@@ -316,6 +575,20 @@ const styles = StyleSheet.create({
   progressPercent: { fontSize: 14, fontWeight: "800", color: colors.text },
   progressTrack: { height: 8, borderRadius: 999, backgroundColor: colors.cardBorder, overflow: "hidden" },
   progressFill: { height: "100%", backgroundColor: colors.primary },
+  statusSummaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  statusSummaryCard: {
+    minWidth: 96,
+    flexGrow: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  statusSummaryCount: { fontSize: 20, fontWeight: "900", color: colors.text },
+  statusSummaryLabel: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
   stageCard: { borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 10 },
   stageHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
   stageName: { fontSize: 18, fontWeight: "700", color: colors.text },
@@ -332,6 +605,11 @@ const styles = StyleSheet.create({
   fieldBlock: { gap: 4 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
+  optionChipsRow: { gap: 8, paddingVertical: 4 },
+  optionChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted },
+  optionChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  optionChipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  optionChipTextActive: { color: colors.primary },
   statusPillsRow: { gap: 8, paddingVertical: 4 },
   statusPillBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted },
   statusPillBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },

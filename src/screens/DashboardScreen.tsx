@@ -9,6 +9,7 @@ import { usePayments } from "../hooks/usePayments";
 import { useProfile } from "../hooks/useProfile";
 import { useStages } from "../hooks/useStages";
 import { useUpdates } from "../hooks/useUpdates";
+import { useRooms } from "../hooks/useRooms";
 
 // Funcoes utilitarias para formatacao de dados de exibicao.
 // future_fix: centralizar estas funcoes em um arquivo utils para reutilizacao em todo o app.
@@ -29,6 +30,39 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function getRoomHealthTone(status: "sem_dados" | "atencao" | "em_andamento" | "concluido") {
+  switch (status) {
+    case "concluido":
+      return {
+        backgroundColor: colors.successLight,
+        borderColor: colors.success,
+        textColor: colors.success,
+        label: "Concluído",
+      };
+    case "atencao":
+      return {
+        backgroundColor: colors.dangerLight,
+        borderColor: colors.danger,
+        textColor: colors.danger,
+        label: "Atenção",
+      };
+    case "em_andamento":
+      return {
+        backgroundColor: colors.infoLight,
+        borderColor: colors.info,
+        textColor: colors.info,
+        label: "Em andamento",
+      };
+    default:
+      return {
+        backgroundColor: colors.surfaceMuted,
+        borderColor: colors.cardBorder,
+        textColor: colors.textMuted,
+        label: "Sem dados",
+      };
+  }
+}
+
 export function DashboardScreen() {
   // Inicializacao de hooks de contexto e busca de dados (Supabase).
   // Carrega informacoes de perfil, logs diarios, etapas, atualizacoes e pagamentos.
@@ -37,9 +71,10 @@ export function DashboardScreen() {
   const { logs, isLoading: logsLoading } = useDailyLogs();
   const { stages, isLoading: stagesLoading } = useStages();
   const { updates, isLoading: updatesLoading } = useUpdates();
+  const { rooms, isLoading: roomsLoading } = useRooms();
   const { payments, isLoading: paymentsLoading } = usePayments();
 
-  const loading = logsLoading || stagesLoading || updatesLoading || paymentsLoading;
+  const loading = logsLoading || stagesLoading || updatesLoading || paymentsLoading || roomsLoading;
 
   // Calculo e memorizacao dos dados consolidados para o dashboard.
   // Filtra logs do usuario logado, calcula progresso das etapas e total financeiro pago.
@@ -62,6 +97,41 @@ export function DashboardScreen() {
     const paidTotal = payments
       .filter((payment) => payment.status === "pago" || payment.status === "aprovado")
       .reduce((sum, payment) => sum + Number(payment.requested_amount), 0);
+    const roomSummaries = rooms.map((room) => {
+      const roomLogs = logs.filter((log) => log.room_id === room.id);
+      const roomStages = stages.filter((stage) => stage.room_id === room.id);
+      const roomUpdates = updates.filter((update) => update.room_id === room.id);
+      const completedStagesByRoom = roomStages.filter((stage) => stage.status === "concluido").length;
+      const delayedStagesByRoom = roomStages.filter((stage) => stage.status === "atrasado" || stage.status === "bloqueado").length;
+      const stageProgressByRoom = roomStages.length
+        ? Math.round(roomStages.reduce((sum, stage) => sum + (stage.percent_complete ?? 0), 0) / roomStages.length)
+        : 0;
+      const latestLogDate = roomLogs[0]?.date ?? null;
+      const latestUpdate = roomUpdates[0] ?? null;
+      const hasAnyData = roomLogs.length > 0 || roomStages.length > 0 || roomUpdates.length > 0;
+      const healthStatus: "sem_dados" | "atencao" | "em_andamento" | "concluido" =
+        !hasAnyData ? "sem_dados"
+        : delayedStagesByRoom > 0 || roomUpdates.some((update) => update.status === "atrasado") ? "atencao"
+        : roomStages.length > 0 && completedStagesByRoom === roomStages.length ? "concluido"
+        : "em_andamento";
+
+      return {
+        id: room.id,
+        name: room.name,
+        logsCount: roomLogs.length,
+        stagesCount: roomStages.length,
+        updatesCount: roomUpdates.length,
+        completedStagesByRoom,
+        delayedStagesByRoom,
+        stageProgressByRoom,
+        latestLogDate,
+        latestUpdateStatus: latestUpdate?.status ?? null,
+        healthStatus,
+      };
+    });
+    const roomsWithActivity = roomSummaries.filter((room) => room.logsCount || room.stagesCount || room.updatesCount).length;
+    const roomsNeedingAttention = roomSummaries.filter((room) => room.healthStatus === "atencao").length;
+    const roomsCompleted = roomSummaries.filter((room) => room.healthStatus === "concluido").length;
 
     return {
       myLogs,
@@ -72,8 +142,12 @@ export function DashboardScreen() {
       delayedStages,
       stageProgress,
       paidTotal,
+      roomSummaries,
+      roomsWithActivity,
+      roomsNeedingAttention,
+      roomsCompleted,
     };
-  }, [logs, payments, stages, user?.id]);
+  }, [logs, payments, rooms, stages, updates, user?.id]);
 
   // Renderizacao do estado de carregamento enquanto os dados sao buscados.
   if (loading) {
@@ -160,6 +234,88 @@ export function DashboardScreen() {
         {/* Card financeiro removido conforme plano de visibilidade operacional */}
       </View>
 
+      <SectionCard title="Andamento por cômodo" subtitle="Consolidação do Dia a Dia, Crono e Relatórios em cada frente da obra.">
+        <View style={styles.grid}>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{rooms.length}</Text>
+            <Text style={styles.metricLabel}>Cômodos</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{dashboardData.roomsWithActivity}</Text>
+            <Text style={styles.metricLabel}>Com atividade</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{dashboardData.roomsCompleted}</Text>
+            <Text style={styles.metricLabel}>Concluídos</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{dashboardData.roomsNeedingAttention}</Text>
+            <Text style={styles.metricLabel}>Pedem atenção</Text>
+          </View>
+        </View>
+
+        <View style={styles.roomList}>
+          {dashboardData.roomSummaries.length === 0 ? (
+            <Text style={styles.emptyCopy}>Cadastre cômodos nas configurações da casa/obra para acompanhar o andamento por ambiente.</Text>
+          ) : dashboardData.roomSummaries.map((room) => {
+            const tone = getRoomHealthTone(room.healthStatus);
+            return (
+              <View key={room.id} style={styles.roomCard}>
+                <View style={styles.roomCardHeader}>
+                  <Text style={styles.roomName}>{room.name}</Text>
+                  <View
+                    style={[
+                      styles.roomStatusPill,
+                      {
+                        backgroundColor: tone.backgroundColor,
+                        borderColor: tone.borderColor,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.roomStatusText, { color: tone.textColor }]}>{tone.label}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.roomProgressRow}>
+                  <Text style={styles.roomProgressLabel}>Crono</Text>
+                  <Text style={styles.roomProgressValue}>{room.stageProgressByRoom}%</Text>
+                </View>
+                <View style={styles.roomProgressTrack}>
+                  <View style={[styles.roomProgressFill, { width: `${room.stageProgressByRoom}%` }]} />
+                </View>
+
+                <View style={styles.roomMetricsRow}>
+                  <View style={styles.roomMiniMetric}>
+                    <Text style={styles.roomMiniMetricValue}>{room.logsCount}</Text>
+                    <Text style={styles.roomMiniMetricLabel}>Dia a Dia</Text>
+                  </View>
+                  <View style={styles.roomMiniMetric}>
+                    <Text style={styles.roomMiniMetricValue}>{room.completedStagesByRoom}/{room.stagesCount}</Text>
+                    <Text style={styles.roomMiniMetricLabel}>Etapas</Text>
+                  </View>
+                  <View style={styles.roomMiniMetric}>
+                    <Text style={styles.roomMiniMetricValue}>{room.updatesCount}</Text>
+                    <Text style={styles.roomMiniMetricLabel}>Relatórios</Text>
+                  </View>
+                </View>
+
+                <View style={styles.roomMetaList}>
+                  <Text style={styles.roomMetaText}>
+                    Último dia a dia: {formatDate(room.latestLogDate)}
+                  </Text>
+                  <Text style={styles.roomMetaText}>
+                    Relatório recente: {room.latestUpdateStatus ? room.latestUpdateStatus.replace("_", " ") : "—"}
+                  </Text>
+                  <Text style={styles.roomMetaText}>
+                    Pendências do crono: {room.delayedStagesByRoom}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </SectionCard>
+
       <SectionCard title="Equipe em campo" subtitle="Registros operacionais dos funcionários.">
         <View style={styles.employeeOverviewList}>
           <Text style={styles.infoRow}>Lancamentos da equipe: {logs.length}</Text>
@@ -239,6 +395,97 @@ const styles = StyleSheet.create({
   metricLabel: {
     fontSize: 13,
     fontWeight: "700",
+    color: colors.textMuted,
+  },
+  roomList: {
+    marginTop: 16,
+    gap: 12,
+  },
+  roomCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    padding: 14,
+    gap: 12,
+  },
+  roomCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  roomName: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  roomStatusPill: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  roomStatusText: {
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  roomProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  roomProgressLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  roomProgressValue: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  roomProgressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceMuted,
+    overflow: "hidden",
+  },
+  roomProgressFill: {
+    height: "100%",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+  },
+  roomMetricsRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  roomMiniMetric: {
+    flex: 1,
+    borderRadius: 14,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  roomMiniMetricValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  roomMiniMetricLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+    textTransform: "uppercase",
+  },
+  roomMetaList: {
+    gap: 6,
+  },
+  roomMetaText: {
+    fontSize: 13,
+    lineHeight: 19,
     color: colors.textMuted,
   },
   employeeLatestWrap: {

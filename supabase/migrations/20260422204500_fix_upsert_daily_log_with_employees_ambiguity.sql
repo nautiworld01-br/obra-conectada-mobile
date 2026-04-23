@@ -7,8 +7,8 @@ create or replace function public.upsert_daily_log_with_employees(
   p_created_by uuid,
   p_employee_ids uuid[] default '{}',
   p_room_id uuid default null,
-  p_photos_urls text[] default null,
-  p_videos_urls text[] default null
+  p_photos_urls jsonb default null,
+  p_videos_urls jsonb default null
 )
 returns table (
   id uuid,
@@ -19,8 +19,8 @@ returns table (
   created_by uuid,
   project_id uuid,
   room_id uuid,
-  photos_urls text[],
-  videos_urls text[]
+  photos_urls jsonb,
+  videos_urls jsonb
 )
 language plpgsql
 security invoker
@@ -28,6 +28,8 @@ set search_path = public
 as $function$
 declare
   v_log_id uuid;
+  v_photos_urls jsonb;
+  v_videos_urls jsonb;
 begin
   if auth.uid() is null then
     raise exception 'Usuário não autenticado.';
@@ -51,16 +53,34 @@ begin
 
   if p_room_id is not null and not exists (
     select 1
-    from public.rooms rooms
+    from public.rooms as rooms
     where rooms.id = p_room_id
       and rooms.project_id = p_project_id
   ) then
     raise exception 'Cômodo inválido para este projeto.';
   end if;
 
+  if p_photos_urls is not null and jsonb_typeof(p_photos_urls) <> 'array' then
+    raise exception 'Fotos inválidas. Esperado um array JSON.';
+  end if;
+
+  if p_videos_urls is not null and jsonb_typeof(p_videos_urls) <> 'array' then
+    raise exception 'Vídeos inválidos. Esperado um array JSON.';
+  end if;
+
   if not public.can_write_project(p_project_id) then
     raise exception 'Sem permissão para alterar registros deste projeto.';
   end if;
+
+  v_photos_urls := case
+    when p_photos_urls is null or p_photos_urls = '[]'::jsonb then null
+    else p_photos_urls
+  end;
+
+  v_videos_urls := case
+    when p_videos_urls is null or p_videos_urls = '[]'::jsonb then null
+    else p_videos_urls
+  end;
 
   insert into public.daily_logs (
     project_id,
@@ -81,10 +101,10 @@ begin
     nullif(trim(coalesce(p_observations, '')), ''),
     p_created_by,
     p_room_id,
-    case when coalesce(array_length(p_photos_urls, 1), 0) > 0 then p_photos_urls else null end,
-    case when coalesce(array_length(p_videos_urls, 1), 0) > 0 then p_videos_urls else null end
+    v_photos_urls,
+    v_videos_urls
   )
-  on conflict (project_id, date)
+  on conflict on constraint daily_logs_project_id_date_key
   do update set
     activities = excluded.activities,
     weather = excluded.weather,
@@ -118,7 +138,7 @@ begin
     logs.room_id,
     logs.photos_urls,
     logs.videos_urls
-  from public.daily_logs logs
+  from public.daily_logs as logs
   where logs.id = v_log_id;
 end;
 $function$;

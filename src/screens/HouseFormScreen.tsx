@@ -157,6 +157,10 @@ export function HouseFormScreen() {
       if (error) throw error;
 
       await queryClient.invalidateQueries({ queryKey: ["project"] });
+      await queryClient.invalidateQueries({ queryKey: ["house-rooms"] });
+      await queryClient.invalidateQueries({ queryKey: ["rooms"] });
+      await queryClient.invalidateQueries({ queryKey: ["house-employees"] });
+      await queryClient.invalidateQueries({ queryKey: ["employees"] });
       Toast.show({
         type: "success",
         text1: "Configurações salvas",

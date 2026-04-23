@@ -6,6 +6,7 @@ import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
+import { getErrorMessage } from "../lib/errorMessage";
 import {
   DocumentCategory,
   ProjectDocumentRow,
@@ -281,7 +282,7 @@ export function DocumentsScreen() {
       resetForm();
       setFormOpen(false);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível salvar o documento.";
+      const message = getErrorMessage(error, "Não foi possível salvar o documento.");
       setLocalError(message);
     } finally {
       setUploadProgress(null);
@@ -301,7 +302,7 @@ export function DocumentsScreen() {
       const url = await signedUrl.mutateAsync({ filePath: document.file_path });
       await Linking.openURL(url);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Não foi possível abrir o documento.";
+      const message = getErrorMessage(error, "Não foi possível abrir o documento.");
       Alert.alert("Erro ao abrir", message);
     }
   };
@@ -330,7 +331,7 @@ export function DocumentsScreen() {
           filePath: document.file_path,
         });
       } catch (error) {
-        const message = error instanceof Error ? error.message : "Não foi possível excluir o documento.";
+        const message = getErrorMessage(error, "Não foi possível excluir o documento.");
         if (Platform.OS === "web") alert(message);
         else Alert.alert("Erro ao excluir", message);
       }

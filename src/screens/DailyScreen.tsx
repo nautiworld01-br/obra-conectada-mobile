@@ -17,6 +17,8 @@ import * as ImagePicker from "expo-image-picker";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
+import { getErrorMessage } from "../lib/errorMessage";
+import { useRooms } from "../hooks/useRooms";
 import {
   DailyLogRow,
   EmployeeRow,
@@ -27,6 +29,7 @@ import {
 } from "../hooks/useDailyLogs";
 import { AnimatedModal } from "../components/AnimatedModal";
 import { AppMediaUploadProgress } from "../lib/appMedia";
+import { AppIcon } from "../components/AppIcon";
 
 type DayCell = {
   key: string;
@@ -51,6 +54,15 @@ const monthLabels = [
   "novembro",
   "dezembro",
 ];
+
+const monthLogSortOptions = [
+  { value: "recentes", label: "Mais recentes" },
+  { value: "antigos", label: "Mais antigos" },
+  { value: "com_midia", label: "Com mídia primeiro" },
+  { value: "sem_midia", label: "Sem mídia primeiro" },
+] as const;
+
+type MonthLogSortOrder = (typeof monthLogSortOptions)[number]["value"];
 
 // Funcoes utilitarias para manipulacao de datas e geracao da grade do calendario.
 // future_fix: mover para src/lib/dateUtils.ts para evitar duplicacao de logica de calendario.
@@ -100,6 +112,7 @@ function DailyLogForm({
   projectId,
   date,
   employees,
+  rooms,
   existingLog,
   initialEmployeeIds,
   visible,
@@ -112,6 +125,7 @@ function DailyLogForm({
   projectId: string;
   date: string;
   employees: EmployeeRow[];
+  rooms: { id: string; name: string }[];
   existingLog: DailyLogRow | null;
   initialEmployeeIds: string[];
   visible: boolean;
@@ -123,6 +137,7 @@ function DailyLogForm({
     weather: string; 
     observations: string; 
     employeeIds: string[];
+    roomId?: string | null;
     photosUrls?: string[];
     videosUrls?: string[];
   }) => Promise<void>;
@@ -136,6 +151,7 @@ function DailyLogForm({
   const [employeeIds, setEmployeeIds] = useState<string[]>(initialEmployeeIds);
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
+  const [roomId, setRoomId] = useState<string | null>(existingLog?.room_id ?? null);
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
@@ -157,6 +173,7 @@ function DailyLogForm({
     setWeather(existingLog?.weather ?? "");
     setObservations(existingLog?.observations ?? "");
     setEmployeeIds(initialEmployeeIds);
+    setRoomId(existingLog?.room_id ?? null);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -203,7 +220,7 @@ function DailyLogForm({
       return result.assets.map((asset) => asset.uri).filter(Boolean);
     } catch (error) {
       console.error("Media selection error:", error);
-      setLocalError(`Erro ao selecionar arquivo: ${error instanceof Error ? error.message : "erro desconhecido"}`);
+      setLocalError(`Erro ao selecionar arquivo: ${getErrorMessage(error, "Não foi possível selecionar o arquivo.")}`);
       return [];
     }
   };
@@ -259,6 +276,7 @@ function DailyLogForm({
     setWeather(existingLog?.weather ?? "");
     setObservations(existingLog?.observations ?? "");
     setEmployeeIds(initialEmployeeIds);
+    setRoomId(existingLog?.room_id ?? null);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -312,12 +330,13 @@ function DailyLogForm({
         weather,
         observations,
         employeeIds,
+        roomId,
         photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
         videosUrls: uploadedVideos.length > 0 ? uploadedVideos : undefined,
       });
     } catch (error) {
       console.error("Upload error:", error);
-      setLocalError(`Erro ao enviar arquivos: ${error instanceof Error ? error.message : "erro desconhecido"}`);
+      setLocalError(`Erro ao salvar registro: ${getErrorMessage(error, "Não foi possível concluir o upload e o salvamento.")}`);
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -405,6 +424,27 @@ function DailyLogForm({
                 value={observations}
                 onChangeText={setObservations}
               />
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
+                <Pressable
+                  style={[styles.optionChip, roomId === null && styles.optionChipActive]}
+                  onPress={() => setRoomId(null)}
+                >
+                  <Text style={[styles.optionChipText, roomId === null && styles.optionChipTextActive]}>Sem cômodo</Text>
+                </Pressable>
+                {rooms.map((room) => (
+                  <Pressable
+                    key={room.id}
+                    style={[styles.optionChip, roomId === room.id && styles.optionChipActive]}
+                    onPress={() => setRoomId(room.id)}
+                  >
+                    <Text style={[styles.optionChipText, roomId === room.id && styles.optionChipTextActive]}>{room.name}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
             </View>
 
             <View style={styles.fieldBlock}>
@@ -562,6 +602,7 @@ function DailyLogDetailsModal({
   log,
   employees,
   employeeIds,
+  roomName,
   visible,
   onClose,
   onEdit,
@@ -570,6 +611,7 @@ function DailyLogDetailsModal({
   log: DailyLogRow;
   employees: EmployeeRow[];
   employeeIds: string[];
+  roomName: string | null;
   visible: boolean;
   onClose: () => void;
   onEdit: () => void;
@@ -595,6 +637,13 @@ function DailyLogDetailsModal({
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Clima</Text>
                 <Text style={styles.detailValue}>{log.weather}</Text>
+              </View>
+            ) : null}
+
+            {roomName ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
+                <Text style={styles.detailValue}>{roomName}</Text>
               </View>
             ) : null}
 
@@ -656,12 +705,18 @@ export function DailyScreen() {
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
   const { project, logs, employees, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = useDailyLogs();
+  const { rooms } = useRooms();
   const upsertDailyLog = useUpsertDailyLog();
   const deleteDailyLog = useDeleteDailyLog();
   const [monthDate, setMonthDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [roomFilter, setRoomFilter] = useState<string | "todos">("todos");
+  const [mediaFilter, setMediaFilter] = useState<"todos" | "com_midia" | "sem_midia">("todos");
+  const [sortOrder, setSortOrder] = useState<MonthLogSortOrder>("recentes");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Mapeamento dos logs por data para facilitar a verificacao de registros no calendario.
   // Otimiza a performance de renderizacao da grade mensal (O(1) para cada dia).
@@ -675,6 +730,10 @@ export function DailyScreen() {
 
   const selectedLog = selectedDate ? logsByDate[selectedDate] ?? null : null;
   const employeeIdsQuery = useDailyLogDetail(selectedLog?.id ?? null);
+  const roomNameById = useMemo(
+    () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
+    [rooms],
+  );
   
   // Calculo e memorizacao da grade de dias do mes atual e labels de exibicao.
   // monthGrid gera uma lista de objetos DayCell para renderizar no calendario.
@@ -686,6 +745,51 @@ export function DailyScreen() {
     () => logs.filter((log) => sameMonth(log.date, monthDate)).sort((a, b) => a.date.localeCompare(b.date) * -1),
     [logs, monthDate],
   );
+  const filteredMonthLogs = useMemo(() => {
+    return [...monthLogs]
+      .filter((log) => {
+        const roomName = log.room_id ? roomNameById[log.room_id] ?? "" : "";
+        const query = searchQuery.trim().toLowerCase();
+        const hasMedia = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
+        const matchesSearch =
+          query.length === 0 ||
+          displayDate(log.date).toLowerCase().includes(query) ||
+          (log.activities ?? "").toLowerCase().includes(query) ||
+          (log.weather ?? "").toLowerCase().includes(query) ||
+          (log.observations ?? "").toLowerCase().includes(query) ||
+          roomName.toLowerCase().includes(query);
+        const matchesRoom = roomFilter === "todos" || log.room_id === roomFilter;
+        const matchesMedia =
+          mediaFilter === "todos" ||
+          (mediaFilter === "com_midia" && hasMedia) ||
+          (mediaFilter === "sem_midia" && !hasMedia);
+
+        return matchesSearch && matchesRoom && matchesMedia;
+      })
+      .sort((a, b) => {
+        const aHasMedia = Number(Boolean((a.photos_urls?.length ?? 0) || (a.videos_urls?.length ?? 0)));
+        const bHasMedia = Number(Boolean((b.photos_urls?.length ?? 0) || (b.videos_urls?.length ?? 0)));
+
+        if (sortOrder === "com_midia" || sortOrder === "sem_midia") {
+          const mediaComparison =
+            sortOrder === "com_midia" ? bHasMedia - aHasMedia : aHasMedia - bHasMedia;
+          if (mediaComparison !== 0) {
+            return mediaComparison;
+          }
+        }
+
+        return sortOrder === "antigos"
+          ? a.date.localeCompare(b.date)
+          : b.date.localeCompare(a.date);
+      });
+  }, [mediaFilter, monthLogs, roomFilter, roomNameById, searchQuery, sortOrder]);
+  const monthSummary = useMemo(() => {
+    const total = monthLogs.length;
+    const withRoom = monthLogs.filter((log) => Boolean(log.room_id)).length;
+    const withMedia = monthLogs.filter((log) => Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0))).length;
+    const withWeather = monthLogs.filter((log) => Boolean(log.weather)).length;
+    return { total, withRoom, withMedia, withWeather };
+  }, [monthLogs]);
 
   // Manipulador para abertura de um dia especifico no calendario.
   // Decide se deve abrir o formulario de criacao ou o modal de detalhes (se ja houver log).
@@ -724,6 +828,7 @@ export function DailyScreen() {
     weather: string; 
     observations: string; 
     employeeIds: string[];
+    roomId?: string | null;
     photosUrls?: string[];
     videosUrls?: string[];
   }) => {
@@ -739,6 +844,7 @@ export function DailyScreen() {
       observations: payload.observations,
       createdBy: user.id,
       employeeIds: payload.employeeIds,
+      roomId: payload.roomId ?? null,
       photosUrls: payload.photosUrls,
       videosUrls: payload.videosUrls,
     });
@@ -860,10 +966,145 @@ export function DailyScreen() {
 
           <View style={styles.monthListSection}>
             <Text style={styles.monthListTitle}>Registros de {monthLabel}</Text>
+            <View style={styles.searchBar}>
+              <AppIcon name="Search" size={18} color={colors.textMuted} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar registro do mês..."
+                placeholderTextColor={colors.textMuted}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+              {searchQuery !== "" ? (
+                <Pressable onPress={() => setSearchQuery("")}>
+                  <AppIcon name="XCircle" size={18} color={colors.textMuted} />
+                </Pressable>
+              ) : null}
+            </View>
 
-            {monthLogs.length ? (
+            <View style={styles.summaryGrid}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCount}>{monthSummary.total}</Text>
+                <Text style={styles.summaryLabel}>Total</Text>
+              </View>
+              <View style={[styles.summaryCard, styles.summaryCardRoom]}>
+                <Text style={[styles.summaryCount, styles.summaryCountRoom]}>{monthSummary.withRoom}</Text>
+                <Text style={[styles.summaryLabel, styles.summaryLabelRoom]}>Com cômodo</Text>
+              </View>
+              <View style={[styles.summaryCard, styles.summaryCardMedia]}>
+                <Text style={[styles.summaryCount, styles.summaryCountMedia]}>{monthSummary.withMedia}</Text>
+                <Text style={[styles.summaryLabel, styles.summaryLabelMedia]}>Com mídia</Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryCount}>{monthSummary.withWeather}</Text>
+                <Text style={styles.summaryLabel}>Com clima</Text>
+              </View>
+            </View>
+
+            <Pressable style={styles.filtersDropdownButton} onPress={() => setFiltersOpen((current) => !current)}>
+              <View style={styles.filtersDropdownInfo}>
+                <AppIcon name="SlidersHorizontal" size={16} color={colors.primary} />
+                <Text style={styles.filtersDropdownTitle}>Filtros da lista</Text>
+              </View>
+              <View style={styles.filtersDropdownBadges}>
+                <View style={styles.activeBadge}>
+                  <AppIcon name="MapPinned" size={12} color={colors.primary} />
+                  <Text style={styles.activeBadgeText}>
+                    {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                  </Text>
+                </View>
+                <View style={styles.activeBadge}>
+                  <AppIcon name="ArrowUpDown" size={12} color={colors.primary} />
+                  <Text style={styles.activeBadgeText}>{monthLogSortOptions.find((option) => option.value === sortOrder)?.label}</Text>
+                </View>
+                <AppIcon name={filtersOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+              </View>
+            </Pressable>
+
+            {filtersOpen ? (
+              <View style={styles.filtersDropdownPanel}>
+                <View style={styles.sortRow}>
+                  <View style={styles.sortHeaderRow}>
+                    <Text style={styles.sortLabel}>Cômodo</Text>
+                    <View style={styles.activeBadge}>
+                      <AppIcon name="MapPinned" size={12} color={colors.primary} />
+                      <Text style={styles.activeBadgeText}>
+                        {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                      </Text>
+                    </View>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                    <Pressable
+                      style={[styles.chip, roomFilter === "todos" && styles.chipActive]}
+                      onPress={() => setRoomFilter("todos")}
+                    >
+                      <Text style={[styles.chipText, roomFilter === "todos" && styles.chipTextActive]}>Todos os cômodos</Text>
+                    </Pressable>
+                    {rooms.map((room) => (
+                      <Pressable
+                        key={room.id}
+                        style={[styles.chip, roomFilter === room.id && styles.chipActive]}
+                        onPress={() => setRoomFilter(room.id)}
+                      >
+                        <Text style={[styles.chipText, roomFilter === room.id && styles.chipTextActive]}>{room.name}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                <View style={styles.sortRow}>
+                  <View style={styles.sortHeaderRow}>
+                    <Text style={styles.sortLabel}>Mídia</Text>
+                    <View style={styles.activeBadge}>
+                      <AppIcon name="Images" size={12} color={colors.primary} />
+                      <Text style={styles.activeBadgeText}>
+                        {mediaFilter === "todos" ? "Todos" : mediaFilter === "com_midia" ? "Com mídia" : "Sem mídia"}
+                      </Text>
+                    </View>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                    {[
+                      { value: "todos", label: "Todos" },
+                      { value: "com_midia", label: "Com mídia" },
+                      { value: "sem_midia", label: "Sem mídia" },
+                    ].map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={[styles.chip, mediaFilter === option.value && styles.chipActive]}
+                        onPress={() => setMediaFilter(option.value as "todos" | "com_midia" | "sem_midia")}
+                      >
+                        <Text style={[styles.chipText, mediaFilter === option.value && styles.chipTextActive]}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+
+                <View style={styles.sortRow}>
+                  <View style={styles.sortHeaderRow}>
+                    <Text style={styles.sortLabel}>Ordenação</Text>
+                    <View style={styles.activeBadge}>
+                      <AppIcon name="ArrowUpDown" size={12} color={colors.primary} />
+                      <Text style={styles.activeBadgeText}>{monthLogSortOptions.find((option) => option.value === sortOrder)?.label}</Text>
+                    </View>
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                    {monthLogSortOptions.map((option) => (
+                      <Pressable
+                        key={option.value}
+                        style={[styles.chip, sortOrder === option.value && styles.chipActive]}
+                        onPress={() => setSortOrder(option.value)}
+                      >
+                        <Text style={[styles.chipText, sortOrder === option.value && styles.chipTextActive]}>{option.label}</Text>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+            ) : null}
+
+            {filteredMonthLogs.length ? (
               <View style={styles.monthLogList}>
-                {monthLogs.map((log) => (
+                {filteredMonthLogs.map((log) => (
                   <Pressable
                     key={log.id}
                     style={({ pressed }) => [styles.monthLogCard, pressed && styles.buttonPressed]}
@@ -880,6 +1121,7 @@ export function DailyScreen() {
                       {log.activities || "Sem descrição preenchida."}
                     </Text>
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
+                    {log.room_id ? <Text style={styles.monthLogMeta}>Cômodo: {roomNameById[log.room_id] ?? "Cômodo removido"}</Text> : null}
                   </Pressable>
                 ))}
 
@@ -899,22 +1141,12 @@ export function DailyScreen() {
               </View>
             ) : (
               <View style={styles.monthLogEmpty}>
-                <Text style={styles.monthLogEmptyText}>Nenhum registro salvo neste mês.</Text>
+                <Text style={styles.monthLogEmptyText}>
+                  {monthLogs.length === 0
+                    ? "Nenhum registro salvo neste mês."
+                    : "Nenhum registro encontrado com os filtros atuais."}
+                </Text>
               </View>
-            )}
-
-            {hasNextPage && (
-              <Pressable 
-                style={({ pressed }) => [styles.loadMoreButton, pressed && styles.buttonPressed]} 
-                onPress={() => fetchNextPage()}
-                disabled={isFetchingNextPage}
-              >
-                {isFetchingNextPage ? (
-                  <ActivityIndicator color={colors.primary} />
-                ) : (
-                  <Text style={styles.loadMoreText}>Carregar registros anteriores...</Text>
-                )}
-              </Pressable>
             )}
           </View>
         </ScrollView>
@@ -926,6 +1158,7 @@ export function DailyScreen() {
           log={selectedLog}
           employees={employees}
           employeeIds={employeeIdsQuery.data ?? []}
+          roomName={selectedLog?.room_id ? roomNameById[selectedLog.room_id] ?? "Cômodo removido" : null}
           visible={detailsOpen}
           onClose={() => setDetailsOpen(false)}
           onEdit={handleEditFromDetails}
@@ -937,6 +1170,7 @@ export function DailyScreen() {
           projectId={project?.id ?? ""}
           date={selectedDate}
           employees={employees}
+          rooms={rooms}
           existingLog={selectedLog}
           initialEmployeeIds={employeeIdsQuery.data ?? []}
           visible={formOpen}
@@ -1138,6 +1372,158 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.text,
   },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingHorizontal: 12,
+    height: 46,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 14,
+    color: colors.text,
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  summaryCard: {
+    minWidth: 96,
+    flexGrow: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 4,
+  },
+  summaryCardRoom: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  summaryCardMedia: {
+    backgroundColor: colors.infoLight,
+    borderColor: colors.info,
+  },
+  summaryCount: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: colors.text,
+  },
+  summaryCountRoom: {
+    color: colors.primary,
+  },
+  summaryCountMedia: {
+    color: colors.info,
+  },
+  summaryLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: colors.textMuted,
+    textTransform: "uppercase",
+  },
+  summaryLabelRoom: {
+    color: colors.primary,
+  },
+  summaryLabelMedia: {
+    color: colors.info,
+  },
+  filtersDropdownButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  filtersDropdownInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  filtersDropdownTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.text,
+  },
+  filtersDropdownBadges: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 1,
+  },
+  filtersDropdownPanel: {
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    padding: 12,
+  },
+  activeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  activeBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  sortRow: {
+    gap: 8,
+  },
+  sortHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  sortLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  filterChips: {
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textMuted,
+  },
+  chipTextActive: {
+    color: colors.surface,
+  },
   monthLogList: {
     gap: 10,
   },
@@ -1260,6 +1646,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  optionChipsRow: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  optionChip: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: colors.surfaceMuted,
+  },
+  optionChipActive: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  optionChipText: {
+    color: colors.text,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  optionChipTextActive: {
+    color: colors.primary,
   },
   employeeChip: {
     borderRadius: 12,
