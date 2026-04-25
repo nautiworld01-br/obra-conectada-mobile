@@ -248,8 +248,8 @@ export function MoreScreen() {
         </View>
         {deleteError ? <Text style={styles.deleteError}>{deleteError}</Text> : null}
         <View style={styles.deleteModalActions}>
-          <Pressable style={styles.cancelButton} onPress={() => setDeleteVisible(false)} disabled={deleting}>
-            <Text>Cancelar</Text>
+          <Pressable style={styles.deleteCancelButton} onPress={() => setDeleteVisible(false)} disabled={deleting}>
+            <Text style={styles.cancelButtonText}>Cancelar</Text>
           </Pressable>
           <Pressable style={styles.deleteConfirmButton} onPress={() => void handleDeleteAccount()} disabled={deleting}>
             {deleting ? <ActivityIndicator color={colors.surface} /> : <Text style={styles.deleteConfirmText}>Excluir conta definitivamente</Text>}
@@ -337,6 +337,8 @@ const styles = StyleSheet.create({
   modalActions: { flexDirection: "row", gap: 12 },
   deleteModalActions: { gap: 12 },
   cancelButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.surfaceMuted },
+  deleteCancelButton: { minHeight: 56, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
+  cancelButtonText: { color: colors.text, fontSize: 15, fontWeight: "700", textAlign: "center" },
   saveButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },
   saveButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
   deleteDescription: { fontSize: 14, lineHeight: 22, color: colors.textMuted, textAlign: "center" },

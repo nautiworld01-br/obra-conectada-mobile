@@ -103,6 +103,16 @@ export function TeamScreen() {
     }
   };
 
+  const handleDeleteEmployeeById = async (employee: TeamEmployeeRow) => {
+    try {
+      await deleteEmployee.mutateAsync({ id: employee.id });
+      Toast.show({ type: "success", text1: "Conta removida" });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Falha ao remover conta.";
+      Alert.alert("Erro ao remover conta", message);
+    }
+  };
+
   /**
    * Modal de Formulario: Edicao de metadados do funcionario real.
    */
@@ -259,17 +269,13 @@ export function TeamScreen() {
                     <View style={styles.rowActions}>
                       <Pressable style={styles.secondaryAction} onPress={() => { setEmployeeDraft(buildEmployeeDraft(employee)); setEmployeeFormOpen(true); }}><Text style={styles.secondaryActionText}>Editar</Text></Pressable>
                       <Pressable style={styles.secondaryAction} onPress={() => {
-                        const performDelete = async () => {
-                          try {
-                            await deleteEmployee.mutateAsync({ id: employee.id });
-                            Toast.show({ type: "success", text1: "Conta removida" });
-                          } catch (e) {
-                            const message = e instanceof Error ? e.message : "Falha ao remover conta.";
-                            Alert.alert("Erro ao remover conta", message);
+                        if (Platform.OS === "web") {
+                          if (window.confirm("Remover conta permanentemente?")) {
+                            void handleDeleteEmployeeById(employee);
                           }
-                        };
-                        if (Platform.OS === "web") { if (window.confirm("Remover conta permanentemente?")) void performDelete(); }
-                        else { Alert.alert("Excluir?", "Remover conta do sistema?", [{ text: "Não", style: "cancel" }, { text: "Sim", style: "destructive", onPress: () => void performDelete() }]); }
+                          return;
+                        }
+                        Alert.alert("Excluir?", "Remover conta do sistema?", [{ text: "Não", style: "cancel" }, { text: "Sim", style: "destructive", onPress: () => void handleDeleteEmployeeById(employee) }]);
                       }}><Text style={[styles.secondaryActionText, styles.dangerText]}>Remover</Text></Pressable>
                     </View>
                   )}
