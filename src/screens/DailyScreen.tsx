@@ -1102,25 +1102,31 @@ export function DailyScreen() {
                   key={cell.key}
                   style={({ pressed }) => [
                     styles.dayCell,
-                    isCurrentDay && styles.dayToday,
-                    isSelected && styles.daySelected,
-                    hasLog && (isNoWorkDay ? styles.dayRegisteredNoWork : styles.dayRegistered),
                     pressed && !isDisabled && styles.buttonPressed,
                   ]}
                   disabled={isDisabled}
                   onPress={() => handleOpenDate(cell.date)}
                 >
-                  <Text
+                  <View
                     style={[
-                      styles.dayText,
-                      !cell.currentMonth && styles.dayOutsideMonth,
-                      isDisabled && styles.dayDisabled,
-                      hasLog && (isNoWorkDay ? styles.dayWithNoWork : styles.dayWithLog),
-                      (isCurrentDay || isSelected) && styles.dayTextHighlighted,
+                      styles.dayBubble,
+                      isCurrentDay && styles.dayBubbleToday,
+                      isSelected && styles.dayBubbleSelected,
+                      hasLog && (isNoWorkDay ? styles.dayBubbleRegisteredNoWork : styles.dayBubbleRegistered),
                     ]}
                   >
-                    {cell.dayNumber}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.dayText,
+                        !cell.currentMonth && styles.dayOutsideMonth,
+                        isDisabled && styles.dayDisabled,
+                        hasLog && (isNoWorkDay ? styles.dayWithNoWork : styles.dayWithLog),
+                        (isCurrentDay || isSelected) && styles.dayTextHighlighted,
+                      ]}
+                    >
+                      {cell.dayNumber}
+                    </Text>
+                  </View>
                 </Pressable>
               );
             })}
@@ -1512,7 +1518,15 @@ const styles = StyleSheet.create({
     width: "14.28%",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 44,
+    minHeight: 48,
+    paddingVertical: 2,
+  },
+  dayBubble: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   dayText: {
     fontSize: 24,
@@ -1532,23 +1546,25 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontWeight: "700",
   },
-  dayToday: {
+  dayBubbleToday: {
     borderRadius: 20,
     borderWidth: 2,
     borderColor: "#d97b00",
   },
-  daySelected: {
+  dayBubbleSelected: {
     borderRadius: 20,
     borderWidth: 2,
     borderColor: "#d97b00",
   },
-  dayRegistered: {
-    borderRadius: 20,
+  dayBubbleRegistered: {
     backgroundColor: "#eef8f0",
+    borderWidth: 1,
+    borderColor: "#79c98d",
   },
-  dayRegisteredNoWork: {
-    borderRadius: 20,
+  dayBubbleRegisteredNoWork: {
     backgroundColor: colors.dangerLight,
+    borderWidth: 1,
+    borderColor: "#d58f85",
   },
   dayTextHighlighted: {
     color: "#4c2d12",
