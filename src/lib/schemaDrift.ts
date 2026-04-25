@@ -7,12 +7,14 @@ const SCHEMA_TERMS = [
   "room_id",
   "rooms",
   "daily_log_employees",
+  "user_id",
   "photos_urls",
   "videos_urls",
   "p_room_id",
   "p_photos_urls",
   "p_videos_urls",
-  "upsert_daily_log_with_employees",
+  "p_user_ids",
+  "upsert_daily_log_with_profiles",
   "upsert_full_project",
 ];
 

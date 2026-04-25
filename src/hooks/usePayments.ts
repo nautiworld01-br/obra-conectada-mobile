@@ -33,6 +33,7 @@ export type PaymentRow = {
 
 async function removePaymentReceipt(receiptUrl: string | null | undefined) {
   if (!supabase || !receiptUrl) return;
+  if (!canRemoveManagedReceipt(receiptUrl)) return;
 
   const filePath = extractPathFromSupabaseUrl(receiptUrl);
   if (!filePath) return;
@@ -40,6 +41,19 @@ async function removePaymentReceipt(receiptUrl: string | null | undefined) {
   const { error } = await supabase.storage.from(PAYMENT_RECEIPTS_BUCKET).remove([filePath]);
   if (error) {
     throw error;
+  }
+}
+
+function canRemoveManagedReceipt(receiptUrl: string) {
+  if (!receiptUrl.startsWith("http://") && !receiptUrl.startsWith("https://")) {
+    return false;
+  }
+
+  try {
+    const parsedUrl = new URL(receiptUrl);
+    return parsedUrl.pathname.includes(`/storage/v1/object/public/${PAYMENT_RECEIPTS_BUCKET}/`);
+  } catch {
+    return false;
   }
 }
 

@@ -111,23 +111,23 @@ if (!fs.existsSync(migrationDir)) {
       pattern: /alter\s+table\s+public\.weekly_updates[\s\S]*add\s+column\s+if\s+not\s+exists\s+room_id/,
     },
     {
-      label: "RPC upsert_daily_log_with_employees versionada",
-      pattern: /create\s+or\s+replace\s+function\s+public\.upsert_daily_log_with_employees/,
+      label: "RPC upsert_daily_log_with_profiles versionada",
+      pattern: /create\s+or\s+replace\s+function\s+public\.upsert_daily_log_with_profiles/,
     },
     {
-      label: "RPC upsert_daily_log_with_employees recebe p_room_id",
+      label: "RPC upsert_daily_log_with_profiles recebe p_room_id",
       pattern: /p_room_id\s+uuid\s+default\s+null/,
     },
     {
-      label: "RPC upsert_daily_log_with_employees recebe fotos jsonb",
+      label: "RPC upsert_daily_log_with_profiles recebe fotos jsonb",
       pattern: /p_photos_urls\s+jsonb\s+default\s+null/,
     },
     {
-      label: "RPC upsert_daily_log_with_employees recebe videos jsonb",
+      label: "RPC upsert_daily_log_with_profiles recebe videos jsonb",
       pattern: /p_videos_urls\s+jsonb\s+default\s+null/,
     },
     {
-      label: "RPC upsert_daily_log_with_employees retorna room_id",
+      label: "RPC upsert_daily_log_with_profiles retorna room_id",
       pattern: /returns\s+table\s*\([\s\S]*room_id\s+uuid/,
     },
     {

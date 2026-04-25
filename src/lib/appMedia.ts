@@ -104,7 +104,6 @@ export async function uploadAppMediaIfNeeded(params: {
 }
 
 // Processa uma lista de URIs, realizando o upload de cada uma que for local.
-// future_fix: Implementar processamento em lote ou fila para melhorar a performance.
 export async function uploadAppMediaListIfNeeded(params: {
   uris: string[];
   pathPrefix: string;

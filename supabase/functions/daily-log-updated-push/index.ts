@@ -22,8 +22,8 @@ type DailyLogRow = {
   updated_at: string;
 };
 
-type ProjectMemberRow = {
-  user_id: string;
+type ProjectRecipientRow = {
+  id: string;
 };
 
 type ProfileRow = {
@@ -76,10 +76,11 @@ Deno.serve(async (request) => {
     }
 
     const { data: membership } = await userClient
-      .from("project_members")
-      .select("user_id")
+      .from("profiles")
+      .select("id")
+      .eq("id", userData.user.id)
       .eq("project_id", payload.projectId)
-      .eq("user_id", userData.user.id)
+      .or("is_owner.eq.true,is_employee.eq.true")
       .maybeSingle();
 
     if (!membership) {
@@ -160,18 +161,20 @@ async function handleDebouncedDailyLogPush(
     webpush.setVapidDetails(vapid.vapidSubject, vapid.vapidPublicKey, vapid.vapidPrivateKey);
 
     const { data: recipients, error: recipientsError } = await adminClient
-      .from("project_members")
-      .select("user_id")
+      .from("profiles")
+      .select("id")
       .eq("project_id", currentLog.project_id)
-      .neq("user_id", currentLog.created_by)
-      .returns<ProjectMemberRow[]>();
+      .neq("id", currentLog.created_by)
+      .neq("status", "inativo")
+      .or("is_owner.eq.true,is_employee.eq.true")
+      .returns<ProjectRecipientRow[]>();
 
     if (recipientsError) {
       await logSkipped(adminClient, currentLog.created_by, currentLog.id, `daily_log_updated:recipients:${recipientsError.message}`);
       return;
     }
 
-    const recipientIds = (recipients ?? []).map((recipient) => recipient.user_id);
+    const recipientIds = (recipients ?? []).map((recipient) => recipient.id);
     if (!recipientIds.length) {
       await logSkipped(adminClient, currentLog.created_by, currentLog.id, "daily_log_updated:no_recipients");
       return;

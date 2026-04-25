@@ -22,30 +22,19 @@ export type MobileProject = {
  */
 export function useProject() {
   const { user } = useAuth();
-  const { isOwner } = useProfile();
+  const { profile, isOwner, isEmployee, isLoading: profileLoading } = useProfile();
 
   const query = useQuery({
-    queryKey: ["project-main", user?.id, isOwner],
-    enabled: Boolean(user?.id && supabase),
+    queryKey: ["project-main", user?.id, profile?.project_id, isOwner, isEmployee],
+    enabled: Boolean(user?.id && supabase && profile?.project_id),
     queryFn: async (): Promise<MobileProject | null> => {
-      if (!supabase || !user) return null;
-
-      const { data: membership, error: membershipError } = await supabase
-        .from("project_members")
-        .select("project_id, role")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (membershipError) throw membershipError;
-      if (!membership?.project_id) return null;
+      if (!supabase || !user || !profile?.project_id) return null;
 
       // Busca o projeto vinculado ao usuario logado.
       const { data: project, error: projectError } = await supabase
         .from("projects")
         .select("id, name, address, photo_url, total_contract_value, external_spaces, observations, start_date")
-        .eq("id", membership.project_id)
+        .eq("id", profile.project_id)
         .maybeSingle();
 
       if (projectError) throw projectError;
@@ -53,14 +42,14 @@ export function useProject() {
 
       return {
         ...project,
-        userRole: membership.role ?? (isOwner ? "proprietario" : "funcionario"),
+        userRole: isOwner ? "proprietario" : isEmployee ? "funcionario" : "sem_permissao",
       };
     },
   });
 
   return {
     project: query.data ?? null,
-    isLoading: query.isLoading,
+    isLoading: profileLoading || query.isLoading,
     error: query.error,
   };
 }
@@ -74,20 +63,18 @@ export function useUpdateProject() {
     mutationFn: async (payload: Partial<Omit<MobileProject, "id" | "userRole">>) => {
       if (!supabase || !user) throw new Error("Supabase ou usuario nao configurado.");
 
-      // Primeiro pegamos o ID do projeto vinculado ao usuario
-      const { data: membership } = await supabase
-        .from("project_members")
+      const { data: profile } = await supabase
+        .from("profiles")
         .select("project_id")
-        .eq("user_id", user.id)
-        .limit(1)
+        .eq("id", user.id)
         .maybeSingle();
 
-      if (!membership?.project_id) throw new Error("Projeto nao encontrado para este usuario.");
+      if (!profile?.project_id) throw new Error("Projeto nao encontrado para este usuario.");
 
       const { data, error } = await supabase
         .from("projects")
         .update(payload)
-        .eq("id", membership.project_id)
+        .eq("id", profile.project_id)
         .select()
         .single();
 
@@ -95,7 +82,8 @@ export function useUpdateProject() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["project-main", user?.id] });
+      queryClient.invalidateQueries({ queryKey: ["profile", user?.id] });
     },
   });
 }

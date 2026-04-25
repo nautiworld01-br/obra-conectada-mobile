@@ -12,6 +12,9 @@ type ProfileRecord = {
   avatar_url: string | null;
   is_owner: boolean;
   is_employee: boolean;
+  occupation_role?: string | null;
+  status?: "ativo" | "inativo" | null;
+  project_id?: string | null;
 };
 
 // Helpers para tradução e conversão de permissões e flags de ocupação.
@@ -77,7 +80,7 @@ export function useProfile() {
     queryFn: async (): Promise<ProfileRecord | null> => {
       const { data, error } = await supabase!
         .from("profiles")
-        .select("id, full_name, avatar_url, is_owner, is_employee")
+        .select("id, full_name, avatar_url, is_owner, is_employee, occupation_role, status, project_id")
         .eq("id", user!.id)
         .maybeSingle();
 

@@ -27,29 +27,11 @@ export function useTeam() {
     queryFn: async (): Promise<TeamEmployeeRow[]> => {
       if (!supabase || !project?.id) return [];
 
-      const { data: memberships, error: membershipError } = await supabase
-        .from("project_members")
-        .select("user_id")
-        .eq("project_id", project.id)
-        .neq("role", "proprietario");
-
-      if (membershipError) {
-        console.error("Erro Supabase Team Membership:", membershipError);
-        throw membershipError;
-      }
-
-      const memberIds = (memberships ?? [])
-        .map((membership) => membership.user_id)
-        .filter((value): value is string => Boolean(value));
-
-      if (!memberIds.length) {
-        return [];
-      }
-
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url, is_owner, is_employee, status, occupation_role")
-        .in("id", memberIds)
+        .select("id, full_name, avatar_url, is_owner, is_employee, status, occupation_role, project_id")
+        .eq("project_id", project.id)
+        .eq("is_employee", true)
         .order("full_name", { ascending: true });
 
       if (error) {

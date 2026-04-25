@@ -1,5 +1,6 @@
-import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AppState } from "react-native";
 import { supabase } from "../lib/supabase";
 import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { useProject } from "./useProject";
@@ -29,45 +30,36 @@ export type PresenceEmployeeRow = {
 };
 
 // Hook principal para gerenciar os diários de obra.
-// A lista de presença continua vindo de public.employees porque daily_log_employees referencia essa projeção técnica.
+// A presença passa a usar profiles.id como identificador real, com compatibilidade legada no banco.
 export function useDailyLogs() {
   const { project, isLoading: isProjectLoading } = useProject();
 
-  // Busca logs diários com suporte a rolagem infinita (10 por página).
-  const logsQuery = useInfiniteQuery({
+  // Busca todos os registros do projeto para manter calendario, detalhes e presença consistentes.
+  const logsQuery = useQuery({
     queryKey: ["daily_logs", project?.id],
     enabled: Boolean(project?.id && supabase),
-    initialPageParam: 0,
-    queryFn: async ({ pageParam = 0 }): Promise<(DailyLogRow & { presenceIds: string[] })[]> => {
+    queryFn: async (): Promise<(DailyLogRow & { presenceIds: string[] })[]> => {
       if (!supabase || !project) return [];
-
-      const pageSize = 10;
-      const from = pageParam * pageSize;
-      const to = from + pageSize - 1;
 
       const { data, error } = await supabase
         .from("daily_logs")
         .select(`
           id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
-          daily_log_employees ( employee_id )
+          daily_log_employees ( user_id )
         `)
         .eq("project_id", project.id)
-        .order("date", { ascending: false })
-        .range(from, to);
+        .order("date", { ascending: false });
 
       if (error) throw withSchemaDriftContext(error, "consulta de diarios com room_id e presencas");
 
       return (data ?? []).map(log => ({
         ...log,
-        presenceIds: (log.daily_log_employees as any[] || []).map(item => item.employee_id)
+        presenceIds: (log.daily_log_employees as any[] || []).map(item => item.user_id).filter(Boolean)
       }));
     },
-    getNextPageParam: (lastPage, allPages) => {
-      return lastPage.length === 10 ? allPages.length : undefined;
-    }
   });
 
-  // Lista a projeção técnica de funcionários usada por diário e presença.
+  // Lista os perfis ativos usados por diário e presença.
   const presenceEmployeesQuery = useQuery({
     queryKey: ["presence_employees", project?.id, "ativo"],
     enabled: Boolean(project?.id && supabase),
@@ -75,25 +67,77 @@ export function useDailyLogs() {
       if (!supabase || !project) return [];
 
       const { data, error } = await supabase
-        .from("employees")
-        .select("id, full_name, role, status")
+        .from("profiles")
+        .select("id, full_name, occupation_role, status")
         .eq("project_id", project.id)
+        .eq("is_employee", true)
         .eq("status", "ativo")
         .order("full_name", { ascending: true });
 
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []).map((profile) => ({
+        id: profile.id,
+        full_name: profile.full_name ?? "Sem nome",
+        role: profile.occupation_role ?? "",
+        status: (profile.status ?? "ativo") as "ativo" | "inativo",
+      }));
     },
   });
 
-  const flatLogs = useMemo(() => logsQuery.data?.pages.flat() ?? [], [logsQuery.data]);
+  useEffect(() => {
+    const client = supabase;
+
+    if (!client || !project?.id) {
+      return;
+    }
+
+    const channel = client
+      .channel(`daily-logs:${project.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_logs", filter: `project_id=eq.${project.id}` },
+        () => {
+          void logsQuery.refetch();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_log_employees" },
+        () => {
+          void logsQuery.refetch();
+          void presenceEmployeesQuery.refetch();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void client.removeChannel(channel);
+    };
+  }, [logsQuery, presenceEmployeesQuery, project?.id]);
+
+  useEffect(() => {
+    if (!project?.id) {
+      return;
+    }
+
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState === "active") {
+        void logsQuery.refetch();
+        void presenceEmployeesQuery.refetch();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [logsQuery, presenceEmployeesQuery, project?.id]);
 
   return {
     project,
-    logs: flatLogs,
-    hasNextPage: logsQuery.hasNextPage,
-    isFetchingNextPage: logsQuery.isFetchingNextPage,
-    fetchNextPage: logsQuery.fetchNextPage,
+    logs: logsQuery.data ?? [],
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    fetchNextPage: async () => undefined,
     presenceEmployees: presenceEmployeesQuery.data ?? [],
     isLoading: isProjectLoading || logsQuery.isLoading || presenceEmployeesQuery.isLoading,
   };
@@ -112,14 +156,14 @@ export function useDailyLogDetail(logId: string | null) {
 
       const { data, error } = await supabase
         .from("daily_log_employees")
-        .select("employee_id")
+        .select("user_id")
         .eq("log_id", logId);
 
       if (error) {
         throw withSchemaDriftContext(error, "detalhe de presencas do diario");
       }
 
-      return (data ?? []).map((item) => item.employee_id);
+      return (data ?? []).map((item) => item.user_id).filter(Boolean);
     },
   });
 }
@@ -138,7 +182,7 @@ export function useUpsertDailyLog() {
       noWorkReason?: string | null;
       noWorkNote?: string | null;
       createdBy: string;
-      employeeIds: string[];
+      userIds: string[];
       roomId?: string | null;
       photosUrls?: string[];
       videosUrls?: string[];
@@ -148,7 +192,7 @@ export function useUpsertDailyLog() {
       }
 
       const { data: log, error } = await supabase
-        .rpc("upsert_daily_log_with_employees", {
+        .rpc("upsert_daily_log_with_profiles", {
           p_project_id: payload.projectId,
           p_date: payload.date,
           p_activities: payload.activities,
@@ -157,7 +201,7 @@ export function useUpsertDailyLog() {
           p_no_work_reason: payload.noWorkReason?.trim() || null,
           p_no_work_note: payload.noWorkNote?.trim() || null,
           p_created_by: payload.createdBy,
-          p_employee_ids: payload.employeeIds,
+          p_user_ids: payload.userIds,
           p_room_id: payload.roomId ?? null,
           p_photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,
           p_videos_urls: payload.videosUrls?.length ? payload.videosUrls : null,
@@ -165,7 +209,7 @@ export function useUpsertDailyLog() {
         .single();
 
       if (error) {
-        throw withSchemaDriftContext(error, "RPC upsert_daily_log_with_employees");
+        throw withSchemaDriftContext(error, "RPC upsert_daily_log_with_profiles");
       }
 
       const savedDailyLog = log as DailyLogRow;

@@ -17,6 +17,7 @@ import * as ImagePicker from "expo-image-picker";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
+import { buildMonthGrid, displayDate, isoDate, sameMonth, startOfDay } from "../lib/dateUtils";
 import { getErrorMessage } from "../lib/errorMessage";
 import { useRooms } from "../hooks/useRooms";
 import {
@@ -30,14 +31,6 @@ import {
 import { AnimatedModal } from "../components/AnimatedModal";
 import { AppMediaUploadProgress } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
-
-type DayCell = {
-  key: string;
-  date: Date;
-  iso: string;
-  dayNumber: number;
-  currentMonth: boolean;
-};
 
 const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = [
@@ -78,48 +71,6 @@ function getNoWorkReasonLabel(reason: string | null | undefined) {
   return noWorkReasonOptions.find((option) => option.value === reason)?.label ?? "Motivo não informado";
 }
 
-// Funcoes utilitarias para manipulacao de datas e geracao da grade do calendario.
-// future_fix: mover para src/lib/dateUtils.ts para evitar duplicacao de logica de calendario.
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function isoDate(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function displayDate(iso: string) {
-  const [year, month, day] = iso.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-function sameMonth(iso: string, monthDate: Date) {
-  const [year, month] = iso.split("-").map(Number);
-  return year === monthDate.getFullYear() && month === monthDate.getMonth() + 1;
-}
-
-function buildMonthGrid(currentMonthDate: Date) {
-  const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
-  const start = new Date(firstDay);
-  start.setDate(firstDay.getDate() - firstDay.getDay());
-
-  return Array.from({ length: 35 }).map((_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-
-    return {
-      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-      date,
-      iso: isoDate(date),
-      dayNumber: date.getDate(),
-      currentMonth: date.getMonth() === currentMonthDate.getMonth(),
-    };
-  });
-}
-
 // Componente de formulario para criacao e edicao de registros diarios.
 // Gerencia estados complexos de campos de texto, selecao de funcionarios e upload de midia.
 function DailyLogForm({
@@ -128,7 +79,7 @@ function DailyLogForm({
   presenceEmployees,
   rooms,
   existingLog,
-  initialEmployeeIds,
+  initialUserIds,
   visible,
   loading,
   deleting,
@@ -141,7 +92,7 @@ function DailyLogForm({
   presenceEmployees: PresenceEmployeeRow[];
   rooms: { id: string; name: string }[];
   existingLog: DailyLogRow | null;
-  initialEmployeeIds: string[];
+  initialUserIds: string[];
   visible: boolean;
   loading: boolean;
   deleting: boolean;
@@ -152,7 +103,7 @@ function DailyLogForm({
     observations: string; 
     noWorkReason?: NoWorkReason | null;
     noWorkNote?: string | null;
-    employeeIds: string[];
+    userIds: string[];
     roomId?: string | null;
     photosUrls?: string[];
     videosUrls?: string[];
@@ -166,7 +117,7 @@ function DailyLogForm({
   const [observations, setObservations] = useState(existingLog?.observations ?? "");
   const [noWorkReason, setNoWorkReason] = useState<NoWorkReason | "">((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
   const [noWorkNote, setNoWorkNote] = useState(existingLog?.no_work_note ?? "");
-  const [employeeIds, setEmployeeIds] = useState<string[]>(initialEmployeeIds);
+  const [userIds, setUserIds] = useState<string[]>(initialUserIds);
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
   const [roomId, setRoomId] = useState<string | null>(existingLog?.room_id ?? null);
@@ -195,7 +146,7 @@ function DailyLogForm({
     setObservations(existingLog?.observations ?? "");
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
-    setEmployeeIds(initialEmployeeIds);
+    setUserIds(initialUserIds);
     setRoomId(existingLog?.room_id ?? null);
     setRoomDropdownOpen(false);
     setPhotosUrls(existingLog?.photos_urls ?? []);
@@ -206,7 +157,7 @@ function DailyLogForm({
     setNoWorkReasonOpen(false);
     lastHydratedLogIdRef.current = currentLogId;
     previousVisibleRef.current = visible;
-  }, [date, existingLog, initialEmployeeIds, visible]);
+  }, [date, existingLog, initialUserIds, visible]);
 
   useEffect(() => {
     if (!visible) {
@@ -218,9 +169,9 @@ function DailyLogForm({
     }
   }, [visible]);
 
-  const handleToggleEmployee = (employeeId: string) => {
-    setEmployeeIds((current) =>
-      current.includes(employeeId) ? current.filter((item) => item !== employeeId) : [...current, employeeId],
+  const handleToggleUser = (userId: string) => {
+    setUserIds((current) =>
+      current.includes(userId) ? current.filter((item) => item !== userId) : [...current, userId],
     );
   };
 
@@ -304,7 +255,7 @@ function DailyLogForm({
     setObservations(existingLog?.observations ?? "");
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
-    setEmployeeIds(initialEmployeeIds);
+    setUserIds(initialUserIds);
     setRoomId(existingLog?.room_id ?? null);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
@@ -340,7 +291,7 @@ function DailyLogForm({
           observations: "",
           noWorkReason: noWorkReason || null,
           noWorkNote: noWorkReason === "outro" ? noWorkNote : null,
-          employeeIds: [],
+          userIds: [],
           roomId: null,
           photosUrls: [],
           videosUrls: [],
@@ -382,7 +333,7 @@ function DailyLogForm({
         observations,
         noWorkReason: null,
         noWorkNote: null,
-        employeeIds,
+        userIds,
         roomId,
         photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
         videosUrls: uploadedVideos.length > 0 ? uploadedVideos : undefined,
@@ -537,11 +488,11 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Funcionários presentes ({employeeIds.length}/{presenceEmployees.length})</Text>
+              <Text style={styles.fieldLabel}>Funcionários presentes ({userIds.length}/{presenceEmployees.length})</Text>
               {presenceEmployees.length > 0 ? (
                 <View style={styles.employeeList}>
                   {presenceEmployees.map((employee) => {
-                    const selected = employeeIds.includes(employee.id);
+                    const selected = userIds.includes(employee.id);
 
                     return (
                       <Pressable
@@ -554,7 +505,7 @@ function DailyLogForm({
                         ]}
                         onPress={() => {
                           if (hasNoWorkReason) return;
-                          handleToggleEmployee(employee.id);
+                          handleToggleUser(employee.id);
                         }}
                       >
                         <Text style={[styles.employeeChipText, selected && styles.employeeChipTextActive]}>
@@ -755,7 +706,7 @@ function DailyLogDetailsModal({
   date,
   log,
   presenceEmployees,
-  employeeIds,
+  userIds,
   roomName,
   visible,
   onClose,
@@ -764,13 +715,13 @@ function DailyLogDetailsModal({
   date: string;
   log: DailyLogRow;
   presenceEmployees: PresenceEmployeeRow[];
-  employeeIds: string[];
+  userIds: string[];
   roomName: string | null;
   visible: boolean;
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const selectedEmployees = presenceEmployees.filter((employee) => employeeIds.includes(employee.id));
+  const selectedEmployees = presenceEmployees.filter((employee) => userIds.includes(employee.id));
   const isNoWorkDay = Boolean(log.no_work_reason);
 
   return (
@@ -875,7 +826,7 @@ export function DailyScreen() {
   // Hooks para autenticacao, dados do projeto, logs e equipe.
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
-  const { project, logs, presenceEmployees, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = useDailyLogs();
+  const { project, logs, presenceEmployees, isLoading } = useDailyLogs();
   const { rooms } = useRooms();
   const upsertDailyLog = useUpsertDailyLog();
   const deleteDailyLog = useDeleteDailyLog();
@@ -901,7 +852,7 @@ export function DailyScreen() {
   }, [logs]);
 
   const selectedLog = selectedDate ? logsByDate[selectedDate] ?? null : null;
-  const employeeIdsQuery = useDailyLogDetail(selectedLog?.id ?? null);
+  const userIdsQuery = useDailyLogDetail(selectedLog?.id ?? null);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
@@ -1004,7 +955,7 @@ export function DailyScreen() {
       observations: string; 
       noWorkReason?: NoWorkReason | null;
       noWorkNote?: string | null;
-      employeeIds: string[];
+      userIds: string[];
     roomId?: string | null;
     photosUrls?: string[];
     videosUrls?: string[];
@@ -1022,7 +973,7 @@ export function DailyScreen() {
       noWorkReason: payload.noWorkReason ?? null,
       noWorkNote: payload.noWorkNote ?? null,
       createdBy: user.id,
-      employeeIds: payload.employeeIds,
+      userIds: payload.userIds,
       roomId: payload.roomId ?? null,
       photosUrls: payload.photosUrls,
       videosUrls: payload.videosUrls,
@@ -1354,19 +1305,6 @@ export function DailyScreen() {
                   </Pressable>
                 ))}
 
-                {hasNextPage && (
-                  <Pressable 
-                    style={({ pressed }) => [styles.loadMoreButton, pressed && styles.buttonPressed]} 
-                    onPress={() => fetchNextPage()}
-                    disabled={isFetchingNextPage}
-                  >
-                    {isFetchingNextPage ? (
-                      <ActivityIndicator color={colors.primary} />
-                    ) : (
-                      <Text style={styles.loadMoreText}>Carregar registros anteriores...</Text>
-                    )}
-                  </Pressable>
-                )}
               </View>
             ) : (
               <View style={styles.monthLogEmpty}>
@@ -1386,7 +1324,7 @@ export function DailyScreen() {
           date={selectedDate}
           log={selectedLog}
           presenceEmployees={presenceEmployees}
-          employeeIds={employeeIdsQuery.data ?? []}
+          userIds={userIdsQuery.data ?? []}
           roomName={selectedLog?.room_id ? roomNameById[selectedLog.room_id] ?? "Cômodo removido" : null}
           visible={detailsOpen}
           onClose={() => setDetailsOpen(false)}
@@ -1401,7 +1339,7 @@ export function DailyScreen() {
           presenceEmployees={presenceEmployees}
           rooms={rooms}
           existingLog={selectedLog}
-          initialEmployeeIds={employeeIdsQuery.data ?? []}
+          initialUserIds={userIdsQuery.data ?? []}
           visible={formOpen}
           loading={upsertDailyLog.isPending}
           deleting={deleteDailyLog.isPending}
@@ -2258,18 +2196,5 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.82,
-  },
-  loadMoreButton: {
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.surfaceMuted,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  loadMoreText: {
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "700",
   },
 });

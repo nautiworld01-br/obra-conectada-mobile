@@ -7,6 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { getErrorMessage } from "../lib/errorMessage";
+import { buildMonthGrid } from "../lib/dateUtils";
 import {
   DocumentCategory,
   ProjectDocumentRow,
@@ -125,21 +126,19 @@ function buildFilePath(projectId: string, category: DocumentCategory, fileName: 
   return `${projectId}/${category}/${Date.now()}_${safeName}`;
 }
 
-function buildMonthGrid(currentMonthDate: Date) {
-  const firstDay = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), 1);
-  const start = new Date(firstDay);
-  start.setDate(firstDay.getDate() - firstDay.getDay());
-  return Array.from({ length: 35 }).map((_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return {
-      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-      iso: date.toISOString().split("T")[0],
-      dayNumber: date.getDate(),
-      currentMonth: date.getMonth() === currentMonthDate.getMonth(),
-    };
-  });
-}
+type DocumentFormState = {
+  title: string;
+  category: DocumentCategory;
+  expiresAt: string;
+  pickedFile: DocumentPicker.DocumentPickerAsset | null;
+};
+
+const initialFormState: DocumentFormState = {
+  title: "",
+  category: "contrato",
+  expiresAt: "",
+  pickedFile: null,
+};
 
 // Tela de gestao de documentos do projeto (plantas, contratos, notas fiscais, etc).
 // Permite o upload, visualizacao e controle de vencimento de arquivos no Supabase Storage.
@@ -153,13 +152,9 @@ export function DocumentsScreen() {
   const signedUrl = useSignedDocumentUrl();
   
   // Estados para controle de filtros, abertura de modais e campos do formulario de novo documento.
-  // future_fix: utilizar um estado de objeto unico para o formulario de upload.
   const [filter, setFilter] = useState<DocumentCategory | "todos">("todos");
   const [formOpen, setFormOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<DocumentCategory>("contrato");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [pickedFile, setPickedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [form, setForm] = useState<DocumentFormState>(initialFormState);
   const [localError, setLocalError] = useState<string | null>(null);
   const [confirmRemovePickedFile, setConfirmRemovePickedFile] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ progress: number; message: string } | null>(null);
@@ -170,6 +165,12 @@ export function DocumentsScreen() {
   const monthGrid = useMemo(() => buildMonthGrid(datePickerMonth), [datePickerMonth]);
   const monthLabel = `${monthLabels[datePickerMonth.getMonth()]} ${datePickerMonth.getFullYear()}`;
   const isSavingDocument = createDocument.isPending || Boolean(uploadProgress);
+
+  const { title, category, expiresAt, pickedFile } = form;
+
+  const updateForm = (updates: Partial<DocumentFormState>) => {
+    setForm((current) => ({ ...current, ...updates }));
+  };
 
   // Filtragem e calculo de resumo (total, vencidos, a vencer) para exibicao no topo da tela.
   // Memoriza os resultados para evitar recalculas desnecessarios em cada re-render.
@@ -185,7 +186,6 @@ export function DocumentsScreen() {
   }, [documents]);
 
   // Logica para selecao de arquivos do dispositivo usando Expo DocumentPicker.
-  // future_fix: validar o tamanho maximo do arquivo antes do upload para evitar erros de timeout.
   const handlePickFile = async () => {
     const result = await DocumentPicker.getDocumentAsync({
       copyToCacheDirectory: true,
@@ -204,20 +204,17 @@ export function DocumentsScreen() {
 
     const validationError = validatePickedDocument(nextFile);
     if (validationError) {
-      setPickedFile(null);
+      updateForm({ pickedFile: null });
       setLocalError(validationError);
       return;
     }
 
     setLocalError(null);
-    setPickedFile(nextFile);
+    updateForm({ pickedFile: nextFile });
   };
 
   const resetForm = () => {
-    setTitle("");
-    setCategory("contrato");
-    setExpiresAt("");
-    setPickedFile(null);
+    setForm(initialFormState);
     setLocalError(null);
     setConfirmRemovePickedFile(false);
     setUploadProgress(null);
@@ -290,7 +287,7 @@ export function DocumentsScreen() {
 
   const applyCalendarDate = (iso: string) => {
     const [year, month, day] = iso.split("-");
-    setExpiresAt(`${day}/${month}/${year}`);
+    updateForm({ expiresAt: `${day}/${month}/${year}` });
     setCalendarOpen(false);
   };
 
@@ -471,7 +468,7 @@ export function DocumentsScreen() {
                 <TextInput
                   style={styles.fieldInput}
                   value={title}
-                  onChangeText={setTitle}
+                  onChangeText={(value) => updateForm({ title: value })}
                   placeholder="Ex.: Contrato principal da obra"
                   placeholderTextColor={colors.textMuted}
                 />
@@ -486,7 +483,7 @@ export function DocumentsScreen() {
                       <Pressable
                         key={option.value}
                         style={({ pressed }) => [styles.categoryChip, active && styles.categoryChipActive, pressed && styles.buttonPressed]}
-                        onPress={() => setCategory(option.value as DocumentCategory)}
+                        onPress={() => updateForm({ category: option.value as DocumentCategory })}
                       >
                         <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{option.label}</Text>
                       </Pressable>
@@ -499,7 +496,7 @@ export function DocumentsScreen() {
                 <AppDatePicker 
                   label="Vencimento" 
                   value={expiresAt} 
-                  onChange={setExpiresAt} 
+                  onChange={(value) => updateForm({ expiresAt: value })} 
                 />
               </View>
 
@@ -595,7 +592,7 @@ export function DocumentsScreen() {
             </View>
 
             <View style={styles.calendarFooter}>
-              <Pressable onPress={() => { setExpiresAt(""); setCalendarOpen(false); }}>
+              <Pressable onPress={() => { updateForm({ expiresAt: "" }); setCalendarOpen(false); }}>
                 <Text style={styles.clearText}>Limpar</Text>
               </Pressable>
             </View>
@@ -611,7 +608,7 @@ export function DocumentsScreen() {
               <Pressable
                 style={styles.confirmAccept}
                 onPress={() => {
-                  setPickedFile(null);
+                  updateForm({ pickedFile: null });
                   setConfirmRemovePickedFile(false);
                 }}
               >
