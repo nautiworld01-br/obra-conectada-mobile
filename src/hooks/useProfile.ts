@@ -47,7 +47,6 @@ export function deriveOccupation(isOwner: boolean, isEmployee: boolean): Occupat
 }
 
 // Gera as iniciais do nome do usuário para exibição em avatares fallback.
-// future_fix: Tratar nomes com apenas uma letra ou caracteres especiais.
 export function buildInitials(name: string) {
   const tokens = name.trim().split(/\s+/).filter(Boolean);
 

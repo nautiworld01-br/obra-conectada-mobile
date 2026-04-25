@@ -12,7 +12,6 @@ export type AppMediaUploadProgress = {
 };
 
 // Verifica se uma URI já é um link remoto (http/https).
-// future_fix: Adicionar validação de formato de URL mais robusta se necessário.
 export function isRemoteAssetUrl(uri: string | null | undefined) {
   if (!uri) return false;
   const trimmed = uri.trim();
@@ -32,7 +31,6 @@ function inferExtension(uri: string) {
 }
 
 // Mapeia extensões comuns para seus respectivos tipos MIME de mídia.
-// future_fix: Expandir suporte para outros formatos de documentos se necessário.
 function inferContentType(uri: string) {
   const extension = inferExtension(uri);
   switch (extension) {

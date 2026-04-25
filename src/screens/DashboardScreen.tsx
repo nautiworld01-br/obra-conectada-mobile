@@ -12,7 +12,6 @@ import { useUpdates } from "../hooks/useUpdates";
 import { useRooms } from "../hooks/useRooms";
 
 // Funcoes utilitarias para formatacao de dados de exibicao.
-// future_fix: centralizar estas funcoes em um arquivo utils para reutilizacao em todo o app.
 function formatDate(value: string | null) {
   if (!value) {
     return "—";

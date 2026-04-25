@@ -46,7 +46,6 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Set([
 const ALLOWED_DOCUMENT_EXTENSIONS = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".jpg", ".jpeg", ".png", ".webp"]);
 
 // Funcoes utilitarias para formatacao de dados, calculo de status de vencimento e manipulacao de arquivos.
-// future_fix: extrair funcoes de data e bytes para um modulo de utilitarios compartilhado.
 function formatDate(value: string | null) {
   if (!value) return "Sem vencimento";
   const [year, month, day] = value.split("-");
@@ -296,7 +295,6 @@ export function DocumentsScreen() {
   };
 
   // Recupera uma URL assinada (temporaria) para visualizacao segura do documento.
-  // future_fix: implementar cache local de URLs assinadas para evitar chamadas repetidas ao Supabase.
   const handleOpenDocument = async (document: ProjectDocumentRow) => {
     try {
       const url = await signedUrl.mutateAsync({ filePath: document.file_path });

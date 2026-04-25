@@ -3,7 +3,6 @@ import { supabase } from "../lib/supabase";
 import { useProject } from "./useProject";
 
 // Tipos que definem a estrutura e categorização de documentos de um projeto.
-// future_fix: Adicionar novas categorias conforme a evolução do sistema (ex: ART, RRT).
 export type DocumentCategory = "contrato" | "alvara" | "laudo" | "nota_fiscal" | "outro";
 
 export type ProjectDocumentRow = {
@@ -140,7 +139,6 @@ export function useDeleteDocument() {
 }
 
 // Gera uma URL temporária assinada para visualização segura de documentos privados.
-// future_fix: Aumentar o tempo de expiração se necessário para visualização de PDFs longos.
 export function useSignedDocumentUrl() {
   return useMutation({
     mutationFn: async (payload: { filePath: string }) => {

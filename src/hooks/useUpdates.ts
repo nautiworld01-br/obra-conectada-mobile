@@ -163,7 +163,6 @@ export function useDeleteUpdate() {
 
 /**
  * Hook legado mantido por compatibilidade.
- * future_fix: Remover e usar useUpdateReview em todas as telas.
  */
 export function useToggleApprovedUpdate() {
   const queryClient = useQueryClient();

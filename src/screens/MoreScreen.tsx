@@ -66,7 +66,6 @@ export function MoreScreen() {
 
   /**
    * Salva as alteracoes de perfil no Storage e no Banco (Tabela profiles).
-   * future_fix: Sincronizar 'full_name' com o Auth do Supabase para evitar divergencia.
    */
   const handleSaveProfile = async () => {
     if (!supabase || !user) return;

@@ -9,7 +9,6 @@ const pushVapidPublicKey =
 const hasConfig = Boolean(supabaseUrl && supabaseAnonKey);
 
 // Exibe erros informativos no console se a configuração estiver faltando.
-// future_fix: Implementar um mecanismo de alerta visual para o usuário em caso de falha crítica.
 if (!hasConfig) {
   if (__DEV__) {
     console.error(
