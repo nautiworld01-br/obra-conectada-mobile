@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { supabase } from "../lib/supabase";
+import { extractPathFromSupabaseUrl } from "../lib/storageUpload";
 import { useProject } from "./useProject";
 
 export type PaymentCategory = "mao_de_obra_projeto" | "mao_de_obra_extras" | "insumos_extras";
 export type PaymentStatus = "pendente" | "em_analise" | "aprovado" | "pago" | "recusado";
+const PAYMENT_RECEIPTS_BUCKET = "app-media";
 
 export type PaymentRow = {
   id: string;
@@ -28,6 +30,18 @@ export type PaymentRow = {
   created_at?: string;
   updated_at?: string;
 };
+
+async function removePaymentReceipt(receiptUrl: string | null | undefined) {
+  if (!supabase || !receiptUrl) return;
+
+  const filePath = extractPathFromSupabaseUrl(receiptUrl);
+  if (!filePath) return;
+
+  const { error } = await supabase.storage.from(PAYMENT_RECEIPTS_BUCKET).remove([filePath]);
+  if (error) {
+    throw error;
+  }
+}
 
 export function usePayments() {
   const { project } = useProject();
@@ -95,6 +109,7 @@ export function useUpsertPayment() {
       observations: string;
       dueDate: string | null;
       receiptUrl: string | null;
+      previousReceiptUrl?: string | null;
     }) => {
       if (!supabase) throw new Error("Supabase nao configurado.");
 
@@ -118,6 +133,16 @@ export function useUpsertPayment() {
 
       const { data, error } = await query.select().single();
       if (error) throw error;
+
+      const replacedReceipt =
+        payload.id &&
+        payload.previousReceiptUrl &&
+        payload.previousReceiptUrl !== payload.receiptUrl;
+
+      if (replacedReceipt) {
+        await removePaymentReceipt(payload.previousReceiptUrl);
+      }
+
       return data as PaymentRow;
     },
     onSuccess: (_, variables) => {
@@ -167,13 +192,31 @@ export function useDeletePayment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: { id: string; projectId: string }) => {
+    mutationFn: async (payload: { payment: PaymentRow }) => {
       if (!supabase) throw new Error("Supabase nao configurado.");
-      const { error } = await supabase.from("payments").delete().eq("id", payload.id);
-      if (error) throw error;
+
+      const { data: deletedPayment, error: deleteError } = await supabase
+        .from("payments")
+        .delete()
+        .eq("id", payload.payment.id)
+        .select("*")
+        .single();
+
+      if (deleteError) throw deleteError;
+
+      try {
+        await removePaymentReceipt(payload.payment.receipt_url);
+      } catch (receiptError) {
+        const { error: rollbackError } = await supabase.from("payments").insert(deletedPayment);
+        if (rollbackError) {
+          throw new Error("Falha ao excluir o comprovante e ao restaurar o pagamento.");
+        }
+
+        throw receiptError;
+      }
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["payments", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["payments", variables.payment.project_id] });
     },
   });
 }

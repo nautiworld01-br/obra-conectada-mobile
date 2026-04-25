@@ -33,6 +33,7 @@ import { useProfile } from "../hooks/useProfile";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
 import { AppDatePicker } from "../components/AppDatePicker";
+import { getErrorMessage } from "../lib/errorMessage";
 
 const categoryOptions: { value: PaymentCategory | "todos"; label: string; short: string }[] = [
   { value: "todos", label: "Todas Categorias", short: "Todos" },
@@ -51,6 +52,28 @@ const statusOptions: { value: PaymentStatus | "todos"; label: string }[] = [
 ];
 
 const monthOptions = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MAX_PAYMENT_RECEIPT_SIZE_BYTES = 5 * 1024 * 1024;
+
+function formatBytes(value: number) {
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function validateReceiptAsset(asset: ImagePicker.ImagePickerAsset) {
+  const mimeType = asset.mimeType?.toLowerCase() ?? "";
+  const isImage = asset.type === "image" || mimeType.startsWith("image/");
+
+  if (!isImage) {
+    return "Selecione apenas imagem para o comprovante.";
+  }
+
+  if (asset.fileSize && asset.fileSize > MAX_PAYMENT_RECEIPT_SIZE_BYTES) {
+    return `Comprovante muito grande. O limite atual é ${formatBytes(MAX_PAYMENT_RECEIPT_SIZE_BYTES)}.`;
+  }
+
+  return null;
+}
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -117,15 +140,35 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
         ...draft, 
         requestedAmount: amountVal.parsedValue, 
         period: `${draft.periodMonth} ${draft.periodYear}`, 
-        receiptUrl: finalReceiptUrl 
+        receiptUrl: finalReceiptUrl,
+        previousReceiptUrl: payment?.receipt_url ?? null,
       });
-    } catch (e) { setLocalError("Erro no upload."); }
+    } catch (error) {
+      setLocalError(getErrorMessage(error, "Erro ao salvar o pagamento."));
+    }
     finally { setIsUploading(false); }
   };
 
   const pickReceipt = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.8 });
-    if (!result.canceled) setDraft(c => ({ ...c, receiptUrl: result.assets[0].uri }));
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      quality: 0.6,
+    });
+
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+    if (!asset) return;
+
+    const validationError = validateReceiptAsset(asset);
+    if (validationError) {
+      setLocalError(validationError);
+      return;
+    }
+
+    setLocalError(null);
+    setDraft(c => ({ ...c, receiptUrl: asset.uri }));
   };
 
   return (
@@ -139,7 +182,13 @@ function PaymentFormModal({ visible, payment, projectId, loading, onClose, onSav
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Valor (R$)</Text><TextInput style={styles.fieldInput} value={draft.requestedAmount} onChangeText={v => setDraft(c => ({...c, requestedAmount: v}))} keyboardType="numeric" placeholder="0.00" /></View>
             <View style={styles.fieldBlock}><AppDatePicker label="Vencimento" value={draft.dueDate} onChange={(v) => setDraft(c => ({ ...c, dueDate: v }))} /></View>
             <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Descrição</Text><TextInput style={styles.fieldInput} value={draft.description} onChangeText={v => setDraft(c => ({...c, description: v}))} /></View>
-            <View style={styles.fieldBlock}><Text style={styles.fieldLabel}>Comprovante</Text><Pressable style={styles.mediaButton} onPress={pickReceipt}>{draft.receiptUrl ? <Image source={{ uri: draft.receiptUrl }} style={styles.receiptPreview} /> : <Text style={styles.mediaButtonText}>+ Anexar Foto</Text>}</Pressable></View>
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Comprovante</Text>
+              <Pressable style={styles.mediaButton} onPress={pickReceipt}>
+                {draft.receiptUrl ? <Image source={{ uri: draft.receiptUrl }} style={styles.receiptPreview} /> : <Text style={styles.mediaButtonText}>+ Anexar Foto</Text>}
+              </Pressable>
+              <Text style={styles.helperText}>Imagem apenas, com qualidade reduzida na seleção. Limite atual: {formatBytes(MAX_PAYMENT_RECEIPT_SIZE_BYTES)}.</Text>
+            </View>
             {localError && <Text style={styles.localError}>{localError}</Text>}
             <Pressable style={({ pressed }) => [styles.primaryButton, (loading || isUploading || pressed) && styles.buttonPressed]} onPress={handleSave} disabled={loading || isUploading}>
               {(loading || isUploading) ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar</Text>}
@@ -303,19 +352,26 @@ export function PaymentsScreen() {
         stageId: payload.stageId, 
         observations: "", 
         dueDate: payload.dueDate || null, 
-        receiptUrl: payload.receiptUrl 
+        receiptUrl: payload.receiptUrl,
+        previousReceiptUrl: payload.previousReceiptUrl ?? editingPayment?.receipt_url ?? null,
       });
       setFormOpen(false);
       Toast.show({ type: "success", text1: "Pagamento salvo" });
-    } catch (e) { Alert.alert("Erro", "Falha ao salvar pagamento."); }
+    } catch (error) {
+      Alert.alert("Erro", getErrorMessage(error, "Falha ao salvar pagamento."));
+    }
   };
 
   const handleDelete = () => {
     if (!selectedPayment || !project?.id) return;
     const performDelete = async () => {
-      await deletePayment.mutateAsync({ id: selectedPayment.id, projectId: project.id });
-      setSelectedPayment(null);
-      Toast.show({ type: "success", text1: "Registro removido" });
+      try {
+        await deletePayment.mutateAsync({ payment: selectedPayment });
+        setSelectedPayment(null);
+        Toast.show({ type: "success", text1: "Registro removido" });
+      } catch (error) {
+        Alert.alert("Erro", getErrorMessage(error, "Falha ao excluir pagamento."));
+      }
     };
     if (Platform.OS === "web") {
       if (window.confirm("Deseja excluir este registro?")) void performDelete();
@@ -555,6 +611,7 @@ const styles = StyleSheet.create({
   detailActionRow: { flexDirection: "row", gap: 10, marginTop: 20 },
   mainActionsRow: { flexDirection: "row", gap: 10, marginTop: 10 },
   localError: { color: colors.danger, fontSize: 13 },
+  helperText: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
   dropdownModalCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 10, width: "80%", alignSelf: "center" },
   dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.divider },
   dropdownItemText: { fontSize: 16, fontWeight: "600", color: colors.text },

@@ -3,12 +3,15 @@ import { supabase } from "./supabase";
 
 // Configurações padrão para o armazenamento de mídia do aplicativo.
 const DEFAULT_BUCKET = "app-media";
+const DEFAULT_UPLOAD_CONCURRENCY = 2;
 
 export type AppMediaUploadProgress = {
   progress: number;
   message: string;
   completedItems: number;
   totalItems: number;
+  currentItem?: number;
+  currentItemLabel?: string;
 };
 
 // Verifica se uma URI já é um link remoto (http/https).
@@ -108,10 +111,34 @@ export async function uploadAppMediaListIfNeeded(params: {
   fileBaseName: string;
   contentType?: string | null;
   bucket?: string;
+  concurrency?: number;
   onProgress?: (progress: AppMediaUploadProgress) => void;
 }) {
-  const results: string[] = [];
   const totalItems = params.uris.length;
+  const progressByItem = new Map<number, number>();
+  const resultsByIndex = new Map<number, string>();
+  const concurrency = Math.max(1, Math.min(params.concurrency ?? DEFAULT_UPLOAD_CONCURRENCY, totalItems || 1));
+
+  const emitProgress = (overrides: {
+    itemNumber: number;
+    itemLabel: string;
+    message: string;
+  }) => {
+    const completedItems = Array.from(progressByItem.values()).filter((value) => value >= 100).length;
+    const aggregateProgress =
+      totalItems === 0
+        ? 100
+        : Array.from({ length: totalItems }).reduce<number>((sum, _, index) => sum + (progressByItem.get(index) ?? 0), 0) / totalItems;
+
+    params.onProgress?.({
+      progress: aggregateProgress,
+      message: overrides.message,
+      completedItems,
+      totalItems,
+      currentItem: overrides.itemNumber,
+      currentItemLabel: overrides.itemLabel,
+    });
+  };
 
   if (!totalItems) {
     params.onProgress?.({
@@ -119,39 +146,81 @@ export async function uploadAppMediaListIfNeeded(params: {
       message: "Nenhum arquivo para enviar.",
       completedItems: 0,
       totalItems: 0,
+      currentItem: 0,
+      currentItemLabel: undefined,
     });
-    return results;
+    return [];
   }
 
-  for (const [index, uri] of params.uris.entries()) {
+  const uploadSingleItem = async (index: number) => {
+    const uri = params.uris[index];
+    const itemNumber = index + 1;
+    const itemLabel = `${params.fileBaseName} ${itemNumber}`;
+    progressByItem.set(index, 0);
+
+    if (isRemoteAssetUrl(uri)) {
+      resultsByIndex.set(index, uri.trim());
+      progressByItem.set(index, 100);
+      emitProgress({
+        itemNumber,
+        itemLabel,
+        message: `${itemLabel} já estava enviado.`,
+      });
+      return;
+    }
+
+    emitProgress({
+      itemNumber,
+      itemLabel,
+      message: `Preparando ${itemLabel} na fila...`,
+    });
+
     const uploaded = await uploadAppMediaIfNeeded({
       uri,
       pathPrefix: params.pathPrefix,
-      fileBaseName: `${params.fileBaseName}_${index + 1}`,
+      fileBaseName: `${params.fileBaseName}_${itemNumber}`,
       contentType: params.contentType,
       bucket: params.bucket,
       onProgress: ({ progress, message }) => {
-        const aggregateProgress = ((index + progress / 100) / totalItems) * 100;
-        params.onProgress?.({
-          progress: aggregateProgress,
-          message: `${message} (${index + 1}/${totalItems})`,
-          completedItems: index,
-          totalItems,
+        progressByItem.set(index, progress);
+        emitProgress({
+          itemNumber,
+          itemLabel,
+          message: `${itemLabel}: ${message}`,
         });
       },
     });
 
+    progressByItem.set(index, 100);
     if (uploaded) {
-      results.push(uploaded);
+      resultsByIndex.set(index, uploaded);
     }
 
-    params.onProgress?.({
-      progress: ((index + 1) / totalItems) * 100,
-      message: `Arquivo ${index + 1} de ${totalItems} concluido.`,
-      completedItems: index + 1,
-      totalItems,
+    emitProgress({
+      itemNumber,
+      itemLabel,
+      message: `${itemLabel} concluído.`,
     });
-  }
+  };
 
-  return results;
+  let nextIndex = 0;
+
+  const workers = Array.from({ length: concurrency }).map(async () => {
+    while (nextIndex < totalItems) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+
+      await uploadSingleItem(currentIndex);
+    }
+  });
+
+  await Promise.all(workers);
+
+  return params.uris.reduce<string[]>((acc, _, index) => {
+    const uploaded = resultsByIndex.get(index);
+    if (uploaded) {
+      acc.push(uploaded);
+    }
+    return acc;
+  }, []);
 }

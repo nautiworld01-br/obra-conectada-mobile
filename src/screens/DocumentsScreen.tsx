@@ -324,9 +324,7 @@ export function DocumentsScreen() {
     const performDelete = async () => {
       try {
         await deleteDocument.mutateAsync({
-          id: document.id,
-          projectId: project.id,
-          filePath: document.file_path,
+          document,
         });
       } catch (error) {
         const message = getErrorMessage(error, "Não foi possível excluir o documento.");

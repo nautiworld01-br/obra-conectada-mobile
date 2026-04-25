@@ -160,21 +160,3 @@ export function useDeleteUpdate() {
     },
   });
 }
-
-/**
- * Hook legado mantido por compatibilidade.
- */
-export function useToggleApprovedUpdate() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { id: string; projectId: string; approved: boolean }) => {
-      if (!supabase) throw new Error("Supabase nao configurado.");
-      const { data, error } = await supabase.from("weekly_updates").update({ approved: payload.approved }).eq("id", payload.id).select().single();
-      if (error) throw error;
-      return data as UpdateRow;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["updates", variables.projectId] });
-    },
-  });
-}

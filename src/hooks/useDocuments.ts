@@ -24,6 +24,18 @@ const EMPTY_DOCUMENTS: ProjectDocumentRow[] = [];
 const SIGNED_URL_TTL_SECONDS = 60;
 const SIGNED_URL_CACHE_BUFFER_MS = 10_000;
 const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+const DOCUMENTS_BUCKET = "project-documents";
+
+async function removeDocumentFile(filePath: string) {
+  if (!supabase) {
+    throw new Error("Supabase nao configurado.");
+  }
+
+  const { error } = await supabase.storage.from(DOCUMENTS_BUCKET).remove([filePath]);
+  if (error) {
+    throw error;
+  }
+}
 
 // Hook para buscar e listar todos os documentos vinculados ao projeto atual.
 export function useDocuments() {
@@ -60,7 +72,7 @@ export function useDocuments() {
 }
 
 // Registra um novo documento no banco de dados após o upload físico do arquivo.
-// future_fix: Validar integridade entre a entrada na tabela e o arquivo no storage.
+// Se o insert falhar, tenta remover o arquivo recém-enviado para evitar órfãos.
 export function useCreateDocument() {
   const queryClient = useQueryClient();
 
@@ -80,27 +92,37 @@ export function useCreateDocument() {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { data, error } = await supabase
-        .from("project_documents")
-        .insert({
-          project_id: payload.projectId,
-          created_by: payload.userId,
-          title: payload.title,
-          category: payload.category,
-          expires_at: payload.expiresAt,
-          file_name: payload.fileName,
-          file_path: payload.filePath,
-          mime_type: payload.mimeType,
-          size_bytes: payload.sizeBytes,
-        })
-        .select("id, project_id, created_by, title, category, expires_at, file_name, file_path, mime_type, size_bytes, created_at, updated_at")
-        .single();
+      try {
+        const { data, error } = await supabase
+          .from("project_documents")
+          .insert({
+            project_id: payload.projectId,
+            created_by: payload.userId,
+            title: payload.title,
+            category: payload.category,
+            expires_at: payload.expiresAt,
+            file_name: payload.fileName,
+            file_path: payload.filePath,
+            mime_type: payload.mimeType,
+            size_bytes: payload.sizeBytes,
+          })
+          .select("id, project_id, created_by, title, category, expires_at, file_name, file_path, mime_type, size_bytes, created_at, updated_at")
+          .single();
 
-      if (error) {
+        if (error) {
+          throw error;
+        }
+
+        return data as ProjectDocumentRow;
+      } catch (error) {
+        try {
+          await removeDocumentFile(payload.filePath);
+        } catch {
+          throw new Error("Falha ao salvar o documento no banco e ao limpar o arquivo enviado no Storage.");
+        }
+
         throw error;
       }
-
-      return data as ProjectDocumentRow;
     },
     onSuccess: (_, variables) => {
       signedUrlCache.delete(variables.filePath);
@@ -109,31 +131,45 @@ export function useCreateDocument() {
   });
 }
 
-// Remove o documento do banco de dados e apaga o arquivo correspondente no bucket de storage.
+// Remove o documento de forma consistente: apaga o registro, remove o arquivo e
+// restaura o registro caso a exclusão física falhe.
 export function useDeleteDocument() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: { id: string; projectId: string; filePath: string }) => {
+    mutationFn: async (payload: { document: ProjectDocumentRow }) => {
       if (!supabase) {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { error: storageError } = await supabase.storage.from("project-documents").remove([payload.filePath]);
+      const { data: deletedDocument, error: deleteError } = await supabase
+        .from("project_documents")
+        .delete()
+        .eq("id", payload.document.id)
+        .select("id, project_id, created_by, title, category, expires_at, file_name, file_path, mime_type, size_bytes, created_at, updated_at")
+        .single();
 
-      if (storageError) {
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      try {
+        await removeDocumentFile(payload.document.file_path);
+      } catch (storageError) {
+        const { error: rollbackError } = await supabase.from("project_documents").insert(deletedDocument);
+
+        if (rollbackError) {
+          throw new Error("Falha ao excluir o arquivo do Storage e ao restaurar o registro do documento.");
+        }
+
         throw storageError;
       }
 
-      const { error } = await supabase.from("project_documents").delete().eq("id", payload.id);
-
-      if (error) {
-        throw error;
-      }
+      return deletedDocument as ProjectDocumentRow;
     },
     onSuccess: (_, variables) => {
-      signedUrlCache.delete(variables.filePath);
-      queryClient.invalidateQueries({ queryKey: ["project-documents", variables.projectId] });
+      signedUrlCache.delete(variables.document.file_path);
+      queryClient.invalidateQueries({ queryKey: ["project-documents", variables.document.project_id] });
     },
   });
 }
@@ -152,7 +188,7 @@ export function useSignedDocumentUrl() {
       }
 
       const { data, error } = await supabase.storage
-        .from("project-documents")
+        .from(DOCUMENTS_BUCKET)
         .createSignedUrl(payload.filePath, SIGNED_URL_TTL_SECONDS);
 
       if (error) {
