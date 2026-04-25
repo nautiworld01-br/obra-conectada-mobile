@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabase";
 import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { useProject } from "./useProject";
 
-// Tipos que representam a estrutura de dados dos registros diários e funcionários.
+// Tipos que representam a estrutura de dados dos registros diários e da projeção técnica usada na presença.
 // future_fix: Avaliar a necessidade de tipos compartilhados em um arquivo centralizado.
 export type DailyLogRow = {
   id: string;
@@ -19,14 +19,15 @@ export type DailyLogRow = {
   videos_urls?: string[] | null;
 };
 
-export type EmployeeRow = {
+export type PresenceEmployeeRow = {
   id: string;
   full_name: string;
   role: string;
   status: "ativo" | "inativo";
 };
 
-// Hook principal para gerenciar os diários de obra, consolidando logs e funcionários com Paginação.
+// Hook principal para gerenciar os diários de obra.
+// A lista de presença continua vindo de public.employees porque daily_log_employees referencia essa projeção técnica.
 export function useDailyLogs() {
   const { project, isLoading: isProjectLoading } = useProject();
 
@@ -64,11 +65,11 @@ export function useDailyLogs() {
     }
   });
 
-  // Lista os funcionários ativos vinculados ao projeto.
-  const employeesQuery = useQuery({
-    queryKey: ["employees", project?.id, "ativo"],
+  // Lista a projeção técnica de funcionários usada por diário e presença.
+  const presenceEmployeesQuery = useQuery({
+    queryKey: ["presence_employees", project?.id, "ativo"],
     enabled: Boolean(project?.id && supabase),
-    queryFn: async (): Promise<EmployeeRow[]> => {
+    queryFn: async (): Promise<PresenceEmployeeRow[]> => {
       if (!supabase || !project) return [];
 
       const { data, error } = await supabase
@@ -91,8 +92,8 @@ export function useDailyLogs() {
     hasNextPage: logsQuery.hasNextPage,
     isFetchingNextPage: logsQuery.isFetchingNextPage,
     fetchNextPage: logsQuery.fetchNextPage,
-    employees: employeesQuery.data ?? [],
-    isLoading: isProjectLoading || logsQuery.isLoading || employeesQuery.isLoading,
+    presenceEmployees: presenceEmployeesQuery.data ?? [],
+    isLoading: isProjectLoading || logsQuery.isLoading || presenceEmployeesQuery.isLoading,
   };
 }
 

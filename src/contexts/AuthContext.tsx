@@ -4,6 +4,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import type { Occupation } from "../hooks/useProfile";
 import { env } from "../lib/env";
 import { supabase } from "../lib/supabase";
+import type { EmployeeRoleValue } from "../lib/teamRoles";
 
 function isInvalidRefreshTokenError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
@@ -46,6 +47,7 @@ type AuthContextValue = {
     email: string;
     password: string;
     occupation: Occupation;
+    employeeRole?: EmployeeRoleValue | null;
   }) => Promise<{ error?: string; requiresEmailConfirmation?: boolean }>;
   signOut: () => Promise<void>;
   checkOwnerExists: () => Promise<boolean>;
@@ -259,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase.auth.signOut();
         }
       },
-      async signUp({ fullName, email, password, occupation }) {
+      async signUp({ fullName, email, password, occupation, employeeRole }) {
         if (!supabase) return { error: "Configure as variáveis de ambiente." };
         if (occupation === "owner" && await checkOwnerExists()) {
           return { error: "Já existe um proprietário registrado." };
@@ -270,7 +272,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           email, password,
           options: {
             emailRedirectTo,
-            data: { full_name: fullName.trim(), is_owner: occupation === "owner", is_employee: occupation === "employee", occupation },
+            data: {
+              full_name: fullName.trim(),
+              is_owner: occupation === "owner",
+              is_employee: occupation === "employee",
+              occupation,
+              occupation_role: occupation === "employee" ? employeeRole?.trim() || null : null,
+            },
           },
         });
         if (error) {

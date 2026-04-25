@@ -11,6 +11,7 @@ import { useProfile } from "../hooks/useProfile";
 import { TeamEmployeeRow, TeamEmployeeStatus, useDeleteEmployee, useTeam, useUpsertEmployee } from "../hooks/useTeam";
 import { WorkCrewRow, useDeleteWorkCrew, useUpsertWorkCrew, useWorkCrews } from "../hooks/useWorkCrews";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
+import { EMPLOYEE_ROLE_OPTIONS } from "../lib/teamRoles";
 import { AppDatePicker } from "../components/AppDatePicker";
 import { AppIcon } from "../components/AppIcon";
 
@@ -109,6 +110,7 @@ export function TeamScreen() {
     const [fullName, setFullName] = useState("");
     const [role, setRole] = useState("");
     const [status, setStatus] = useState<TeamEmployeeStatus>("ativo");
+    const [roleOpen, setRoleOpen] = useState(false);
 
     // Sincroniza o estado local quando o modal abre ou o rascunho muda
     useEffect(() => {
@@ -116,6 +118,7 @@ export function TeamScreen() {
         setFullName(employeeDraft.fullName || "");
         setRole(employeeDraft.role || "");
         setStatus(employeeDraft.status || "ativo");
+        setRoleOpen(false);
       }
     }, [employeeFormOpen, employeeDraft]);
 
@@ -149,8 +152,19 @@ export function TeamScreen() {
                 <TextInput style={styles.fieldInput} value={fullName} onChangeText={setFullName} />
               </View>
               <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Cargo / Ocupação</Text>
-                <TextInput style={styles.fieldInput} value={role} onChangeText={setRole} placeholder="Ex: Marinheiro, Limpeza..." />
+                <Text style={styles.fieldLabel}>Classe</Text>
+                <View style={[styles.fieldInput, styles.readonlyField]}>
+                  <Text style={styles.readonlyFieldText}>Funcionário</Text>
+                </View>
+              </View>
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Função</Text>
+                <Pressable style={styles.selectField} onPress={() => setRoleOpen(true)}>
+                  <Text style={styles.selectFieldText}>
+                    {EMPLOYEE_ROLE_OPTIONS.find((option) => option.value === role)?.label ?? "Selecione a função"}
+                  </Text>
+                  <AppIcon name="ChevronDown" size={18} color={colors.textMuted} />
+                </Pressable>
               </View>
               <View style={styles.fieldBlock}>
                 <Text style={[styles.fieldLabel, { textAlign: "center" }]}>Status da Conta</Text>
@@ -195,6 +209,24 @@ export function TeamScreen() {
                 )}
               </Pressable>
         </ScrollView>
+        <Modal transparent visible={roleOpen} animationType="fade">
+          <Pressable style={styles.modalBackdrop} onPress={() => setRoleOpen(false)}>
+            <View style={styles.dropdownCard}>
+              {EMPLOYEE_ROLE_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setRole(option.value);
+                    setRoleOpen(false);
+                  }}
+                >
+                  <Text style={styles.dropdownText}>{option.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Pressable>
+        </Modal>
       </AnimatedModal>
     );
   }
@@ -212,10 +244,11 @@ export function TeamScreen() {
                 <View key={employee.id} style={styles.card}>
                   <View style={styles.cardTop}>
                     <View style={styles.identityRow}>
-                      <View style={styles.avatar}>{employee.photo?.trim() ? <Image source={{ uri: employee.photo.trim() }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initialsFromName(employee.full_name)}</Text>}</View>
-                      <View style={{ flex: 1 }}>
+                    <View style={styles.avatar}>{employee.photo?.trim() ? <Image source={{ uri: employee.photo.trim() }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initialsFromName(employee.full_name)}</Text>}</View>
+                    <View style={{ flex: 1 }}>
                         <Text style={styles.cardTitle}>{employee.full_name}</Text>
-                        <Text style={styles.cardSubtitle}>{employee.role}</Text>
+                        <Text style={styles.cardMeta}>Classe: Funcionário</Text>
+                        <Text style={styles.cardSubtitle}>Função: {employee.role}</Text>
                       </View>
                     </View>
                     <View style={[styles.pill, isActive ? styles.pillActive : styles.pillInactive]}>
@@ -317,6 +350,7 @@ const styles = StyleSheet.create({
   avatarImage: { width: "100%", height: "100%" },
   avatarText: { fontSize: 16, fontWeight: "800", color: colors.primary },
   cardTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
+  cardMeta: { fontSize: 12, color: colors.textMuted },
   cardSubtitle: { fontSize: 13, color: colors.textMuted },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
   pillActive: { backgroundColor: colors.successLight },
@@ -344,9 +378,16 @@ const styles = StyleSheet.create({
   fieldBlock: { gap: 6 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
+  readonlyField: { justifyContent: "center" },
+  readonlyFieldText: { fontSize: 15, color: colors.text },
+  selectField: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, backgroundColor: colors.surfaceMuted, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  selectFieldText: { fontSize: 15, color: colors.text, fontWeight: "600" },
   textArea: { minHeight: 80, textAlignVertical: "top" },
   row: { flexDirection: "row", gap: 10 },
   primarySave: { backgroundColor: colors.primary, borderRadius: 16, paddingVertical: 16, alignItems: "center", marginTop: 10 },
   primarySaveText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
+  dropdownCard: { backgroundColor: colors.surface, borderRadius: 16, padding: 10, width: "80%", alignSelf: "center" },
+  dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  dropdownText: { fontSize: 16, fontWeight: "600", color: colors.text },
   buttonPressed: { opacity: 0.8 },
 });

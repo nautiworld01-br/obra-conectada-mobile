@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +17,8 @@ import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import type { Occupation } from "../hooks/useProfile";
 import { validateSignUpInput } from "../lib/authValidation";
+import { EMPLOYEE_ROLE_OPTIONS, type EmployeeRoleValue } from "../lib/teamRoles";
+import { AppIcon } from "../components/AppIcon";
 
 type RootStackParamList = {
   Login: undefined;
@@ -36,6 +39,8 @@ export function SignUpScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [occupation, setOccupation] = useState<Occupation>("employee");
+  const [employeeRole, setEmployeeRole] = useState<EmployeeRoleValue | "">("");
+  const [employeeRoleOpen, setEmployeeRoleOpen] = useState(false);
   const [ownerExists, setOwnerExists] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -65,7 +70,10 @@ export function SignUpScreen({ navigation }: Props) {
    * Dispara a criacao de conta no Supabase.
    */
   const handleSubmit = async () => {
-    const validation = validateSignUpInput(fullName, email, password);
+    const validation = validateSignUpInput(fullName, email, password, {
+      occupation,
+      employeeRole,
+    });
     if ("error" in validation) {
       setError(validation.error ?? "Confira os dados informados.");
       setFeedback(null);
@@ -75,7 +83,13 @@ export function SignUpScreen({ navigation }: Props) {
     setSubmitting(true);
     setError(null);
     setFeedback(null);
-    const result = await signUp({ fullName: validation.trimmedName, email: validation.normalizedEmail, password, occupation });
+    const result = await signUp({
+      fullName: validation.trimmedName,
+      email: validation.normalizedEmail,
+      password,
+      occupation,
+      employeeRole: occupation === "employee" ? (employeeRole || null) : null,
+    });
 
     if (result.error) {
       setError(result.error);
@@ -135,7 +149,15 @@ export function SignUpScreen({ navigation }: Props) {
             <View style={styles.checkboxRow}>
               {/* Opcao Proprietario: Fica desabilitada e cinza se ownerExists for true */}
               <Pressable 
-                onPress={() => !ownerExists && setOccupation("owner")} 
+                onPress={() => {
+                  if (ownerExists) {
+                    return;
+                  }
+
+                  setOccupation("owner");
+                  setEmployeeRole("");
+                  setEmployeeRoleOpen(false);
+                }} 
                 disabled={ownerExists || checkingOwner} 
                 style={[
                   styles.checkboxButton, 
@@ -166,6 +188,18 @@ export function SignUpScreen({ navigation }: Props) {
                 <Text style={styles.checkboxLabel}>Funcionário</Text>
               </Pressable>
             </View>
+
+            {occupation === "employee" ? (
+              <View style={styles.fieldGroup}>
+                <Text style={styles.label}>Ocupação</Text>
+                <Pressable style={styles.selectField} onPress={() => setEmployeeRoleOpen(true)}>
+                  <Text style={[styles.selectFieldText, !employeeRole && styles.selectFieldPlaceholder]}>
+                    {EMPLOYEE_ROLE_OPTIONS.find((option) => option.value === employeeRole)?.label ?? "Selecione a função"}
+                  </Text>
+                  <AppIcon name="ChevronDown" size={18} color={colors.textMuted} />
+                </Pressable>
+              </View>
+            ) : null}
 
             <View style={styles.fieldGroup}>
               <Text style={styles.label}>Email</Text>
@@ -203,6 +237,24 @@ export function SignUpScreen({ navigation }: Props) {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      <Modal transparent visible={employeeRoleOpen} animationType="fade">
+        <Pressable style={styles.modalBackdrop} onPress={() => setEmployeeRoleOpen(false)}>
+          <View style={styles.dropdownCard}>
+            {EMPLOYEE_ROLE_OPTIONS.map((option) => (
+              <Pressable
+                key={option.value}
+                style={styles.dropdownItem}
+                onPress={() => {
+                  setEmployeeRole(option.value);
+                  setEmployeeRoleOpen(false);
+                }}
+              >
+                <Text style={styles.dropdownText}>{option.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -245,4 +297,11 @@ const styles = StyleSheet.create({
   helperText: { color: colors.textMuted, fontSize: 12, lineHeight: 18 },
   secondaryActions: { paddingTop: 4, alignItems: "center" },
   secondaryLink: { color: colors.primary, fontSize: 14, fontWeight: "700" },
+  selectField: { backgroundColor: colors.surfaceMuted, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 16, paddingVertical: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  selectFieldText: { color: colors.text, fontSize: 15, fontWeight: "600" },
+  selectFieldPlaceholder: { color: colors.textMuted, fontWeight: "500" },
+  modalBackdrop: { flex: 1, backgroundColor: colors.overlay, alignItems: "center", justifyContent: "center", padding: 20 },
+  dropdownCard: { width: "100%", maxWidth: 360, backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.cardBorder, overflow: "hidden" },
+  dropdownItem: { paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: colors.divider },
+  dropdownText: { color: colors.text, fontSize: 15, fontWeight: "600" },
 });

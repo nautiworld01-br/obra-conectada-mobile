@@ -111,6 +111,7 @@ export function useUpsertEmployee() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["presence_employees"] });
     },
   });
 }
@@ -136,6 +137,7 @@ export function useDeleteEmployee() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["presence_employees"] });
     },
   });
 }

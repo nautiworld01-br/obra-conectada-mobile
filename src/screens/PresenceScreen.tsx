@@ -54,10 +54,10 @@ export function PresenceScreen() {
   const [summaryMonth, setSummaryMonth] = useState<{ id: number; label: string } | null>(null);
   
   const dateKey = useMemo(() => isoDate(selectedDate), [selectedDate]);
-  const { employees, logs, isLoading } = useDailyLogs();
+  const { presenceEmployees, logs, isLoading } = useDailyLogs();
 
   const dailyLog = useMemo(() => logs.find(log => log.date === dateKey), [logs, dateKey]);
-  const activeEmployees = useMemo(() => employees.filter(e => e.status === "ativo"), [employees]);
+  const activeEmployees = useMemo(() => presenceEmployees.filter((employee) => employee.status === "ativo"), [presenceEmployees]);
 
   // Estatisticas do resumo mensal
   const monthStats = useMemo(() => {

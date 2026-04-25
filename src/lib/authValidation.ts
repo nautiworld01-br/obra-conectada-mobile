@@ -78,7 +78,12 @@ export function validateLoginInput(email: string, password: string) {
   return { normalizedEmail };
 }
 
-export function validateSignUpInput(fullName: string, email: string, password: string) {
+export function validateSignUpInput(
+  fullName: string,
+  email: string,
+  password: string,
+  options?: { occupation?: "owner" | "employee"; employeeRole?: string | null },
+) {
   const trimmedName = fullName.trim();
   const normalizedEmail = normalizeEmail(email);
 
@@ -105,6 +110,10 @@ export function validateSignUpInput(fullName: string, email: string, password: s
 
   if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) {
     return { error: "A senha precisa combinar letras e números." };
+  }
+
+  if (options?.occupation === "employee" && !options.employeeRole?.trim()) {
+    return { error: "Selecione a função do funcionário." };
   }
 
   return { trimmedName, normalizedEmail };

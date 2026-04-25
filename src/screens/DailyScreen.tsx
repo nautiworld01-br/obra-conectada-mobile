@@ -21,7 +21,7 @@ import { getErrorMessage } from "../lib/errorMessage";
 import { useRooms } from "../hooks/useRooms";
 import {
   DailyLogRow,
-  EmployeeRow,
+  PresenceEmployeeRow,
   useDailyLogDetail,
   useDailyLogs,
   useDeleteDailyLog,
@@ -111,7 +111,7 @@ function buildMonthGrid(currentMonthDate: Date) {
 function DailyLogForm({
   projectId,
   date,
-  employees,
+  presenceEmployees,
   rooms,
   existingLog,
   initialEmployeeIds,
@@ -124,7 +124,7 @@ function DailyLogForm({
 }: {
   projectId: string;
   date: string;
-  employees: EmployeeRow[];
+  presenceEmployees: PresenceEmployeeRow[];
   rooms: { id: string; name: string }[];
   existingLog: DailyLogRow | null;
   initialEmployeeIds: string[];
@@ -472,10 +472,10 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Funcionários presentes ({employeeIds.length}/{employees.length})</Text>
-              {employees.length > 0 ? (
+              <Text style={styles.fieldLabel}>Funcionários presentes ({employeeIds.length}/{presenceEmployees.length})</Text>
+              {presenceEmployees.length > 0 ? (
                 <View style={styles.employeeList}>
-                  {employees.map((employee) => {
+                  {presenceEmployees.map((employee) => {
                     const selected = employeeIds.includes(employee.id);
 
                     return (
@@ -624,7 +624,7 @@ function DailyLogForm({
 function DailyLogDetailsModal({
   date,
   log,
-  employees,
+  presenceEmployees,
   employeeIds,
   roomName,
   visible,
@@ -633,14 +633,14 @@ function DailyLogDetailsModal({
 }: {
   date: string;
   log: DailyLogRow;
-  employees: EmployeeRow[];
+  presenceEmployees: PresenceEmployeeRow[];
   employeeIds: string[];
   roomName: string | null;
   visible: boolean;
   onClose: () => void;
   onEdit: () => void;
 }) {
-  const selectedEmployees = employees.filter((e) => employeeIds.includes(e.id));
+  const selectedEmployees = presenceEmployees.filter((employee) => employeeIds.includes(employee.id));
 
   return (
     <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
@@ -728,7 +728,7 @@ export function DailyScreen() {
   // Hooks para autenticacao, dados do projeto, logs e equipe.
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
-  const { project, logs, employees, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = useDailyLogs();
+  const { project, logs, presenceEmployees, hasNextPage, isFetchingNextPage, fetchNextPage, isLoading } = useDailyLogs();
   const { rooms } = useRooms();
   const upsertDailyLog = useUpsertDailyLog();
   const deleteDailyLog = useDeleteDailyLog();
@@ -1212,7 +1212,7 @@ export function DailyScreen() {
         <DailyLogDetailsModal
           date={selectedDate}
           log={selectedLog}
-          employees={employees}
+          presenceEmployees={presenceEmployees}
           employeeIds={employeeIdsQuery.data ?? []}
           roomName={selectedLog?.room_id ? roomNameById[selectedLog.room_id] ?? "Cômodo removido" : null}
           visible={detailsOpen}
@@ -1225,7 +1225,7 @@ export function DailyScreen() {
         <DailyLogForm
           projectId={project?.id ?? ""}
           date={selectedDate}
-          employees={employees}
+          presenceEmployees={presenceEmployees}
           rooms={rooms}
           existingLog={selectedLog}
           initialEmployeeIds={employeeIdsQuery.data ?? []}

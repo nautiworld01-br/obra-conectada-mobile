@@ -21,20 +21,12 @@ import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useProfile } from "../hooks/useProfile";
 import { useProject } from "../hooks/useProject";
+import { useTeam } from "../hooks/useTeam";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 import { getErrorMessage } from "../lib/errorMessage";
 import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { deleteFileFromStorage } from "../lib/storageUpload";
 import { supabase } from "../lib/supabase";
-
-type EmployeeRole = "empregada domestica" | "marinheiro";
-
-type HouseEmployee = {
-  id?: string;
-  full_name: string;
-  role: EmployeeRole;
-  photo: string;
-};
 
 type RoomItem = {
   id?: string;
@@ -55,6 +47,7 @@ export function HouseFormScreen() {
   const { project, isLoading: projectLoading } = useProject();
   const { user } = useAuth();
   const { isOwner } = useProfile();
+  const { employees: fixedTeam, isLoading: teamLoading } = useTeam();
   
   const [houseName, setHouseName] = useState("");
   const [address, setAddress] = useState("");
@@ -63,22 +56,9 @@ export function HouseFormScreen() {
   const [roomModalVisible, setRoomModalVisible] = useState(false);
   const [roomDraft, setRoomDraft] = useState("");
   const [observations, setObservations] = useState("");
-  const [employees, setEmployees] = useState<HouseEmployee[]>([]);
-  const [employeeFormVisible, setEmployeeFormVisible] = useState(false);
-  const [employeeDraft, setEmployeeDraft] = useState<HouseEmployee>({ full_name: "", role: "empregada domestica", photo: "" });
   const [saving, setSaving] = useState(false);
 
   // Queries para buscar dados iniciais
-  const employeesQuery = useQuery({
-    queryKey: ["house-employees", project?.id],
-    enabled: Boolean(project?.id && supabase),
-    queryFn: async () => {
-      const { data, error } = await supabase!.from("employees").select("id, full_name, role, photo").eq("project_id", project!.id);
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const roomsQuery = useQuery({
     queryKey: ["house-rooms", project?.id],
     enabled: Boolean(project?.id && supabase),
@@ -101,14 +81,12 @@ export function HouseFormScreen() {
 
   useEffect(() => {
     if (roomsQuery.data) setRooms(roomsQuery.data);
-    if (employeesQuery.data) setEmployees(employeesQuery.data as any);
-  }, [roomsQuery.data, employeesQuery.data]);
+  }, [roomsQuery.data]);
 
-  const pickImage = async (type: "house" | "employee") => {
+  const pickImage = async () => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], allowsEditing: true, quality: 0.8, aspect: [1, 1] });
     if (!res.canceled) {
-      if (type === "house") setPhotoUrl(res.assets[0].uri);
-      else setEmployeeDraft(c => ({ ...c, photo: res.assets[0].uri }));
+      setPhotoUrl(res.assets[0].uri);
     }
   };
 
@@ -129,29 +107,14 @@ export function HouseFormScreen() {
         fileBaseName: "house_cover"
       });
 
-      const processedEmployees = await Promise.all(employees.map(async (emp) => {
-        const oldEmp = (employeesQuery.data as any[])?.find(e => e.id === emp.id);
-        if (emp.photo !== oldEmp?.photo) {
-          await deleteFileFromStorage("app-media", oldEmp?.photo);
-        }
-
-        const upPhoto = await uploadAppMediaIfNeeded({
-          uri: emp.photo,
-          pathPrefix: project?.id ? `projects/${project.id}/employees` : `users/${user.id}/temp`,
-          fileBaseName: `emp_${emp.full_name.replace(/\s/g, "_")}`
-        });
-        return { ...emp, photo: upPhoto };
-      }));
-
-      const { data: newProjectId, error } = await supabase.rpc("upsert_full_project", {
+      const { error } = await supabase.rpc("upsert_full_project", {
         p_project_id: project?.id || null,
         p_user_id: user.id,
         p_name: houseName.trim(),
         p_address: address.trim(),
         p_photo_url: finalPhotoUrl,
         p_observations: observations,
-        p_rooms: rooms,
-        p_employees: processedEmployees
+        p_rooms: rooms
       });
 
       if (error) throw withSchemaDriftContext(error, "RPC upsert_full_project");
@@ -159,12 +122,11 @@ export function HouseFormScreen() {
       await queryClient.invalidateQueries({ queryKey: ["project"] });
       await queryClient.invalidateQueries({ queryKey: ["house-rooms"] });
       await queryClient.invalidateQueries({ queryKey: ["rooms"] });
-      await queryClient.invalidateQueries({ queryKey: ["house-employees"] });
       await queryClient.invalidateQueries({ queryKey: ["employees"] });
       Toast.show({
         type: "success",
         text1: "Configurações salvas",
-        text2: "Os dados da obra e equipe foram sincronizados.",
+        text2: "Os dados da obra foram sincronizados.",
       });
     } catch (e) {
       console.error(e);
@@ -194,7 +156,7 @@ export function HouseFormScreen() {
         <View style={styles.card}>
           <View style={styles.headerRow}>
             <View style={styles.houseThumb}>{photoUrl ? <Image source={{ uri: photoUrl }} style={styles.img} /> : <Text style={styles.initials}>{initialsFromName(houseName)}</Text>}</View>
-            <View style={styles.headerInfo}><Text style={styles.cardTitle}>Dados da Obra</Text><Pressable onPress={() => pickImage("house")}><Text style={styles.linkText}>Alterar foto da capa</Text></Pressable></View>
+            <View style={styles.headerInfo}><Text style={styles.cardTitle}>Dados da Obra</Text><Pressable onPress={() => pickImage()}><Text style={styles.linkText}>Alterar foto da capa</Text></Pressable></View>
           </View>
           <View style={styles.field}><Text style={styles.label}>Nome da Obra *</Text><TextInput style={styles.input} value={houseName} onChangeText={setHouseName} placeholder="Ex: Obra de Campo" /></View>
           <View style={styles.field}><Text style={styles.label}>Endereço</Text><TextInput style={styles.input} value={address} onChangeText={setAddress} placeholder="Rua, Número, Bairro" /></View>
@@ -257,30 +219,32 @@ export function HouseFormScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Equipe Fixa (Marinheiro / Empregada)</Text>
-          {employees.map((e, i) => (
-            <View key={i} style={styles.empRow}>
-              <View style={styles.empAvatar}>{e.photo ? <Image source={{ uri: e.photo }} style={styles.img} /> : <Text>{initialsFromName(e.full_name)}</Text>}</View>
-              <View style={{flex: 1}}><Text style={styles.empName}>{e.full_name}</Text><Text style={styles.empRole}>{e.role}</Text></View>
-              <Pressable onPress={() => setEmployees(c => c.filter((_, idx) => idx !== i))}>
-                <AppIcon name="UserMinus" size={18} color={colors.danger} />
-              </Pressable>
+          <Text style={styles.cardTitle}>Equipe Fixa</Text>
+          <Text style={styles.helperCopy}>Funcionários reais vinculados à obra. A gestão de função e status fica na tela Equipe.</Text>
+          {teamLoading ? (
+            <View style={styles.inlineLoading}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.helperTextSmall}>Carregando equipe fixa...</Text>
             </View>
-          ))}
-          {!employeeFormVisible ? (
-            <Pressable style={styles.addLink} onPress={() => setEmployeeFormVisible(true)}><Text style={styles.linkText}>+ Adicionar membro à equipe</Text></Pressable>
+          ) : fixedTeam.length ? (
+            fixedTeam.map((employee) => (
+              <View key={employee.id} style={styles.empRow}>
+                <View style={styles.empAvatar}>
+                  {employee.photo ? <Image source={{ uri: employee.photo }} style={styles.img} /> : <Text>{initialsFromName(employee.full_name)}</Text>}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.empName}>{employee.full_name}</Text>
+                  <Text style={styles.empRole}>{employee.role}</Text>
+                </View>
+                <View style={[styles.statusChip, employee.status === "ativo" ? styles.statusChipActive : styles.statusChipInactive]}>
+                  <Text style={[styles.statusChipText, employee.status === "ativo" ? styles.statusChipTextActive : styles.statusChipTextInactive]}>
+                    {employee.status === "ativo" ? "Ativo" : "Inativo"}
+                  </Text>
+                </View>
+              </View>
+            ))
           ) : (
-            <View style={styles.empForm}>
-              <TextInput style={styles.input} value={employeeDraft.full_name} onChangeText={v => setEmployeeDraft(c => ({...c, full_name: v}))} placeholder="Nome completo" />
-              <View style={styles.row}>
-                <Pressable style={[styles.roleBtn, employeeDraft.role === "marinheiro" && styles.roleBtnActive]} onPress={() => setEmployeeDraft(c => ({...c, role: "marinheiro"}))}><Text style={employeeDraft.role === "marinheiro" && {color: "#fff"}}>Marinheiro</Text></Pressable>
-                <Pressable style={[styles.roleBtn, employeeDraft.role === "empregada domestica" && styles.roleBtnActive]} onPress={() => setEmployeeDraft(c => ({...c, role: "empregada domestica"}))}><Text style={employeeDraft.role === "empregada domestica" && {color: "#fff"}}>Empregada</Text></Pressable>
-              </View>
-              <View style={styles.row}>
-                <Pressable style={styles.cancelBtn} onPress={() => setEmployeeFormVisible(false)}><Text>Cancelar</Text></Pressable>
-                <Pressable style={[styles.confirmBtn, { flex: 1 }]} onPress={() => { if (employeeDraft.full_name) { setEmployees(c => [...c, employeeDraft]); setEmployeeFormVisible(false); setEmployeeDraft({full_name: "", role: "empregada domestica", photo: ""}); } }}><Text style={styles.confirmBtnText}>Confirmar</Text></Pressable>
-              </View>
-            </View>
+            <Text style={styles.emptyText}>Nenhum funcionário vinculado à obra.</Text>
           )}
         </View>
 
@@ -360,15 +324,19 @@ const styles = StyleSheet.create({
   addRoomBtnText: { color: colors.primary, fontWeight: "700", fontSize: 14 },
   emptyText: { textAlign: "center", color: colors.textMuted, fontSize: 14, paddingVertical: 10 },
   helperTextSmall: { fontSize: 11, color: colors.textMuted },
+  helperCopy: { color: colors.textMuted, fontSize: 13, lineHeight: 20 },
+  inlineLoading: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 8 },
   empRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
   empAvatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#eee", alignItems: "center", justifyContent: "center", overflow: "hidden" },
   empName: { fontWeight: "700", fontSize: 14 },
   empRole: { fontSize: 12, color: colors.textMuted },
-  addLink: { marginTop: 8 },
-  empForm: { backgroundColor: "#f9f9f9", padding: 12, borderRadius: 16, gap: 10, marginTop: 10 },
+  statusChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999 },
+  statusChipActive: { backgroundColor: colors.successLight },
+  statusChipInactive: { backgroundColor: colors.surfaceMuted },
+  statusChipText: { fontSize: 11, fontWeight: "800" },
+  statusChipTextActive: { color: colors.success },
+  statusChipTextInactive: { color: colors.textMuted },
   row: { flexDirection: "row", gap: 10 },
-  roleBtn: { flex: 1, padding: 10, borderRadius: 10, borderWidth: 1, borderColor: "#ddd", alignItems: "center" },
-  roleBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   confirmBtn: { backgroundColor: colors.primary, padding: 12, borderRadius: 12, alignItems: "center" },
   confirmBtnText: { color: "#fff", fontWeight: "800" },
   cancelBtn: { flex: 1, padding: 12, alignItems: "center", justifyContent: "center" },
