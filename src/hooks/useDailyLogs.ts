@@ -12,6 +12,8 @@ export type DailyLogRow = {
   activities: string | null;
   weather: string | null;
   observations: string | null;
+  no_work_reason: string | null;
+  no_work_note: string | null;
   created_by: string;
   project_id: string;
   room_id: string | null;
@@ -46,7 +48,7 @@ export function useDailyLogs() {
       const { data, error } = await supabase
         .from("daily_logs")
         .select(`
-          id, date, activities, weather, observations, created_by, project_id, room_id, photos_urls, videos_urls,
+          id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
           daily_log_employees ( employee_id )
         `)
         .eq("project_id", project.id)
@@ -133,6 +135,8 @@ export function useUpsertDailyLog() {
       activities: string;
       weather: string;
       observations: string;
+      noWorkReason?: string | null;
+      noWorkNote?: string | null;
       createdBy: string;
       employeeIds: string[];
       roomId?: string | null;
@@ -150,6 +154,8 @@ export function useUpsertDailyLog() {
           p_activities: payload.activities,
           p_weather: payload.weather,
           p_observations: payload.observations,
+          p_no_work_reason: payload.noWorkReason?.trim() || null,
+          p_no_work_note: payload.noWorkNote?.trim() || null,
           p_created_by: payload.createdBy,
           p_employee_ids: payload.employeeIds,
           p_room_id: payload.roomId ?? null,

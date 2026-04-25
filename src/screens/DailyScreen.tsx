@@ -64,6 +64,20 @@ const monthLogSortOptions = [
 
 type MonthLogSortOrder = (typeof monthLogSortOptions)[number]["value"];
 
+const noWorkReasonOptions = [
+  { value: "feriado", label: "Feriado" },
+  { value: "condominio fechado", label: "Condomínio fechado" },
+  { value: "condominio nao autorizou realizar servicos", label: "Condomínio não autorizou realizar serviços" },
+  { value: "chuva intensa", label: "Chuva intensa" },
+  { value: "outro", label: "Outro" },
+] as const;
+
+type NoWorkReason = (typeof noWorkReasonOptions)[number]["value"];
+
+function getNoWorkReasonLabel(reason: string | null | undefined) {
+  return noWorkReasonOptions.find((option) => option.value === reason)?.label ?? "Motivo não informado";
+}
+
 // Funcoes utilitarias para manipulacao de datas e geracao da grade do calendario.
 // future_fix: mover para src/lib/dateUtils.ts para evitar duplicacao de logica de calendario.
 function startOfDay(date: Date) {
@@ -136,6 +150,8 @@ function DailyLogForm({
     activities: string; 
     weather: string; 
     observations: string; 
+    noWorkReason?: NoWorkReason | null;
+    noWorkNote?: string | null;
     employeeIds: string[];
     roomId?: string | null;
     photosUrls?: string[];
@@ -148,6 +164,8 @@ function DailyLogForm({
   const [activities, setActivities] = useState(existingLog?.activities ?? "");
   const [weather, setWeather] = useState(existingLog?.weather ?? "");
   const [observations, setObservations] = useState(existingLog?.observations ?? "");
+  const [noWorkReason, setNoWorkReason] = useState<NoWorkReason | "">((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
+  const [noWorkNote, setNoWorkNote] = useState(existingLog?.no_work_note ?? "");
   const [employeeIds, setEmployeeIds] = useState<string[]>(initialEmployeeIds);
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
@@ -157,8 +175,10 @@ function DailyLogForm({
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<AppMediaUploadProgress | null>(null);
+  const [noWorkReasonOpen, setNoWorkReasonOpen] = useState(false);
   const previousVisibleRef = useRef(false);
   const lastHydratedLogIdRef = useRef<string | null>(null);
+  const hasNoWorkReason = noWorkReason !== "";
 
   useEffect(() => {
     const openedNow = visible && !previousVisibleRef.current;
@@ -173,6 +193,8 @@ function DailyLogForm({
     setActivities(existingLog?.activities ?? "");
     setWeather(existingLog?.weather ?? "");
     setObservations(existingLog?.observations ?? "");
+    setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
+    setNoWorkNote(existingLog?.no_work_note ?? "");
     setEmployeeIds(initialEmployeeIds);
     setRoomId(existingLog?.room_id ?? null);
     setRoomDropdownOpen(false);
@@ -181,6 +203,7 @@ function DailyLogForm({
     setLocalError(null);
     setPendingRemoval(null);
     setUploadProgress(null);
+    setNoWorkReasonOpen(false);
     lastHydratedLogIdRef.current = currentLogId;
     previousVisibleRef.current = visible;
   }, [date, existingLog, initialEmployeeIds, visible]);
@@ -191,6 +214,7 @@ function DailyLogForm({
       lastHydratedLogIdRef.current = null;
       setUploadProgress(null);
       setRoomDropdownOpen(false);
+      setNoWorkReasonOpen(false);
     }
   }, [visible]);
 
@@ -278,20 +302,28 @@ function DailyLogForm({
     setActivities(existingLog?.activities ?? "");
     setWeather(existingLog?.weather ?? "");
     setObservations(existingLog?.observations ?? "");
+    setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
+    setNoWorkNote(existingLog?.no_work_note ?? "");
     setEmployeeIds(initialEmployeeIds);
     setRoomId(existingLog?.room_id ?? null);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
     setUploadProgress(null);
+    setNoWorkReasonOpen(false);
     onClose();
   };
 
   // Processo de salvamento do registro, incluindo o upload de midias para o Supabase Storage.
   // future_fix: implementar barra de progresso para uploads de videos grandes.
   const handleSave = async () => {
-    if (!activities.trim()) {
+    if (!hasNoWorkReason && !activities.trim()) {
       setLocalError("Descreva ao menos as atividades realizadas no dia.");
+      return;
+    }
+
+    if (noWorkReason === "outro" && !noWorkNote.trim()) {
+      setLocalError("Descreva o motivo de não ter tido serviço hoje.");
       return;
     }
 
@@ -300,6 +332,22 @@ function DailyLogForm({
     setUploadProgress({ progress: 0, message: "Preparando envio...", completedItems: 0, totalItems: 0 });
 
     try {
+      if (hasNoWorkReason) {
+        setUploadProgress({ progress: 100, message: "Salvando dia sem serviço...", completedItems: 0, totalItems: 0 });
+        await onSave({
+          activities: "",
+          weather: "",
+          observations: "",
+          noWorkReason: noWorkReason || null,
+          noWorkNote: noWorkReason === "outro" ? noWorkNote : null,
+          employeeIds: [],
+          roomId: null,
+          photosUrls: [],
+          videosUrls: [],
+        });
+        return;
+      }
+
       const uploadedPhotos = await uploadAppMediaListIfNeeded({
         uris: photosUrls,
         pathPrefix: `${projectId}/photos`,
@@ -332,6 +380,8 @@ function DailyLogForm({
         activities,
         weather,
         observations,
+        noWorkReason: null,
+        noWorkNote: null,
         employeeIds,
         roomId,
         photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
@@ -367,6 +417,15 @@ function DailyLogForm({
       },
     ]);
   };
+
+  const handleChangeNoWorkReason = (reason: NoWorkReason | "") => {
+    setNoWorkReason(reason);
+    if (reason !== "outro") {
+      setNoWorkNote("");
+    }
+    setNoWorkReasonOpen(false);
+    setRoomDropdownOpen(false);
+  };
   return (
     <AnimatedModal visible={visible} onRequestClose={handleClose} position="center" contentStyle={styles.modalCard}>
       <View style={styles.modalHeader}>
@@ -389,9 +448,10 @@ function DailyLogForm({
                 multiline
                 placeholder="Descreva o que foi feito hoje ..."
                 placeholderTextColor={colors.textMuted}
-                style={[styles.fieldInput, styles.textAreaLarge]}
+                style={[styles.fieldInput, styles.textAreaLarge, hasNoWorkReason && styles.fieldDisabled]}
                 value={activities}
                 onChangeText={setActivities}
+                editable={!hasNoWorkReason}
               />
             </View>
 
@@ -411,9 +471,10 @@ function DailyLogForm({
               <TextInput
                 placeholder="Ex: Ensolarado, Chuvoso ..."
                 placeholderTextColor={colors.textMuted}
-                style={styles.fieldInput}
+                style={[styles.fieldInput, hasNoWorkReason && styles.fieldDisabled]}
                 value={weather}
                 onChangeText={setWeather}
+                editable={!hasNoWorkReason}
               />
             </View>
 
@@ -423,9 +484,10 @@ function DailyLogForm({
                 multiline
                 placeholder="Observações do dia ..."
                 placeholderTextColor={colors.textMuted}
-                style={[styles.fieldInput, styles.textAreaMedium]}
+                style={[styles.fieldInput, styles.textAreaMedium, hasNoWorkReason && styles.fieldDisabled]}
                 value={observations}
                 onChangeText={setObservations}
+                editable={!hasNoWorkReason}
               />
             </View>
 
@@ -433,8 +495,11 @@ function DailyLogForm({
               <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
               <View style={styles.selectBlock}>
                 <Pressable
-                  style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
-                  onPress={() => setRoomDropdownOpen((current) => !current)}
+                  style={({ pressed }) => [styles.selectButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
+                  onPress={() => {
+                    if (hasNoWorkReason) return;
+                    setRoomDropdownOpen((current) => !current);
+                  }}
                 >
                   <Text style={styles.selectButtonText}>
                     {roomId === null ? "Sem cômodo" : rooms.find((room) => room.id === roomId)?.name ?? "Cômodo"}
@@ -484,9 +549,13 @@ function DailyLogForm({
                         style={({ pressed }) => [
                           styles.employeeChip,
                           selected && styles.employeeChipActive,
-                          pressed && styles.buttonPressed,
+                          hasNoWorkReason && styles.fieldDisabled,
+                          pressed && !hasNoWorkReason && styles.buttonPressed,
                         ]}
-                        onPress={() => handleToggleEmployee(employee.id)}
+                        onPress={() => {
+                          if (hasNoWorkReason) return;
+                          handleToggleEmployee(employee.id);
+                        }}
                       >
                         <Text style={[styles.employeeChipText, selected && styles.employeeChipTextActive]}>
                           {employee.full_name}
@@ -506,9 +575,9 @@ function DailyLogForm({
               <Text style={styles.fieldLabel}>Fotos e Vídeos</Text>
               <View style={styles.mediaSection}>
                 <Pressable 
-                  style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]}
+                  style={({ pressed }) => [styles.mediaButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
                   onPress={handleAddPhoto}
-                  disabled={uploading}
+                  disabled={uploading || hasNoWorkReason}
                 >
                   {uploading ? (
                     <ActivityIndicator size="small" color={colors.primary} />
@@ -540,9 +609,9 @@ function DailyLogForm({
                 </View>
 
                 <Pressable 
-                  style={({ pressed }) => [styles.mediaButton, pressed && styles.buttonPressed]}
+                  style={({ pressed }) => [styles.mediaButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
                   onPress={handleAddVideo}
-                  disabled={uploading}
+                  disabled={uploading || hasNoWorkReason}
                 >
                   {uploading ? (
                     <ActivityIndicator size="small" color={colors.primary} />
@@ -577,6 +646,67 @@ function DailyLogForm({
                 </View>
               </View>
             </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Não teve serviço no dia?</Text>
+              <View style={styles.selectBlock}>
+                <Pressable
+                  style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
+                  onPress={() => setNoWorkReasonOpen((current) => !current)}
+                >
+                  <Text style={[styles.selectButtonText, !hasNoWorkReason && styles.selectPlaceholderText]}>
+                    {hasNoWorkReason ? getNoWorkReasonLabel(noWorkReason) : "Selecione o motivo"}
+                  </Text>
+                  <AppIcon name={noWorkReasonOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+                </Pressable>
+                {noWorkReasonOpen ? (
+                  <View style={styles.selectMenu}>
+                    <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                      <Pressable
+                        style={[styles.selectOption, !hasNoWorkReason && styles.selectOptionActive]}
+                        onPress={() => handleChangeNoWorkReason("")}
+                      >
+                        <Text style={[styles.selectOptionText, !hasNoWorkReason && styles.selectOptionTextActive]}>Selecione o motivo</Text>
+                      </Pressable>
+                      {noWorkReasonOptions.map((option) => (
+                        <Pressable
+                          key={option.value}
+                          style={[styles.selectOption, noWorkReason === option.value && styles.selectOptionActive]}
+                          onPress={() => handleChangeNoWorkReason(option.value)}
+                        >
+                          <Text style={[styles.selectOptionText, noWorkReason === option.value && styles.selectOptionTextActive]}>{option.label}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+
+            {hasNoWorkReason ? (
+              <View style={styles.noWorkInfoCard}>
+                <AppIcon name="CircleAlert" size={18} color={colors.danger} />
+                <Text style={styles.noWorkInfoText}>
+                  Ao salvar, este dia será registrado como sem serviço e os campos operacionais acima serão ignorados.
+                </Text>
+              </View>
+            ) : null}
+
+            {noWorkReason === "outro" ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Qual motivo de não ter tido serviço hoje?</Text>
+                <TextInput
+                  multiline
+                  placeholder="Descreva o motivo..."
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.fieldInput, styles.textAreaMedium]}
+                  value={noWorkNote}
+                  onChangeText={setNoWorkNote}
+                />
+              </View>
+            ) : null}
 
             <AnimatedModal visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)} position="center" contentStyle={styles.confirmCard}>
               <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
@@ -641,6 +771,7 @@ function DailyLogDetailsModal({
   onEdit: () => void;
 }) {
   const selectedEmployees = presenceEmployees.filter((employee) => employeeIds.includes(employee.id));
+  const isNoWorkDay = Boolean(log.no_work_reason);
 
   return (
     <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
@@ -652,48 +783,64 @@ function DailyLogDetailsModal({
       </View>
 
       <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Atividades realizadas</Text>
-              <Text style={styles.detailValue}>{log.activities || "Nenhuma atividade descrita."}</Text>
-            </View>
+            {isNoWorkDay ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Dia sem serviço</Text>
+                <Text style={[styles.detailValue, styles.detailValueDanger]}>{getNoWorkReasonLabel(log.no_work_reason)}</Text>
+              </View>
+            ) : (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Atividades realizadas</Text>
+                <Text style={styles.detailValue}>{log.activities || "Nenhuma atividade descrita."}</Text>
+              </View>
+            )}
 
-            {log.weather ? (
+            {isNoWorkDay && log.no_work_note ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Detalhe do motivo</Text>
+                <Text style={styles.detailValue}>{log.no_work_note}</Text>
+              </View>
+            ) : null}
+
+            {!isNoWorkDay && log.weather ? (
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Clima</Text>
                 <Text style={styles.detailValue}>{log.weather}</Text>
               </View>
             ) : null}
 
-            {roomName ? (
+            {!isNoWorkDay && roomName ? (
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
                 <Text style={styles.detailValue}>{roomName}</Text>
               </View>
             ) : null}
 
-            {log.observations ? (
+            {!isNoWorkDay && log.observations ? (
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Observações</Text>
                 <Text style={styles.detailValue}>{log.observations}</Text>
               </View>
             ) : null}
 
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Equipe presente ({selectedEmployees.length})</Text>
-              <View style={styles.employeeList}>
-                {selectedEmployees.length > 0 ? (
-                  selectedEmployees.map((e) => (
-                    <View key={e.id} style={styles.employeeChipReadonly}>
-                      <Text style={styles.employeeChipText}>{e.full_name}</Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={styles.detailValueEmpty}>Nenhum funcionário registrado.</Text>
-                )}
+            {!isNoWorkDay ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Equipe presente ({selectedEmployees.length})</Text>
+                <View style={styles.employeeList}>
+                  {selectedEmployees.length > 0 ? (
+                    selectedEmployees.map((e) => (
+                      <View key={e.id} style={styles.employeeChipReadonly}>
+                        <Text style={styles.employeeChipText}>{e.full_name}</Text>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.detailValueEmpty}>Nenhum funcionário registrado.</Text>
+                  )}
+                </View>
               </View>
-            </View>
+            ) : null}
 
-            {(log.photos_urls?.length ?? 0) > 0 || (log.videos_urls?.length ?? 0) > 0 ? (
+            {!isNoWorkDay && ((log.photos_urls?.length ?? 0) > 0 || (log.videos_urls?.length ?? 0) > 0) ? (
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Mídias</Text>
                 <View style={styles.mediaListRow}>
@@ -782,6 +929,8 @@ export function DailyScreen() {
           (log.activities ?? "").toLowerCase().includes(query) ||
           (log.weather ?? "").toLowerCase().includes(query) ||
           (log.observations ?? "").toLowerCase().includes(query) ||
+          getNoWorkReasonLabel(log.no_work_reason).toLowerCase().includes(query) ||
+          (log.no_work_note ?? "").toLowerCase().includes(query) ||
           roomName.toLowerCase().includes(query);
         const matchesRoom = roomFilter === "todos" || log.room_id === roomFilter;
         const matchesMedia =
@@ -813,7 +962,8 @@ export function DailyScreen() {
     const withRoom = monthLogs.filter((log) => Boolean(log.room_id)).length;
     const withMedia = monthLogs.filter((log) => Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0))).length;
     const withWeather = monthLogs.filter((log) => Boolean(log.weather)).length;
-    return { total, withRoom, withMedia, withWeather };
+    const withoutWork = monthLogs.filter((log) => Boolean(log.no_work_reason)).length;
+    return { total, withRoom, withMedia, withWeather, withoutWork };
   }, [monthLogs]);
 
   // Manipulador para abertura de um dia especifico no calendario.
@@ -851,8 +1001,10 @@ export function DailyScreen() {
   const handleSave = async (payload: { 
     activities: string; 
     weather: string; 
-    observations: string; 
-    employeeIds: string[];
+      observations: string; 
+      noWorkReason?: NoWorkReason | null;
+      noWorkNote?: string | null;
+      employeeIds: string[];
     roomId?: string | null;
     photosUrls?: string[];
     videosUrls?: string[];
@@ -867,6 +1019,8 @@ export function DailyScreen() {
       activities: payload.activities,
       weather: payload.weather,
       observations: payload.observations,
+      noWorkReason: payload.noWorkReason ?? null,
+      noWorkNote: payload.noWorkNote ?? null,
       createdBy: user.id,
       employeeIds: payload.employeeIds,
       roomId: payload.roomId ?? null,
@@ -938,7 +1092,9 @@ export function DailyScreen() {
                 cell.date.getTime() > today.getTime() ||
                 (projectStartDate ? cell.date.getTime() < projectStartDate.getTime() : false);
               const isCurrentDay = cell.iso === isoDate(today);
-              const hasLog = Boolean(logsByDate[cell.iso]);
+              const logForDay = logsByDate[cell.iso];
+              const hasLog = Boolean(logForDay);
+              const isNoWorkDay = Boolean(logForDay?.no_work_reason);
               const isSelected = selectedDate === cell.iso;
 
               return (
@@ -948,7 +1104,7 @@ export function DailyScreen() {
                     styles.dayCell,
                     isCurrentDay && styles.dayToday,
                     isSelected && styles.daySelected,
-                    hasLog && styles.dayRegistered,
+                    hasLog && (isNoWorkDay ? styles.dayRegisteredNoWork : styles.dayRegistered),
                     pressed && !isDisabled && styles.buttonPressed,
                   ]}
                   disabled={isDisabled}
@@ -959,7 +1115,7 @@ export function DailyScreen() {
                       styles.dayText,
                       !cell.currentMonth && styles.dayOutsideMonth,
                       isDisabled && styles.dayDisabled,
-                      hasLog && styles.dayWithLog,
+                      hasLog && (isNoWorkDay ? styles.dayWithNoWork : styles.dayWithLog),
                       (isCurrentDay || isSelected) && styles.dayTextHighlighted,
                     ]}
                   >
@@ -974,6 +1130,10 @@ export function DailyScreen() {
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, styles.legendDotRegistered]} />
               <Text style={styles.legendText}>Registrado</Text>
+            </View>
+            <View style={styles.legendItem}>
+              <View style={[styles.legendDot, styles.legendDotNoWork]} />
+              <Text style={styles.legendText}>Sem serviço</Text>
             </View>
             <View style={styles.legendItem}>
               <View style={[styles.legendDot, styles.legendDotToday]} />
@@ -1023,6 +1183,10 @@ export function DailyScreen() {
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryCount}>{monthSummary.withWeather}</Text>
                 <Text style={styles.summaryLabel}>Com clima</Text>
+              </View>
+              <View style={[styles.summaryCard, styles.summaryCardNoWork]}>
+                <Text style={[styles.summaryCount, styles.summaryCountNoWork]}>{monthSummary.withoutWork}</Text>
+                <Text style={[styles.summaryLabel, styles.summaryLabelNoWork]}>Sem serviço</Text>
               </View>
             </View>
 
@@ -1171,11 +1335,14 @@ export function DailyScreen() {
                   >
                     <View style={styles.monthLogHeader}>
                       <Text style={styles.monthLogDate}>{displayDate(log.date)}</Text>
-                      <Text style={styles.monthLogTag}>Registrado</Text>
+                      <Text style={[styles.monthLogTag, log.no_work_reason && styles.monthLogTagDanger]}>
+                        {log.no_work_reason ? "Sem serviço" : "Registrado"}
+                      </Text>
                     </View>
                     <Text numberOfLines={2} style={styles.monthLogActivities}>
-                      {log.activities || "Sem descrição preenchida."}
+                      {log.no_work_reason ? getNoWorkReasonLabel(log.no_work_reason) : log.activities || "Sem descrição preenchida."}
                     </Text>
+                    {log.no_work_reason && log.no_work_note ? <Text style={styles.monthLogMeta}>{log.no_work_note}</Text> : null}
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
                     {log.room_id ? <Text style={styles.monthLogMeta}>Cômodo: {roomNameById[log.room_id] ?? "Cômodo removido"}</Text> : null}
                   </Pressable>
@@ -1361,6 +1528,10 @@ const styles = StyleSheet.create({
     color: colors.success,
     fontWeight: "700",
   },
+  dayWithNoWork: {
+    color: colors.danger,
+    fontWeight: "700",
+  },
   dayToday: {
     borderRadius: 20,
     borderWidth: 2,
@@ -1374,6 +1545,10 @@ const styles = StyleSheet.create({
   dayRegistered: {
     borderRadius: 20,
     backgroundColor: "#eef8f0",
+  },
+  dayRegisteredNoWork: {
+    borderRadius: 20,
+    backgroundColor: colors.dangerLight,
   },
   dayTextHighlighted: {
     color: "#4c2d12",
@@ -1399,6 +1574,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#c5f0cf",
     borderWidth: 1,
     borderColor: "#79c98d",
+  },
+  legendDotNoWork: {
+    backgroundColor: colors.dangerLight,
+    borderWidth: 1,
+    borderColor: colors.danger,
   },
   legendDotToday: {
     backgroundColor: colors.surface,
@@ -1468,6 +1648,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.infoLight,
     borderColor: colors.info,
   },
+  summaryCardNoWork: {
+    backgroundColor: colors.dangerLight,
+    borderColor: colors.danger,
+  },
   summaryCount: {
     fontSize: 20,
     fontWeight: "900",
@@ -1478,6 +1662,9 @@ const styles = StyleSheet.create({
   },
   summaryCountMedia: {
     color: colors.info,
+  },
+  summaryCountNoWork: {
+    color: colors.danger,
   },
   summaryLabel: {
     fontSize: 11,
@@ -1490,6 +1677,9 @@ const styles = StyleSheet.create({
   },
   summaryLabelMedia: {
     color: colors.info,
+  },
+  summaryLabelNoWork: {
+    color: colors.danger,
   },
   filtersDropdownButton: {
     flexDirection: "row",
@@ -1607,6 +1797,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.success,
   },
+  monthLogTagDanger: {
+    color: colors.danger,
+  },
   monthLogActivities: {
     fontSize: 14,
     lineHeight: 20,
@@ -1688,6 +1881,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
   },
+  fieldDisabled: {
+    opacity: 0.5,
+  },
   textAreaLarge: {
     minHeight: 116,
     textAlignVertical: "top",
@@ -1719,6 +1915,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 14,
     fontWeight: "700",
+  },
+  selectPlaceholderText: {
+    color: colors.textMuted,
   },
   selectMenu: {
     borderRadius: 14,
@@ -1817,6 +2016,28 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
   },
+  divider: {
+    height: 1,
+    backgroundColor: colors.cardBorder,
+    marginVertical: 4,
+  },
+  noWorkInfoCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#f1c3c3",
+    backgroundColor: "#fff5f5",
+    padding: 12,
+  },
+  noWorkInfoText: {
+    flex: 1,
+    color: colors.danger,
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
   mediaSection: { gap: 12 },
   mediaButton: {
     borderRadius: 12,
@@ -1890,6 +2111,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     padding: 12,
     borderRadius: 12,
+  },
+  detailValueDanger: {
+    color: colors.danger,
+    backgroundColor: colors.dangerLight,
   },
   detailValueEmpty: {
     fontSize: 14,
