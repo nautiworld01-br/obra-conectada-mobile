@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AppState } from "react-native";
+import { AppState, Platform } from "react-native";
 import { supabase } from "../lib/supabase";
 import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { useProject } from "./useProject";
@@ -48,6 +48,22 @@ export type PresenceEmployeeRow = {
   status: "ativo" | "inativo";
 };
 
+function normalizeDailyLogServiceItems(
+  items: Array<Partial<DailyLogServiceItemRow> & { room_id?: string | null; description?: string | null }> | null,
+) {
+  return (items ?? [])
+    .filter((item) => Boolean(item.room_id) && Boolean(item.description))
+    .map((item, index) => ({
+      id: item.id ?? `service-item-${index}`,
+      log_id: item.log_id ?? "",
+      room_id: item.room_id as string,
+      description: item.description as string,
+      status: item.status ?? "em_andamento",
+      order_index: item.order_index ?? 0,
+    }))
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+}
+
 // Hook principal para gerenciar os diários de obra.
 // A presença passa a usar profiles.id como identificador real, com compatibilidade legada no banco.
 export function useDailyLogs() {
@@ -83,9 +99,9 @@ export function useDailyLogs() {
               .concat(log.room_id ? [log.room_id] : []),
           ),
         ),
-        service_items: ((log.daily_log_service_items as DailyLogServiceItemRow[] | null) ?? [])
-          .filter((item) => Boolean(item.room_id) && Boolean(item.description))
-          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
+        service_items: normalizeDailyLogServiceItems(
+          (log.daily_log_service_items as Array<Partial<DailyLogServiceItemRow>> | null) ?? null,
+        ),
         presenceIds: (log.daily_log_employees as any[] || []).map(item => item.user_id).filter(Boolean)
       }));
     },
@@ -155,6 +171,10 @@ export function useDailyLogs() {
   }, [logsQuery, presenceEmployeesQuery, project?.id]);
 
   useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
     if (!project?.id) {
       return;
     }
@@ -221,9 +241,9 @@ export function useDailyLogDetail(logId: string | null) {
               .concat(data.room_id ? [data.room_id] : []),
           ),
         ),
-        service_items: ((data.daily_log_service_items as DailyLogServiceItemRow[] | null) ?? [])
-          .filter((item) => Boolean(item.room_id) && Boolean(item.description))
-          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
+        service_items: normalizeDailyLogServiceItems(
+          (data.daily_log_service_items as Array<Partial<DailyLogServiceItemRow>> | null) ?? null,
+        ),
         presenceIds: ((data.daily_log_employees as { user_id: string | null }[] | null) ?? [])
           .map((item) => item.user_id)
           .filter((value): value is string => Boolean(value)),
@@ -331,9 +351,11 @@ export function useUpsertDailyLog() {
 
       return log;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: (savedLog, variables) => {
       queryClient.invalidateQueries({ queryKey: ["daily_logs", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["daily_log_employees"] });
+      queryClient.invalidateQueries({ queryKey: ["daily_log_detail", (savedLog as DailyLogRow).id] });
+      queryClient.invalidateQueries({ queryKey: ["daily_log_month_media", variables.projectId] });
     },
   });
 }
@@ -357,6 +379,8 @@ export function useDeleteDailyLog() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["daily_logs", variables.projectId] });
       queryClient.invalidateQueries({ queryKey: ["daily_log_employees"] });
+      queryClient.invalidateQueries({ queryKey: ["daily_log_detail", variables.logId] });
+      queryClient.invalidateQueries({ queryKey: ["daily_log_month_media", variables.projectId] });
     },
   });
 }

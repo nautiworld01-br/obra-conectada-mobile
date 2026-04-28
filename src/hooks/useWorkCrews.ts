@@ -21,6 +21,72 @@ export type WorkCrewRow = {
   observations: string | null;
 };
 
+export type UpsertWorkCrewPayload = {
+  id?: string;
+  projectId: string;
+  photo: string | null;
+  companyName: string;
+  companyContact?: string | null;
+  responsibleName?: string | null;
+  responsibleContact?: string | null;
+  averageWorkers?: number | null;
+  contractedAmount?: number | null;
+  plannedStartDate?: string | null;
+  plannedEndDate?: string | null;
+  observations?: string | null;
+};
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return normalized.length ? normalized : null;
+}
+
+function normalizeOptionalNumber(value: number | null | undefined, fieldLabel: string) {
+  if (value == null) {
+    return null;
+  }
+
+  if (!Number.isFinite(value)) {
+    throw new Error(`${fieldLabel} inválido.`);
+  }
+
+  if (value < 0) {
+    throw new Error(`${fieldLabel} não pode ser negativo.`);
+  }
+
+  return value;
+}
+
+function buildWorkCrewPayload(payload: UpsertWorkCrewPayload) {
+  const companyName = payload.companyName.trim();
+  if (!companyName) {
+    throw new Error("Informe o nome da empresa ou equipe.");
+  }
+
+  const averageWorkers = normalizeOptionalNumber(payload.averageWorkers, "Média de trabalhadores");
+  const contractedAmount = normalizeOptionalNumber(payload.contractedAmount, "Valor contratado");
+  const plannedStartDate = normalizeOptionalText(payload.plannedStartDate);
+  const plannedEndDate = normalizeOptionalText(payload.plannedEndDate);
+
+  if (plannedStartDate && plannedEndDate && plannedStartDate > plannedEndDate) {
+    throw new Error("A data de início previsto não pode ser maior que a data de término previsto.");
+  }
+
+  return {
+    project_id: payload.projectId,
+    photo: normalizeOptionalText(payload.photo),
+    company_name: companyName,
+    company_contact: normalizeOptionalText(payload.companyContact),
+    responsible_name: normalizeOptionalText(payload.responsibleName),
+    responsible_contact: normalizeOptionalText(payload.responsibleContact),
+    average_workers: averageWorkers != null ? Math.round(averageWorkers) : null,
+    contracted_amount: contractedAmount,
+    planned_start_date: plannedStartDate,
+    planned_end_date: plannedEndDate,
+    observations: normalizeOptionalText(payload.observations),
+  };
+}
+
 /**
  * Hook para listar e monitorar em tempo real as equipes de obra do projeto.
  * future_fix: Adicionar suporte a paginacao se o numero de empreiteiras for muito grande.
@@ -76,22 +142,10 @@ export function useUpsertWorkCrew() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: UpsertWorkCrewPayload) => {
       if (!supabase) throw new Error("Supabase nao configurado.");
 
-      const workCrewPayload = {
-        project_id: payload.projectId,
-        photo: payload.photo,
-        company_name: payload.companyName,
-        company_contact: payload.companyContact,
-        responsible_name: payload.responsibleName,
-        responsible_contact: payload.responsibleContact,
-        average_workers: payload.averageWorkers,
-        contracted_amount: payload.contractedAmount,
-        planned_start_date: payload.plannedStartDate,
-        planned_end_date: payload.plannedEndDate,
-        observations: payload.observations,
-      };
+      const workCrewPayload = buildWorkCrewPayload(payload);
 
       const query = payload.id 
         ? supabase.from("work_crews").update(workCrewPayload).eq("id", payload.id)

@@ -201,7 +201,7 @@ function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, 
                   </Pressable>
                 ))}
               </ScrollView>
-              <Text style={styles.helperTextSmall}>Estados "Em Andamento" e "Atrasado" são sugeridos automaticamente por data, mas você pode forçar "Concluído" ou "Bloqueado".</Text>
+              <Text style={styles.helperTextSmall}>`Concluído` fecha em 100%. `Não Iniciado` volta para 0%. Para usar 100%, selecione `Concluído`.</Text>
             </View>
 
             <View style={styles.fieldBlock}>
@@ -526,10 +526,18 @@ export function ScheduleScreen() {
         loading={upsertStage.isPending} 
         deleting={deleteStage.isPending} 
         onClose={() => setFormOpen(false)} 
-        onSave={(p: any) => upsertStage.mutateAsync({ id: selectedStage?.id, projectId: project?.id, ...p }).then(() => {
-          setFormOpen(false);
-          Toast.show({ type: "success", text1: "Etapa salva", text2: "O cronograma foi atualizado." });
-        })} 
+        onSave={(p: any) =>
+          upsertStage
+            .mutateAsync({ id: selectedStage?.id, projectId: project?.id ?? "", ...p })
+            .then(() => {
+              setFormOpen(false);
+              Toast.show({ type: "success", text1: "Etapa salva", text2: "O cronograma foi atualizado." });
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : "Não foi possível salvar a etapa.";
+              Alert.alert("Erro", message);
+            })
+        } 
         onDelete={handleDelete} 
       />
     </View>

@@ -99,17 +99,18 @@ export function TeamScreen() {
       setWorkCrewFormOpen(false);
       Toast.show({ type: "success", text1: "Equipe salva" });
     } catch (error) {
-      Alert.alert("Erro", "Falha ao salvar equipe da obra.");
+      const message = error instanceof Error ? error.message : "Falha ao salvar equipe da obra.";
+      Alert.alert("Erro", message);
     }
   };
 
   const handleDeleteEmployeeById = async (employee: TeamEmployeeRow) => {
     try {
       await deleteEmployee.mutateAsync({ id: employee.id });
-      Toast.show({ type: "success", text1: "Conta removida" });
+      Toast.show({ type: "success", text1: "Conta excluída" });
     } catch (e) {
-      const message = e instanceof Error ? e.message : "Falha ao remover conta.";
-      Alert.alert("Erro ao remover conta", message);
+      const message = e instanceof Error ? e.message : "Falha ao excluir conta.";
+      Alert.alert("Erro ao excluir conta", message);
     }
   };
 
@@ -242,8 +243,8 @@ export function TeamScreen() {
   }
 
   return (
-    <AppScreen title="Equipe" subtitle="Gestão de funcionários e empreiteiras parceiras.">
-      <SectionCard title="Equipe de funcionários" subtitle={`Ativos: ${summary.active} • Inativos: ${summary.inactive}`}>
+    <AppScreen title="Equipe" subtitle="Gestão de contas da obra e empreiteiras parceiras.">
+      <SectionCard title="Contas de funcionários" subtitle={`Ativos: ${summary.active} • Inativos: ${summary.inactive}`}>
         {isLoading ? (
           <View style={styles.loadingState}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Carregando equipe...</Text></View>
         ) : employees.length ? (
@@ -269,21 +270,37 @@ export function TeamScreen() {
                     <View style={styles.rowActions}>
                       <Pressable style={styles.secondaryAction} onPress={() => { setEmployeeDraft(buildEmployeeDraft(employee)); setEmployeeFormOpen(true); }}><Text style={styles.secondaryActionText}>Editar</Text></Pressable>
                       <Pressable style={styles.secondaryAction} onPress={() => {
+                        const confirmationMessage =
+                          `Excluir a conta de ${employee.full_name}?\n\n` +
+                          "Esta ação remove a conta, revoga o acesso ao app e desfaz o vínculo com a obra.";
+
                         if (Platform.OS === "web") {
-                          if (window.confirm("Remover conta permanentemente?")) {
+                          if (window.confirm(confirmationMessage)) {
                             void handleDeleteEmployeeById(employee);
                           }
                           return;
                         }
-                        Alert.alert("Excluir?", "Remover conta do sistema?", [{ text: "Não", style: "cancel" }, { text: "Sim", style: "destructive", onPress: () => void handleDeleteEmployeeById(employee) }]);
-                      }}><Text style={[styles.secondaryActionText, styles.dangerText]}>Remover</Text></Pressable>
+
+                        Alert.alert(
+                          "Excluir conta?",
+                          "Esta ação remove a conta, revoga o acesso ao app e desfaz o vínculo com a obra.",
+                          [
+                            { text: "Cancelar", style: "cancel" },
+                            {
+                              text: "Excluir conta",
+                              style: "destructive",
+                              onPress: () => void handleDeleteEmployeeById(employee),
+                            },
+                          ],
+                        );
+                      }}><Text style={[styles.secondaryActionText, styles.dangerText]}>Excluir conta</Text></Pressable>
                     </View>
                   )}
                 </View>
               );
             })}
           </View>
-        ) : <Text style={styles.emptyText}>Nenhum funcionário logado encontrado.</Text>}
+        ) : <Text style={styles.emptyText}>Nenhuma conta de funcionário encontrada.</Text>}
       </SectionCard>
 
       <SectionCard title="Equipe da obra" subtitle={`Times: ${workCrewSummary.total} • Média de pessoas: ${workCrewSummary.workersAverage}`}>

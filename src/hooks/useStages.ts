@@ -21,6 +21,73 @@ export type StageRow = {
   created_at?: string;
 };
 
+export type UpsertStagePayload = {
+  id?: string;
+  projectId: string;
+  name: string;
+  category?: string | null;
+  responsible?: string | null;
+  roomId?: string | null;
+  plannedStart: string | null;
+  plannedEnd: string | null;
+  observations?: string | null;
+  status: StageStatus;
+  percentComplete?: number | null;
+};
+
+function normalizeOptionalText(value: string | null | undefined) {
+  const normalized = value?.trim() ?? "";
+  return normalized.length ? normalized : null;
+}
+
+function buildStagePayload(payload: UpsertStagePayload) {
+  const name = payload.name.trim();
+  if (!name) {
+    throw new Error("Informe o nome da etapa.");
+  }
+
+  const normalizedPercent = payload.percentComplete ?? 0;
+  if (!Number.isFinite(normalizedPercent)) {
+    throw new Error("A evolução da etapa é inválida.");
+  }
+
+  if (normalizedPercent < 0 || normalizedPercent > 100) {
+    throw new Error("A evolução da etapa deve ficar entre 0% e 100%.");
+  }
+
+  const plannedStart = normalizeOptionalText(payload.plannedStart);
+  const plannedEnd = normalizeOptionalText(payload.plannedEnd);
+  if (plannedStart && plannedEnd && plannedStart > plannedEnd) {
+    throw new Error("A data de início planejado não pode ser maior que a data de fim planejado.");
+  }
+
+  if (payload.status !== "concluido" && normalizedPercent === 100) {
+    throw new Error("Use o status Concluído para etapas com 100% de evolução.");
+  }
+
+  let finalPercent = normalizedPercent;
+  if (payload.status === "concluido") {
+    finalPercent = 100;
+  }
+
+  if (payload.status === "nao_iniciado") {
+    finalPercent = 0;
+  }
+
+  return {
+    project_id: payload.projectId,
+    name,
+    category: normalizeOptionalText(payload.category),
+    responsible: normalizeOptionalText(payload.responsible),
+    room_id: normalizeOptionalText(payload.roomId),
+    planned_start: plannedStart,
+    planned_end: plannedEnd,
+    observations: normalizeOptionalText(payload.observations),
+    status: payload.status,
+    percent_complete: finalPercent,
+  };
+}
+
 // Hook para buscar todas as etapas do cronograma vinculadas ao projeto atual.
 export function useStages() {
   const { project, isLoading: isProjectLoading } = useProject();
@@ -60,38 +127,15 @@ export function useUpsertStage() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (payload: {
-      id?: string;
-      projectId: string;
-      name: string;
-      category?: string | null;
-      responsible?: string | null;
-      roomId?: string | null;
-      plannedStart: string | null;
-      plannedEnd: string | null;
-      observations?: string | null;
-      status: StageStatus;
-      percentComplete?: number | null;
-    }) => {
+    mutationFn: async (payload: UpsertStagePayload) => {
       if (!supabase) {
         throw new Error("Supabase nao configurado.");
       }
+      if (!payload.projectId) {
+        throw new Error("Projeto não carregado.");
+      }
 
-      // Se for concluído, força 100%. Caso contrário, usa o valor enviado ou mantém o atual.
-      const finalPercent = payload.status === "concluido" ? 100 : (payload.percentComplete ?? 0);
-
-      const stagePayload = {
-        project_id: payload.projectId,
-        name: payload.name,
-        category: payload.category || null,
-        responsible: payload.responsible || null,
-        room_id: payload.roomId || null,
-        planned_start: payload.plannedStart,
-        planned_end: payload.plannedEnd,
-        observations: payload.observations || null,
-        status: payload.status,
-        percent_complete: finalPercent,
-      };
+      const stagePayload = buildStagePayload(payload);
 
       if (payload.id) {
         const { data, error } = await supabase

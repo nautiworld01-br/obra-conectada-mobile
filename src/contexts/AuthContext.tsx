@@ -170,21 +170,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // REFORCO: Ao voltar do segundo plano, verifica se a sessao ainda e valida.
     // Mantem a sessao viva quando a aba volta ao foco apos inatividade.
-    const appStateSubscription = AppState.addEventListener("change", (nextAppState) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === "active") {
-        void client.auth.refreshSession().then(({ error }) => {
-          if (error && isInvalidRefreshTokenError(error)) {
-            void clearInvalidLocalSession();
-          }
-        });
-      }
-      appState.current = nextAppState;
-    });
+    const appStateSubscription =
+      Platform.OS === "web"
+        ? null
+        : AppState.addEventListener("change", (nextAppState) => {
+            if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+              void client.auth.refreshSession().then(({ error }) => {
+                if (error && isInvalidRefreshTokenError(error)) {
+                  void clearInvalidLocalSession();
+                }
+              });
+            }
+            appState.current = nextAppState;
+          });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
-      appStateSubscription.remove();
+      appStateSubscription?.remove();
     };
   }, []);
 

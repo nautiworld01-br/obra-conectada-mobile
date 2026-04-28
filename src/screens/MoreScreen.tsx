@@ -227,7 +227,7 @@ export function MoreScreen() {
         </Text>
         <View style={styles.deleteNotice}>
           <Text style={styles.deleteNoticeText}>
-            Seus dados pessoais, vínculo com a obra e acesso à conta serão removidos. Se esta conta for o último proprietário da obra, a exclusão será bloqueada.
+            Seus dados pessoais, vínculo com a obra e acesso ao app serão removidos. Se esta conta for o último proprietário da obra, a exclusão será bloqueada.
           </Text>
         </View>
         <View style={styles.formBlock}>
