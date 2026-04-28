@@ -34,6 +34,7 @@ yarn-error.*
 .env*.local
 supabase/functions/.env
 README.local.md
+README.multi-room-plan.local.md
 profiles-migration.local.md
 README.local.notify.md
 Feedback_Gemini_e_ChatGPT_para_notificacoes

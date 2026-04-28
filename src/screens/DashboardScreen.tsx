@@ -97,9 +97,9 @@ export function DashboardScreen() {
       .filter((payment) => payment.status === "pago" || payment.status === "aprovado")
       .reduce((sum, payment) => sum + Number(payment.requested_amount), 0);
     const roomSummaries = rooms.map((room) => {
-      const roomLogs = logs.filter((log) => log.room_id === room.id);
+      const roomLogs = logs.filter((log) => log.room_ids.includes(room.id));
       const roomStages = stages.filter((stage) => stage.room_id === room.id);
-      const roomUpdates = updates.filter((update) => update.room_id === room.id);
+      const roomUpdates = updates.filter((update) => update.room_ids.includes(room.id));
       const completedStagesByRoom = roomStages.filter((stage) => stage.status === "concluido").length;
       const delayedStagesByRoom = roomStages.filter((stage) => stage.status === "atrasado" || stage.status === "bloqueado").length;
       const stageProgressByRoom = roomStages.length

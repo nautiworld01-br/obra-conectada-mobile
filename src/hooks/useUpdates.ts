@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
+import { withSchemaDriftContext } from "../lib/schemaDrift";
 import { useProject } from "./useProject";
 
 export type UpdateStatus = "adiantado" | "no_prazo" | "atrasado";
@@ -23,6 +24,7 @@ export type UpdateRow = {
   videos: string[] | null;
   stage_id: string | null;
   room_id: string | null;
+  room_ids: string[];
   approved: boolean | null;
   owner_comments: string | null;
   created_at: string;
@@ -43,12 +45,24 @@ export function useUpdates() {
 
       const { data, error } = await supabase
         .from("weekly_updates")
-        .select("*")
+        .select("*, weekly_update_rooms ( room_id )")
         .eq("project_id", project.id)
         .order("date", { ascending: false });
 
-      if (error) throw error;
-      return (data ?? []) as UpdateRow[];
+      if (error) throw withSchemaDriftContext(error, "consulta de relatorios com room_ids");
+      return ((data ?? []) as (Omit<UpdateRow, "room_ids"> & {
+        weekly_update_rooms?: { room_id: string | null }[] | null;
+      })[]).map((update) => ({
+        ...update,
+        room_ids: Array.from(
+          new Set(
+            ((update.weekly_update_rooms ?? [])
+              .map((item) => item.room_id)
+              .filter((value): value is string => Boolean(value)))
+              .concat(update.room_id ? [update.room_id] : []),
+          ),
+        ),
+      }));
     },
   });
 
@@ -83,17 +97,39 @@ export function useUpsertUpdate() {
         observations: payload.observations || null,
         photos: payload.photos,
         videos: payload.videos,
-        room_id: payload.roomId || null,
+        room_ids: payload.roomIds || [],
         owner_comments: payload.ownerComments || null,
       };
 
-      const query = payload.id
-        ? supabase.from("weekly_updates").update(updatePayload).eq("id", payload.id)
-        : supabase.from("weekly_updates").insert({ ...updatePayload, project_id: payload.projectId, created_by: payload.userId });
+      const { data, error } = await supabase
+        .rpc("upsert_weekly_update_with_rooms", {
+          p_id: payload.id ?? null,
+          p_project_id: payload.projectId,
+          p_user_id: payload.userId,
+          p_week_ref: updatePayload.week_ref,
+          p_summary: updatePayload.summary,
+          p_status: updatePayload.status,
+          p_services_completed: updatePayload.services_completed,
+          p_services_not_completed: updatePayload.services_not_completed,
+          p_difficulties: updatePayload.difficulties,
+          p_materials_received: updatePayload.materials_received,
+          p_materials_missing: updatePayload.materials_missing,
+          p_next_week_plan: updatePayload.next_week_plan,
+          p_observations: updatePayload.observations,
+          p_photos: updatePayload.photos,
+          p_videos: updatePayload.videos,
+          p_room_ids: updatePayload.room_ids,
+          p_owner_comments: updatePayload.owner_comments,
+        })
+        .single();
 
-      const { data, error } = await query.select().single();
-      if (error) throw error;
-      return data as UpdateRow;
+      if (error) throw withSchemaDriftContext(error, "RPC upsert_weekly_update_with_rooms");
+
+      const saved = data as Omit<UpdateRow, "room_ids">;
+      return {
+        ...saved,
+        room_ids: Array.isArray(payload.roomIds) ? payload.roomIds.filter(Boolean) : [],
+      } as UpdateRow;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["updates", variables.projectId] });

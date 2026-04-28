@@ -18,6 +18,7 @@ export type DailyLogRow = {
   created_by: string;
   project_id: string;
   room_id: string | null;
+  room_ids: string[];
   photos_urls?: string[] | null;
   videos_urls?: string[] | null;
 };
@@ -45,7 +46,8 @@ export function useDailyLogs() {
         .from("daily_logs")
         .select(`
           id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
-          daily_log_employees ( user_id )
+          daily_log_employees ( user_id ),
+          daily_log_rooms ( room_id )
         `)
         .eq("project_id", project.id)
         .order("date", { ascending: false });
@@ -54,6 +56,14 @@ export function useDailyLogs() {
 
       return (data ?? []).map(log => ({
         ...log,
+        room_ids: Array.from(
+          new Set(
+            ((log.daily_log_rooms as { room_id: string | null }[] | null) ?? [])
+              .map((item) => item.room_id)
+              .filter((value): value is string => Boolean(value))
+              .concat(log.room_id ? [log.room_id] : []),
+          ),
+        ),
         presenceIds: (log.daily_log_employees as any[] || []).map(item => item.user_id).filter(Boolean)
       }));
     },
@@ -183,7 +193,7 @@ export function useUpsertDailyLog() {
       noWorkNote?: string | null;
       createdBy: string;
       userIds: string[];
-      roomId?: string | null;
+      roomIds?: string[];
       photosUrls?: string[];
       videosUrls?: string[];
     }) => {
@@ -202,7 +212,7 @@ export function useUpsertDailyLog() {
           p_no_work_note: payload.noWorkNote?.trim() || null,
           p_created_by: payload.createdBy,
           p_user_ids: payload.userIds,
-          p_room_id: payload.roomId ?? null,
+          p_room_ids: payload.roomIds ?? [],
           p_photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,
           p_videos_urls: payload.videosUrls?.length ? payload.videosUrls : null,
         })

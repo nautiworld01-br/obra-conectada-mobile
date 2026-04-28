@@ -5,16 +5,21 @@ const SCHEMA_DRIFT_MESSAGE =
 
 const SCHEMA_TERMS = [
   "room_id",
+  "room_ids",
   "rooms",
+  "daily_log_rooms",
+  "weekly_update_rooms",
   "daily_log_employees",
   "user_id",
   "photos_urls",
   "videos_urls",
   "p_room_id",
+  "p_room_ids",
   "p_photos_urls",
   "p_videos_urls",
   "p_user_ids",
   "upsert_daily_log_with_profiles",
+  "upsert_weekly_update_with_rooms",
   "upsert_full_project",
 ];
 

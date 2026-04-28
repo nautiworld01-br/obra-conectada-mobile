@@ -251,6 +251,7 @@ export function ScheduleScreen() {
   const [roomFilter, setRoomFilter] = useState<string | "todos">("todos");
   const [sortOrder, setSortOrder] = useState<StageSortOrder>("recentes");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [roomFilterDropdownOpen, setRoomFilterDropdownOpen] = useState(false);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
@@ -402,7 +403,10 @@ export function ScheduleScreen() {
             );
           })}
         </View>
-        <Pressable style={styles.filtersDropdownButton} onPress={() => setFiltersOpen((current) => !current)}>
+        <Pressable style={styles.filtersDropdownButton} onPress={() => {
+          setFiltersOpen((current) => !current);
+          setRoomFilterDropdownOpen(false);
+        }}>
           <View style={styles.filtersDropdownInfo}>
             <AppIcon name="SlidersHorizontal" size={16} color={colors.primary} />
             <Text style={styles.filtersDropdownTitle}>Filtros da lista</Text>
@@ -411,7 +415,7 @@ export function ScheduleScreen() {
             <View style={styles.sortActiveBadge}>
               <AppIcon name="MapPinned" size={12} color={colors.primary} />
               <Text style={styles.sortActiveBadgeText}>
-                {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                {roomFilter === "todos" ? "Sem filtro de cômodo" : roomNameById[roomFilter] ?? "Cômodo"}
               </Text>
             </View>
             <View style={styles.sortActiveBadge}>
@@ -429,30 +433,47 @@ export function ScheduleScreen() {
             <View style={styles.sortRow}>
               <View style={styles.sortHeaderRow}>
                 <Text style={styles.sortLabel}>Cômodo</Text>
-                <View style={styles.sortActiveBadge}>
-                  <AppIcon name="MapPinned" size={12} color={colors.primary} />
-                  <Text style={styles.sortActiveBadgeText}>
-                    {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
-                  </Text>
-                </View>
               </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+              <View style={styles.selectBlock}>
                 <Pressable
-                  style={[styles.chip, styles.sortChip, roomFilter === "todos" && styles.chipActive]}
-                  onPress={() => setRoomFilter("todos")}
+                  style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
+                  onPress={() => setRoomFilterDropdownOpen((current) => !current)}
                 >
-                  <Text style={[styles.chipText, roomFilter === "todos" && styles.chipTextActive]}>Todos os cômodos</Text>
+                  <Text style={[styles.selectButtonText, roomFilter === "todos" && styles.selectPlaceholderText]}>
+                    {roomFilter === "todos" ? "Selecione um cômodo" : roomNameById[roomFilter] ?? "Cômodo"}
+                  </Text>
+                  <AppIcon name={roomFilterDropdownOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
                 </Pressable>
-                {rooms.map((room) => (
-                  <Pressable
-                    key={room.id}
-                    style={[styles.chip, styles.sortChip, roomFilter === room.id && styles.chipActive]}
-                    onPress={() => setRoomFilter(room.id)}
-                  >
-                    <Text style={[styles.chipText, roomFilter === room.id && styles.chipTextActive]}>{room.name}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
+                {roomFilterDropdownOpen ? (
+                  <View style={styles.selectMenu}>
+                    <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                      {roomFilter !== "todos" ? (
+                        <Pressable
+                          style={styles.selectOption}
+                          onPress={() => {
+                            setRoomFilter("todos");
+                            setRoomFilterDropdownOpen(false);
+                          }}
+                        >
+                          <Text style={styles.selectOptionText}>Limpar filtro de cômodo</Text>
+                        </Pressable>
+                      ) : null}
+                      {rooms.map((room) => (
+                        <Pressable
+                          key={room.id}
+                          style={[styles.selectOption, roomFilter === room.id && styles.selectOptionActive]}
+                          onPress={() => {
+                            setRoomFilter(room.id);
+                            setRoomFilterDropdownOpen(false);
+                          }}
+                        >
+                          <Text style={[styles.selectOptionText, roomFilter === room.id && styles.selectOptionTextActive]}>{room.name}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
             </View>
             <View style={styles.sortRow}>
               <View style={styles.sortHeaderRow}>
@@ -568,6 +589,40 @@ const styles = StyleSheet.create({
   },
   sortActiveBadgeText: { fontSize: 11, fontWeight: "800", color: colors.primary },
   sortChip: { minHeight: 34, justifyContent: "center" },
+  selectBlock: { position: "relative" },
+  selectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  selectButtonText: { flex: 1, fontSize: 14, fontWeight: "600", color: colors.text },
+  selectPlaceholderText: { color: colors.textMuted },
+  selectMenu: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  selectMenuScroll: { maxHeight: 240 },
+  selectOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+    backgroundColor: colors.surface,
+  },
+  selectOptionActive: { backgroundColor: colors.primarySoft },
+  selectOptionText: { fontSize: 14, fontWeight: "600", color: colors.text },
+  selectOptionTextActive: { color: colors.primary, fontWeight: "800" },
   content: { paddingBottom: 32, gap: 12 },
   progressCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, gap: 10 },
   progressHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

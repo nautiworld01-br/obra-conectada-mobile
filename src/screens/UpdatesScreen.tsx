@@ -89,6 +89,10 @@ function getStatusColors(status: UpdateStatus) {
   }
 }
 
+function getRoomNames(roomIds: string[] | undefined, roomNameById: Record<string, string>) {
+  return (roomIds ?? []).map((roomId) => roomNameById[roomId] ?? "Cômodo removido");
+}
+
 /**
  * Modal de Formulario para Relatorios Semanais.
  */
@@ -101,7 +105,7 @@ function UpdateFormModal(_: any) {
   const [draft, setDraft] = useState({
     weekRef: "", summary: "", status: "no_prazo" as UpdateStatus,
     servicesCompleted: "", servicesNotCompleted: "",
-    photos: [] as string[], videos: [] as string[], roomId: null as string | null
+    photos: [] as string[], videos: [] as string[], roomIds: [] as string[]
   });
   
   const [statusOpen, setStatusOpen] = useState(false);
@@ -117,7 +121,7 @@ function UpdateFormModal(_: any) {
         servicesNotCompleted: stringifyList(update?.services_not_completed),
         photos: update?.photos ?? [],
         videos: update?.videos ?? [],
-        roomId: update?.room_id ?? null,
+        roomIds: update?.room_ids ?? [],
       });
     }
   }, [update, visible, currentWeek]);
@@ -189,14 +193,23 @@ function UpdateFormModal(_: any) {
             </View>
             
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
+              <Text style={styles.fieldLabel}>Cômodos relacionados</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
-                <Pressable style={[styles.optionChip, draft.roomId === null && styles.optionChipActive]} onPress={() => setDraft(c => ({ ...c, roomId: null }))}>
-                  <Text style={[styles.optionChipText, draft.roomId === null && styles.optionChipTextActive]}>Sem cômodo</Text>
+                <Pressable style={[styles.optionChip, draft.roomIds.length === 0 && styles.optionChipActive]} onPress={() => setDraft(c => ({ ...c, roomIds: [] }))}>
+                  <Text style={[styles.optionChipText, draft.roomIds.length === 0 && styles.optionChipTextActive]}>Sem cômodo</Text>
                 </Pressable>
                 {rooms.map((room: { id: string; name: string }) => (
-                  <Pressable key={room.id} style={[styles.optionChip, draft.roomId === room.id && styles.optionChipActive]} onPress={() => setDraft(c => ({ ...c, roomId: room.id }))}>
-                    <Text style={[styles.optionChipText, draft.roomId === room.id && styles.optionChipTextActive]}>{room.name}</Text>
+                  <Pressable
+                    key={room.id}
+                    style={[styles.optionChip, draft.roomIds.includes(room.id) && styles.optionChipActive]}
+                    onPress={() => setDraft((current) => ({
+                      ...current,
+                      roomIds: current.roomIds.includes(room.id)
+                        ? current.roomIds.filter((item) => item !== room.id)
+                        : [...current.roomIds, room.id],
+                    }))}
+                  >
+                    <Text style={[styles.optionChipText, draft.roomIds.includes(room.id) && styles.optionChipTextActive]}>{room.name}</Text>
                   </Pressable>
                 ))}
               </ScrollView>
@@ -283,7 +296,7 @@ function UpdateFormModal(_: any) {
  * Detalhes do Relatorio com Interacao.
  */
 function UpdateDetailModal(_: any) {
-  const { update, roomName, visible, isOwner, onClose, onEdit, onDelete, onReview } = _;
+  const { update, roomNames, visible, isOwner, onClose, onEdit, onDelete, onReview } = _;
   const [comment, setComment] = useState("");
 
   useEffect(() => { setComment(update?.owner_comments || ""); }, [update, visible]);
@@ -309,7 +322,7 @@ function UpdateDetailModal(_: any) {
               <Text style={styles.detailWeek}>Semana {update.week_ref}</Text>
               <View style={[styles.statusPill, { backgroundColor: statusStyle.background }]}><Text style={[styles.statusPillText, { color: statusStyle.text }]}>{update.status.toUpperCase()}</Text></View>
             </View>
-            {roomName ? <Text style={styles.detailLabel}>Cômodo: {roomName}</Text> : null}
+            {roomNames?.length ? <Text style={styles.detailLabel}>Cômodos: {roomNames.join(", ")}</Text> : null}
             <Text style={styles.detailSummary}>{update.summary}</Text>
             
             {/* Seção de Midias */}
@@ -385,6 +398,7 @@ export function UpdatesScreen() {
   const [roomFilter, setRoomFilter] = useState<string | "todos">("todos");
   const [sortOrder, setSortOrder] = useState<UpdateSortOrder>("recentes");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [roomFilterDropdownOpen, setRoomFilterDropdownOpen] = useState(false);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
@@ -392,7 +406,7 @@ export function UpdatesScreen() {
   const filteredUpdates = useMemo(() => {
     return [...updates]
       .filter((update) => {
-        const roomName = update.room_id ? roomNameById[update.room_id] ?? "" : "";
+        const roomName = getRoomNames(update.room_ids, roomNameById).join(", ");
         const query = searchQuery.trim().toLowerCase();
         const matchesSearch =
           query.length === 0 ||
@@ -400,7 +414,7 @@ export function UpdatesScreen() {
           update.summary.toLowerCase().includes(query) ||
           roomName.toLowerCase().includes(query);
         const matchesStatus = statusFilter === "todos" || update.status === statusFilter;
-        const matchesRoom = roomFilter === "todos" || update.room_id === roomFilter;
+        const matchesRoom = roomFilter === "todos" || update.room_ids.includes(roomFilter);
         return matchesSearch && matchesStatus && matchesRoom;
       })
       .sort((a, b) => {
@@ -430,7 +444,7 @@ export function UpdatesScreen() {
     const total = updates.length;
     const approved = updates.filter((update) => update.approved).length;
     const commented = updates.filter((update) => Boolean(update.owner_comments)).length;
-    const withRoom = updates.filter((update) => Boolean(update.room_id)).length;
+    const withRoom = updates.filter((update) => update.room_ids.length > 0).length;
     return { total, approved, commented, withRoom };
   }, [updates]);
 
@@ -544,7 +558,10 @@ export function UpdatesScreen() {
               <Text style={styles.summaryLabel}>Com cômodo</Text>
             </View>
           </View>
-          <Pressable style={styles.filtersDropdownButton} onPress={() => setFiltersOpen((current) => !current)}>
+          <Pressable style={styles.filtersDropdownButton} onPress={() => {
+            setFiltersOpen((current) => !current);
+            setRoomFilterDropdownOpen(false);
+          }}>
             <View style={styles.filtersDropdownInfo}>
               <AppIcon name="SlidersHorizontal" size={16} color={colors.primary} />
               <Text style={styles.filtersDropdownTitle}>Filtros da lista</Text>
@@ -553,7 +570,7 @@ export function UpdatesScreen() {
               <View style={styles.activeBadge}>
                 <AppIcon name="MapPinned" size={12} color={colors.primary} />
                 <Text style={styles.activeBadgeText}>
-                  {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                  {roomFilter === "todos" ? "Sem filtro de cômodo" : roomNameById[roomFilter] ?? "Cômodo"}
                 </Text>
               </View>
               <View style={styles.activeBadge}>
@@ -579,30 +596,47 @@ export function UpdatesScreen() {
               <View style={styles.sortRow}>
                 <View style={styles.sortHeaderRow}>
                   <Text style={styles.sortLabel}>Cômodo</Text>
-                  <View style={styles.activeBadge}>
-                    <AppIcon name="MapPinned" size={12} color={colors.primary} />
-                    <Text style={styles.activeBadgeText}>
-                      {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
-                    </Text>
-                  </View>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterChips}>
+                <View style={styles.selectBlock}>
                   <Pressable
-                    style={[styles.chip, roomFilter === "todos" && styles.chipActive]}
-                    onPress={() => setRoomFilter("todos")}
+                    style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
+                    onPress={() => setRoomFilterDropdownOpen((current) => !current)}
                   >
-                    <Text style={[styles.chipText, roomFilter === "todos" && styles.chipTextActive]}>Todos os cômodos</Text>
+                    <Text style={[styles.selectButtonText, roomFilter === "todos" && styles.selectPlaceholderText]}>
+                      {roomFilter === "todos" ? "Selecione um cômodo" : roomNameById[roomFilter] ?? "Cômodo"}
+                    </Text>
+                    <AppIcon name={roomFilterDropdownOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
                   </Pressable>
-                  {rooms.map((room) => (
-                    <Pressable
-                      key={room.id}
-                      style={[styles.chip, roomFilter === room.id && styles.chipActive]}
-                      onPress={() => setRoomFilter(room.id)}
-                    >
-                      <Text style={[styles.chipText, roomFilter === room.id && styles.chipTextActive]}>{room.name}</Text>
-                    </Pressable>
-                  ))}
-                </ScrollView>
+                  {roomFilterDropdownOpen ? (
+                    <View style={styles.selectMenu}>
+                      <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                        {roomFilter !== "todos" ? (
+                          <Pressable
+                            style={styles.selectOption}
+                            onPress={() => {
+                              setRoomFilter("todos");
+                              setRoomFilterDropdownOpen(false);
+                            }}
+                          >
+                            <Text style={styles.selectOptionText}>Limpar filtro de cômodo</Text>
+                          </Pressable>
+                        ) : null}
+                        {rooms.map((room) => (
+                          <Pressable
+                            key={room.id}
+                            style={[styles.selectOption, roomFilter === room.id && styles.selectOptionActive]}
+                            onPress={() => {
+                              setRoomFilter(room.id);
+                              setRoomFilterDropdownOpen(false);
+                            }}
+                          >
+                            <Text style={[styles.selectOptionText, roomFilter === room.id && styles.selectOptionTextActive]}>{room.name}</Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  ) : null}
+                </View>
               </View>
               <View style={styles.sortRow}>
                 <View style={styles.sortHeaderRow}>
@@ -642,7 +676,7 @@ export function UpdatesScreen() {
                 {u.approved && <AppIcon name="CheckCircle2" size={18} color={colors.success} />}
               </View>
               <Text style={styles.cardSummary} numberOfLines={2}>{u.summary}</Text>
-              {u.room_id ? <Text style={styles.cardRoom}>Cômodo: {roomNameById[u.room_id] ?? "Cômodo removido"}</Text> : null}
+              {u.room_ids.length > 0 ? <Text style={styles.cardRoom}>Cômodos: {getRoomNames(u.room_ids, roomNameById).join(", ")}</Text> : null}
               {u.owner_comments && <View style={styles.commentBadgeRow}><AppIcon name="MessageSquare" size={12} color={colors.primary} /><Text style={styles.commentBadge}>Comentado</Text></View>}
             </Pressable>
           ))}
@@ -650,7 +684,7 @@ export function UpdatesScreen() {
       )}
 
       <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} rooms={rooms} loading={upsertUpdate.isPending || Boolean(uploadProgress)} uploadProgress={uploadProgress} onClose={() => setFormOpen(false)} onSave={handleSave} />
-      <UpdateDetailModal update={selectedUpdate} roomName={selectedUpdate?.room_id ? roomNameById[selectedUpdate.room_id] ?? "Cômodo removido" : null} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
+      <UpdateDetailModal update={selectedUpdate} roomNames={getRoomNames(selectedUpdate?.room_ids ?? [], roomNameById)} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
         const performDelete = async () => {
           if (!selectedUpdate || !project?.id) return;
           try {
@@ -715,6 +749,40 @@ const styles = StyleSheet.create({
   sortRow: { gap: 8 },
   sortHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
   sortLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  selectBlock: { position: "relative" },
+  selectButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 14,
+    gap: 12,
+  },
+  selectButtonText: { flex: 1, fontSize: 14, fontWeight: "600", color: colors.text },
+  selectPlaceholderText: { color: colors.textMuted },
+  selectMenu: {
+    marginTop: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    overflow: "hidden",
+  },
+  selectMenuScroll: { maxHeight: 240 },
+  selectOption: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+    backgroundColor: colors.surface,
+  },
+  selectOptionActive: { backgroundColor: colors.primarySoft },
+  selectOptionText: { fontSize: 14, fontWeight: "600", color: colors.text },
+  selectOptionTextActive: { color: colors.primary, fontWeight: "800" },
   updateCard: { backgroundColor: colors.surface, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 6 },
   cardRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cardWeek: { fontSize: 16, fontWeight: "800", color: colors.text },

@@ -71,6 +71,10 @@ function getNoWorkReasonLabel(reason: string | null | undefined) {
   return noWorkReasonOptions.find((option) => option.value === reason)?.label ?? "Motivo não informado";
 }
 
+function getRoomNames(roomIds: string[] | undefined, roomNameById: Record<string, string>) {
+  return (roomIds ?? []).map((roomId) => roomNameById[roomId] ?? "Cômodo removido");
+}
+
 // Componente de formulario para criacao e edicao de registros diarios.
 // Gerencia estados complexos de campos de texto, selecao de funcionarios e upload de midia.
 function DailyLogForm({
@@ -104,7 +108,7 @@ function DailyLogForm({
     noWorkReason?: NoWorkReason | null;
     noWorkNote?: string | null;
     userIds: string[];
-    roomId?: string | null;
+    roomIds?: string[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => Promise<void>;
@@ -120,8 +124,7 @@ function DailyLogForm({
   const [userIds, setUserIds] = useState<string[]>(initialUserIds);
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
-  const [roomId, setRoomId] = useState<string | null>(existingLog?.room_id ?? null);
-  const [roomDropdownOpen, setRoomDropdownOpen] = useState(false);
+  const [roomIds, setRoomIds] = useState<string[]>(existingLog?.room_ids ?? []);
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
@@ -147,8 +150,7 @@ function DailyLogForm({
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
     setUserIds(initialUserIds);
-    setRoomId(existingLog?.room_id ?? null);
-    setRoomDropdownOpen(false);
+    setRoomIds(existingLog?.room_ids ?? []);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -164,7 +166,6 @@ function DailyLogForm({
       previousVisibleRef.current = false;
       lastHydratedLogIdRef.current = null;
       setUploadProgress(null);
-      setRoomDropdownOpen(false);
       setNoWorkReasonOpen(false);
     }
   }, [visible]);
@@ -256,7 +257,7 @@ function DailyLogForm({
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
     setUserIds(initialUserIds);
-    setRoomId(existingLog?.room_id ?? null);
+    setRoomIds(existingLog?.room_ids ?? []);
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -292,7 +293,7 @@ function DailyLogForm({
           noWorkReason: noWorkReason || null,
           noWorkNote: noWorkReason === "outro" ? noWorkNote : null,
           userIds: [],
-          roomId: null,
+          roomIds: [],
           photosUrls: [],
           videosUrls: [],
         });
@@ -334,7 +335,7 @@ function DailyLogForm({
         noWorkReason: null,
         noWorkNote: null,
         userIds,
-        roomId,
+        roomIds,
         photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
         videosUrls: uploadedVideos.length > 0 ? uploadedVideos : undefined,
       });
@@ -375,7 +376,12 @@ function DailyLogForm({
       setNoWorkNote("");
     }
     setNoWorkReasonOpen(false);
-    setRoomDropdownOpen(false);
+  };
+
+  const handleToggleRoom = (roomId: string) => {
+    setRoomIds((current) =>
+      current.includes(roomId) ? current.filter((item) => item !== roomId) : [...current, roomId],
+    );
   };
   return (
     <AnimatedModal visible={visible} onRequestClose={handleClose} position="center" contentStyle={styles.modalCard}>
@@ -443,48 +449,38 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
-              <View style={styles.selectBlock}>
+              <Text style={styles.fieldLabel}>Cômodos relacionados</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
                 <Pressable
-                  style={({ pressed }) => [styles.selectButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
+                  style={[styles.optionChip, roomIds.length === 0 && styles.optionChipActive, hasNoWorkReason && styles.fieldDisabled]}
                   onPress={() => {
                     if (hasNoWorkReason) return;
-                    setRoomDropdownOpen((current) => !current);
+                    setRoomIds([]);
                   }}
                 >
-                  <Text style={styles.selectButtonText}>
-                    {roomId === null ? "Sem cômodo" : rooms.find((room) => room.id === roomId)?.name ?? "Cômodo"}
-                  </Text>
-                  <AppIcon name={roomDropdownOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+                  <Text style={[styles.optionChipText, roomIds.length === 0 && styles.optionChipTextActive]}>Sem cômodo</Text>
                 </Pressable>
-                {roomDropdownOpen ? (
-                  <View style={styles.selectMenu}>
-                    <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
-                      <Pressable
-                        style={[styles.selectOption, roomId === null && styles.selectOptionActive]}
-                        onPress={() => {
-                          setRoomId(null);
-                          setRoomDropdownOpen(false);
-                        }}
-                      >
-                        <Text style={[styles.selectOptionText, roomId === null && styles.selectOptionTextActive]}>Sem cômodo</Text>
-                      </Pressable>
-                      {rooms.map((room) => (
-                        <Pressable
-                          key={room.id}
-                          style={[styles.selectOption, roomId === room.id && styles.selectOptionActive]}
-                          onPress={() => {
-                            setRoomId(room.id);
-                            setRoomDropdownOpen(false);
-                          }}
-                        >
-                          <Text style={[styles.selectOptionText, roomId === room.id && styles.selectOptionTextActive]}>{room.name}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                ) : null}
-              </View>
+                {rooms.map((room) => {
+                  const selected = roomIds.includes(room.id);
+                  return (
+                    <Pressable
+                      key={room.id}
+                      style={[styles.optionChip, selected && styles.optionChipActive, hasNoWorkReason && styles.fieldDisabled]}
+                      onPress={() => {
+                        if (hasNoWorkReason) return;
+                        handleToggleRoom(room.id);
+                      }}
+                    >
+                      <Text style={[styles.optionChipText, selected && styles.optionChipTextActive]}>{room.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+              <Text style={styles.helperTextSmall}>
+                {roomIds.length === 0
+                  ? "Nenhum cômodo selecionado."
+                  : `${roomIds.length} cômodo(s) selecionado(s).`}
+              </Text>
             </View>
 
             <View style={styles.fieldBlock}>
@@ -707,7 +703,7 @@ function DailyLogDetailsModal({
   log,
   presenceEmployees,
   userIds,
-  roomName,
+  roomNames,
   visible,
   onClose,
   onEdit,
@@ -716,7 +712,7 @@ function DailyLogDetailsModal({
   log: DailyLogRow;
   presenceEmployees: PresenceEmployeeRow[];
   userIds: string[];
-  roomName: string | null;
+  roomNames: string[];
   visible: boolean;
   onClose: () => void;
   onEdit: () => void;
@@ -760,10 +756,10 @@ function DailyLogDetailsModal({
               </View>
             ) : null}
 
-            {!isNoWorkDay && roomName ? (
+            {!isNoWorkDay && roomNames.length > 0 ? (
               <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
-                <Text style={styles.detailValue}>{roomName}</Text>
+                <Text style={styles.fieldLabel}>Cômodos relacionados</Text>
+                <Text style={styles.detailValue}>{roomNames.join(", ")}</Text>
               </View>
             ) : null}
 
@@ -871,7 +867,7 @@ export function DailyScreen() {
   const filteredMonthLogs = useMemo(() => {
     return [...monthLogs]
       .filter((log) => {
-        const roomName = log.room_id ? roomNameById[log.room_id] ?? "" : "";
+        const roomName = getRoomNames(log.room_ids, roomNameById).join(", ");
         const query = searchQuery.trim().toLowerCase();
         const hasMedia = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
         const matchesSearch =
@@ -883,7 +879,7 @@ export function DailyScreen() {
           getNoWorkReasonLabel(log.no_work_reason).toLowerCase().includes(query) ||
           (log.no_work_note ?? "").toLowerCase().includes(query) ||
           roomName.toLowerCase().includes(query);
-        const matchesRoom = roomFilter === "todos" || log.room_id === roomFilter;
+        const matchesRoom = roomFilter === "todos" || log.room_ids.includes(roomFilter);
         const matchesMedia =
           mediaFilter === "todos" ||
           (mediaFilter === "com_midia" && hasMedia) ||
@@ -910,7 +906,7 @@ export function DailyScreen() {
   }, [mediaFilter, monthLogs, roomFilter, roomNameById, searchQuery, sortOrder]);
   const monthSummary = useMemo(() => {
     const total = monthLogs.length;
-    const withRoom = monthLogs.filter((log) => Boolean(log.room_id)).length;
+    const withRoom = monthLogs.filter((log) => log.room_ids.length > 0).length;
     const withMedia = monthLogs.filter((log) => Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0))).length;
     const withWeather = monthLogs.filter((log) => Boolean(log.weather)).length;
     const withoutWork = monthLogs.filter((log) => Boolean(log.no_work_reason)).length;
@@ -956,7 +952,7 @@ export function DailyScreen() {
       noWorkReason?: NoWorkReason | null;
       noWorkNote?: string | null;
       userIds: string[];
-    roomId?: string | null;
+      roomIds?: string[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => {
@@ -974,7 +970,7 @@ export function DailyScreen() {
       noWorkNote: payload.noWorkNote ?? null,
       createdBy: user.id,
       userIds: payload.userIds,
-      roomId: payload.roomId ?? null,
+      roomIds: payload.roomIds ?? [],
       photosUrls: payload.photosUrls,
       videosUrls: payload.videosUrls,
     });
@@ -1162,7 +1158,7 @@ export function DailyScreen() {
                 <View style={styles.activeBadge}>
                   <AppIcon name="MapPinned" size={12} color={colors.primary} />
                   <Text style={styles.activeBadgeText}>
-                    {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                    {roomFilter === "todos" ? "Sem filtro de cômodo" : roomNameById[roomFilter] ?? "Cômodo"}
                   </Text>
                 </View>
                 <View style={styles.activeBadge}>
@@ -1178,37 +1174,31 @@ export function DailyScreen() {
                 <View style={styles.sortRow}>
                   <View style={styles.sortHeaderRow}>
                     <Text style={styles.sortLabel}>Cômodo</Text>
-                    <View style={styles.activeBadge}>
-                      <AppIcon name="MapPinned" size={12} color={colors.primary} />
-                      <Text style={styles.activeBadgeText}>
-                        {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
-                      </Text>
-                    </View>
                   </View>
                   <View style={styles.selectBlock}>
                     <Pressable
                       style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
                       onPress={() => setRoomFilterDropdownOpen((current) => !current)}
                     >
-                      <Text style={styles.selectButtonText}>
-                        {roomFilter === "todos" ? "Todos os cômodos" : roomNameById[roomFilter] ?? "Cômodo"}
+                      <Text style={[styles.selectButtonText, roomFilter === "todos" && styles.selectPlaceholderText]}>
+                        {roomFilter === "todos" ? "Selecione um cômodo" : roomNameById[roomFilter] ?? "Cômodo"}
                       </Text>
                       <AppIcon name={roomFilterDropdownOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
                     </Pressable>
                     {roomFilterDropdownOpen ? (
                       <View style={styles.selectMenu}>
                         <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
-                          <Pressable
-                            style={[styles.selectOption, roomFilter === "todos" && styles.selectOptionActive]}
-                            onPress={() => {
-                              setRoomFilter("todos");
-                              setRoomFilterDropdownOpen(false);
-                            }}
-                          >
-                            <Text style={[styles.selectOptionText, roomFilter === "todos" && styles.selectOptionTextActive]}>
-                              Todos os cômodos
-                            </Text>
-                          </Pressable>
+                          {roomFilter !== "todos" ? (
+                            <Pressable
+                              style={styles.selectOption}
+                              onPress={() => {
+                                setRoomFilter("todos");
+                                setRoomFilterDropdownOpen(false);
+                              }}
+                            >
+                              <Text style={styles.selectOptionText}>Limpar filtro de cômodo</Text>
+                            </Pressable>
+                          ) : null}
                           {rooms.map((room) => (
                             <Pressable
                               key={room.id}
@@ -1301,7 +1291,7 @@ export function DailyScreen() {
                     </Text>
                     {log.no_work_reason && log.no_work_note ? <Text style={styles.monthLogMeta}>{log.no_work_note}</Text> : null}
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
-                    {log.room_id ? <Text style={styles.monthLogMeta}>Cômodo: {roomNameById[log.room_id] ?? "Cômodo removido"}</Text> : null}
+                    {log.room_ids.length > 0 ? <Text style={styles.monthLogMeta}>Cômodos: {getRoomNames(log.room_ids, roomNameById).join(", ")}</Text> : null}
                   </Pressable>
                 ))}
 
@@ -1325,7 +1315,7 @@ export function DailyScreen() {
           log={selectedLog}
           presenceEmployees={presenceEmployees}
           userIds={userIdsQuery.data ?? []}
-          roomName={selectedLog?.room_id ? roomNameById[selectedLog.room_id] ?? "Cômodo removido" : null}
+          roomNames={getRoomNames(selectedLog?.room_ids ?? [], roomNameById)}
           visible={detailsOpen}
           onClose={() => setDetailsOpen(false)}
           onEdit={handleEditFromDetails}
@@ -1929,6 +1919,11 @@ const styles = StyleSheet.create({
   },
   optionChipTextActive: {
     color: colors.primary,
+  },
+  helperTextSmall: {
+    marginTop: 6,
+    fontSize: 12,
+    color: colors.textMuted,
   },
   employeeChip: {
     borderRadius: 12,
