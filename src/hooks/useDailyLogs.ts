@@ -24,6 +24,14 @@ export type DailyLogRow = {
   videos_urls?: string[] | null;
 };
 
+export type DailyLogSummaryRow = Omit<DailyLogRow, "photos_urls" | "videos_urls"> & {
+  presenceIds: string[];
+};
+
+export type DailyLogDetailRow = DailyLogRow & {
+  presenceIds: string[];
+};
+
 export type DailyLogServiceItemRow = {
   id: string;
   log_id: string;
@@ -48,13 +56,13 @@ export function useDailyLogs() {
   const logsQuery = useQuery({
     queryKey: ["daily_logs", project?.id],
     enabled: Boolean(project?.id && supabase),
-    queryFn: async (): Promise<(DailyLogRow & { presenceIds: string[] })[]> => {
+    queryFn: async (): Promise<DailyLogSummaryRow[]> => {
       if (!supabase || !project) return [];
 
       const { data, error } = await supabase
         .from("daily_logs")
         .select(`
-          id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
+          id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id,
           daily_log_employees ( user_id ),
           daily_log_rooms ( room_id ),
           daily_log_service_items ( id, log_id, room_id, description, order_index )
@@ -174,26 +182,79 @@ export function useDailyLogs() {
 }
 
 // Busca detalhada dos funcionários associados a um registro diário específico.
-// future_fix: Considerar cache compartilhado para evitar múltiplas requisições.
 export function useDailyLogDetail(logId: string | null) {
   return useQuery({
-    queryKey: ["daily_log_employees", logId],
+    queryKey: ["daily_log_detail", logId],
     enabled: Boolean(logId && supabase),
-    queryFn: async (): Promise<string[]> => {
+    queryFn: async (): Promise<DailyLogDetailRow | null> => {
       if (!supabase || !logId) {
-        return [];
+        return null;
       }
 
       const { data, error } = await supabase
-        .from("daily_log_employees")
-        .select("user_id")
-        .eq("log_id", logId);
+        .from("daily_logs")
+        .select(`
+          id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
+          daily_log_employees ( user_id ),
+          daily_log_rooms ( room_id ),
+          daily_log_service_items ( id, log_id, room_id, description, order_index )
+        `)
+        .eq("id", logId)
+        .maybeSingle();
 
       if (error) {
-        throw withSchemaDriftContext(error, "detalhe de presencas do diario");
+        throw withSchemaDriftContext(error, "detalhe completo do diario");
       }
 
-      return (data ?? []).map((item) => item.user_id).filter(Boolean);
+      if (!data) {
+        return null;
+      }
+
+      return {
+        ...data,
+        room_ids: Array.from(
+          new Set(
+            ((data.daily_log_rooms as { room_id: string | null }[] | null) ?? [])
+              .map((item) => item.room_id)
+              .filter((value): value is string => Boolean(value))
+              .concat(data.room_id ? [data.room_id] : []),
+          ),
+        ),
+        service_items: ((data.daily_log_service_items as DailyLogServiceItemRow[] | null) ?? [])
+          .filter((item) => Boolean(item.room_id) && Boolean(item.description))
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
+        presenceIds: ((data.daily_log_employees as { user_id: string | null }[] | null) ?? [])
+          .map((item) => item.user_id)
+          .filter((value): value is string => Boolean(value)),
+      };
+    },
+  });
+}
+
+export function useDailyLogMonthMedia(projectId: string | null | undefined, monthStart: string, monthEnd: string) {
+  return useQuery({
+    queryKey: ["daily_log_month_media", projectId, monthStart, monthEnd],
+    enabled: Boolean(projectId && supabase),
+    queryFn: async (): Promise<Record<string, boolean>> => {
+      if (!supabase || !projectId) {
+        return {};
+      }
+
+      const { data, error } = await supabase
+        .from("daily_logs")
+        .select("id, photos_urls, videos_urls")
+        .eq("project_id", projectId)
+        .gte("date", monthStart)
+        .lte("date", monthEnd);
+
+      if (error) {
+        throw withSchemaDriftContext(error, "flags de midia do mes");
+      }
+
+      return (data ?? []).reduce<Record<string, boolean>>((acc, log) => {
+        acc[log.id] = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
+        return acc;
+      }, {});
     },
   });
 }

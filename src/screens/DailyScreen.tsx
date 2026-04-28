@@ -4,7 +4,6 @@ import {
   Alert,
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -21,16 +20,25 @@ import { buildMonthGrid, displayDate, isoDate, sameMonth, startOfDay } from "../
 import { getErrorMessage } from "../lib/errorMessage";
 import { useRooms } from "../hooks/useRooms";
 import {
+  DailyLogDetailRow,
   DailyLogRow,
+  DailyLogSummaryRow,
   PresenceEmployeeRow,
   useDailyLogDetail,
   useDailyLogs,
+  useDailyLogMonthMedia,
   useDeleteDailyLog,
   useUpsertDailyLog,
 } from "../hooks/useDailyLogs";
 import { AnimatedModal } from "../components/AnimatedModal";
 import { AppMediaUploadProgress } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
+import {
+  AppPhotoViewerModal,
+  AppVideoThumbnail,
+  AppVideoViewerModal,
+  getOptimizedMediaImageSource,
+} from "../components/AppMediaViewer";
 
 const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = [
@@ -192,6 +200,10 @@ function DailyLogForm({
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<AppMediaUploadProgress | null>(null);
   const [noWorkReasonOpen, setNoWorkReasonOpen] = useState(false);
+  const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
+  const [photoViewerTitle, setPhotoViewerTitle] = useState("");
+  const [videoViewerUrl, setVideoViewerUrl] = useState<string | null>(null);
+  const [videoViewerTitle, setVideoViewerTitle] = useState("");
   const previousVisibleRef = useRef(false);
   const lastHydratedLogIdRef = useRef<string | null>(null);
   const hasNoWorkReason = noWorkReason !== "";
@@ -231,6 +243,10 @@ function DailyLogForm({
     setUploadProgress(null);
     setNoWorkReasonOpen(false);
     setOpenServiceRoomId(null);
+    setPhotoViewerUrl(null);
+    setPhotoViewerTitle("");
+    setVideoViewerUrl(null);
+    setVideoViewerTitle("");
     lastHydratedLogIdRef.current = currentLogId;
     previousVisibleRef.current = visible;
   }, [date, existingLog, initialUserIds, visible]);
@@ -242,6 +258,10 @@ function DailyLogForm({
       setUploadProgress(null);
       setNoWorkReasonOpen(false);
       setOpenServiceRoomId(null);
+      setPhotoViewerUrl(null);
+      setPhotoViewerTitle("");
+      setVideoViewerUrl(null);
+      setVideoViewerTitle("");
     }
   }, [visible]);
 
@@ -264,7 +284,7 @@ function DailyLogForm({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: isPhoto ? ["images"] : ["videos"],
         allowsMultipleSelection: true,
-        quality: 0.8,
+        quality: isPhoto ? 0.55 : 0.8,
       });
 
       if (result.canceled || !result.assets.length) {
@@ -313,6 +333,21 @@ function DailyLogForm({
     setPendingRemoval({ type, index });
   };
 
+  const handleOpenPhotoViewer = (url: string, index: number, total: number) => {
+    setPhotoViewerUrl(url);
+    setPhotoViewerTitle(`Foto ${index + 1} de ${total}`);
+  };
+
+  const handleOpenVideoViewer = (url: string, index: number, total: number) => {
+    if (Platform.OS !== "web") {
+      void handleOpenMedia(url);
+      return;
+    }
+
+    setVideoViewerUrl(url);
+    setVideoViewerTitle(`Video ${index + 1} de ${total}`);
+  };
+
   const handleConfirmRemoval = () => {
     if (!pendingRemoval) return;
 
@@ -346,6 +381,10 @@ function DailyLogForm({
     setUploadProgress(null);
     setNoWorkReasonOpen(false);
     setOpenServiceRoomId(null);
+    setPhotoViewerUrl(null);
+    setPhotoViewerTitle("");
+    setVideoViewerUrl(null);
+    setVideoViewerTitle("");
     onClose();
   };
 
@@ -670,11 +709,20 @@ function DailyLogForm({
                         <Pressable
                           key={`photo_${index}`}
                           style={styles.mediaItemContainer}
-                          onPress={() => void handleOpenMedia(url)}
+                          onPress={() => handleOpenPhotoViewer(url, index, photosUrls.length)}
                           onLongPress={() => handleRequestRemoval("photo", index)}
                           delayLongPress={1500}
                         >
-                          <Image source={{ uri: url }} style={styles.mediaThumb} />
+                          <Image
+                            source={getOptimizedMediaImageSource({
+                              url,
+                              bucket: "daily-logs",
+                              width: 240,
+                              height: 240,
+                              quality: 55,
+                            })}
+                            style={styles.mediaThumb}
+                          />
                         </Pressable>
                       ))}
                     </View>
@@ -701,18 +749,15 @@ function DailyLogForm({
                   {videosUrls.length ? (
                     <View style={styles.mediaListRow}>
                       {videosUrls.map((url, index) => (
-                        <Pressable
+                        <AppVideoThumbnail
                           key={`video_${index}`}
-                          style={styles.mediaItemContainer}
-                          onPress={() => void handleOpenMedia(url)}
+                          url={url}
+                          index={index}
+                          containerStyle={styles.mediaItemContainer}
+                          onPress={() => handleOpenVideoViewer(url, index, videosUrls.length)}
                           onLongPress={() => handleRequestRemoval("video", index)}
                           delayLongPress={1500}
-                        >
-                          <View style={styles.videoThumb}>
-                            <Text style={styles.videoIcon}>▶</Text>
-                            <Text style={styles.videoLabel}>Video {index + 1}</Text>
-                          </View>
-                        </Pressable>
+                        />
                       ))}
                     </View>
                   ) : (
@@ -850,6 +895,27 @@ function DailyLogForm({
               </View>
             </AnimatedModal>
 
+            <AppPhotoViewerModal
+              visible={Boolean(photoViewerUrl)}
+              url={photoViewerUrl}
+              title={photoViewerTitle}
+              bucket="daily-logs"
+              onClose={() => {
+                setPhotoViewerUrl(null);
+                setPhotoViewerTitle("");
+              }}
+            />
+
+            <AppVideoViewerModal
+              visible={Boolean(videoViewerUrl)}
+              url={videoViewerUrl}
+              title={videoViewerTitle}
+              onClose={() => {
+                setVideoViewerUrl(null);
+                setVideoViewerTitle("");
+              }}
+            />
+
             {existingLog ? (
               <Pressable
                 style={({ pressed }) => [
@@ -892,7 +958,7 @@ function DailyLogDetailsModal({
   onEdit,
 }: {
   date: string;
-  log: DailyLogRow;
+  log: DailyLogRow | DailyLogDetailRow;
   presenceEmployees: PresenceEmployeeRow[];
   userIds: string[];
   roomNames: string[];
@@ -903,6 +969,10 @@ function DailyLogDetailsModal({
 }) {
   const selectedEmployees = presenceEmployees.filter((employee) => userIds.includes(employee.id));
   const isNoWorkDay = Boolean(log.no_work_reason);
+  const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
+  const [photoViewerTitle, setPhotoViewerTitle] = useState("");
+  const [videoViewerUrl, setVideoViewerUrl] = useState<string | null>(null);
+  const [videoViewerTitle, setVideoViewerTitle] = useState("");
 
   return (
     <AnimatedModal visible={visible} onRequestClose={onClose} position="center" contentStyle={styles.modalCard}>
@@ -990,21 +1060,67 @@ function DailyLogDetailsModal({
                 <Text style={styles.fieldLabel}>Mídias</Text>
                 <View style={styles.mediaListRow}>
                   {log.photos_urls?.map((url, i) => (
-                    <Pressable key={`p_${i}`} style={styles.mediaItemContainer} onPress={() => Linking.openURL(url)}>
-                      <Image source={{ uri: url }} style={styles.mediaThumb} />
+                    <Pressable
+                      key={`p_${i}`}
+                      style={styles.mediaItemContainer}
+                      onPress={() => {
+                        setPhotoViewerUrl(url);
+                        setPhotoViewerTitle(`Foto ${i + 1} de ${log.photos_urls?.length ?? 0}`);
+                      }}
+                    >
+                      <Image
+                        source={getOptimizedMediaImageSource({
+                          url,
+                          bucket: "daily-logs",
+                          width: 240,
+                          height: 240,
+                          quality: 55,
+                        })}
+                        style={styles.mediaThumb}
+                      />
                     </Pressable>
                   ))}
                   {log.videos_urls?.map((url, i) => (
-                    <Pressable key={`v_${i}`} style={styles.mediaItemContainer} onPress={() => Linking.openURL(url)}>
-                      <View style={styles.videoThumb}>
-                        <Text style={styles.videoIcon}>▶</Text>
-                        <Text style={styles.videoLabel}>Video {i + 1}</Text>
-                      </View>
-                    </Pressable>
+                    <AppVideoThumbnail
+                      key={`v_${i}`}
+                      url={url}
+                      index={i}
+                      containerStyle={styles.mediaItemContainer}
+                      onPress={() => {
+                        if (Platform.OS !== "web") {
+                          void Linking.openURL(url);
+                          return;
+                        }
+
+                        setVideoViewerUrl(url);
+                        setVideoViewerTitle(`Video ${i + 1} de ${log.videos_urls?.length ?? 0}`);
+                      }}
+                    />
                   ))}
                 </View>
               </View>
             ) : null}
+
+            <AppPhotoViewerModal
+              visible={Boolean(photoViewerUrl)}
+              url={photoViewerUrl}
+              title={photoViewerTitle}
+              bucket="daily-logs"
+              onClose={() => {
+                setPhotoViewerUrl(null);
+                setPhotoViewerTitle("");
+              }}
+            />
+
+            <AppVideoViewerModal
+              visible={Boolean(videoViewerUrl)}
+              url={videoViewerUrl}
+              title={videoViewerTitle}
+              onClose={() => {
+                setVideoViewerUrl(null);
+                setVideoViewerTitle("");
+              }}
+            />
 
             <Pressable style={styles.editButton} onPress={onEdit}>
               <Text style={styles.editButtonText}>Editar Registro</Text>
@@ -1038,7 +1154,7 @@ export function DailyScreen() {
   // Mapeamento dos logs por data para facilitar a verificacao de registros no calendario.
   // Otimiza a performance de renderizacao da grade mensal (O(1) para cada dia).
   const logsByDate = useMemo(() => {
-    const map: Record<string, DailyLogRow> = {};
+    const map: Record<string, DailyLogSummaryRow> = {};
     logs.forEach((log) => {
       map[log.date] = log;
     });
@@ -1046,7 +1162,7 @@ export function DailyScreen() {
   }, [logs]);
 
   const selectedLog = selectedDate ? logsByDate[selectedDate] ?? null : null;
-  const userIdsQuery = useDailyLogDetail(selectedLog?.id ?? null);
+  const selectedLogDetailQuery = useDailyLogDetail(selectedLog?.id ?? null);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
@@ -1058,6 +1174,10 @@ export function DailyScreen() {
   const monthLabel = `${monthLabels[monthDate.getMonth()]} ${monthDate.getFullYear()}`;
   const today = startOfDay(new Date());
   const projectStartDate = project?.start_date ? startOfDay(new Date(project.start_date)) : null;
+  const monthStart = isoDate(new Date(monthDate.getFullYear(), monthDate.getMonth(), 1));
+  const monthEnd = isoDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0));
+  const monthMediaQuery = useDailyLogMonthMedia(project?.id, monthStart, monthEnd);
+  const monthMediaByLogId = monthMediaQuery.data ?? {};
   const monthLogs = useMemo(
     () => logs.filter((log) => sameMonth(log.date, monthDate)).sort((a, b) => a.date.localeCompare(b.date) * -1),
     [logs, monthDate],
@@ -1068,7 +1188,7 @@ export function DailyScreen() {
         const roomName = getRoomNames(log.room_ids, roomNameById).join(", ");
         const serviceDescriptions = log.service_items.map((item) => item.description).join(" ");
         const query = searchQuery.trim().toLowerCase();
-        const hasMedia = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
+        const hasMedia = monthMediaByLogId[log.id] ?? false;
         const matchesSearch =
           query.length === 0 ||
           displayDate(log.date).toLowerCase().includes(query) ||
@@ -1088,8 +1208,8 @@ export function DailyScreen() {
         return matchesSearch && matchesRoom && matchesMedia;
       })
       .sort((a, b) => {
-        const aHasMedia = Number(Boolean((a.photos_urls?.length ?? 0) || (a.videos_urls?.length ?? 0)));
-        const bHasMedia = Number(Boolean((b.photos_urls?.length ?? 0) || (b.videos_urls?.length ?? 0)));
+        const aHasMedia = Number(monthMediaByLogId[a.id] ?? false);
+        const bHasMedia = Number(monthMediaByLogId[b.id] ?? false);
 
         if (sortOrder === "com_midia" || sortOrder === "sem_midia") {
           const mediaComparison =
@@ -1103,15 +1223,18 @@ export function DailyScreen() {
           ? a.date.localeCompare(b.date)
           : b.date.localeCompare(a.date);
       });
-  }, [mediaFilter, monthLogs, roomFilter, roomNameById, searchQuery, sortOrder]);
+  }, [mediaFilter, monthLogs, monthMediaByLogId, roomFilter, roomNameById, searchQuery, sortOrder]);
   const monthSummary = useMemo(() => {
     const total = monthLogs.length;
     const withRoom = monthLogs.filter((log) => log.room_ids.length > 0).length;
-    const withMedia = monthLogs.filter((log) => Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0))).length;
+    const withMedia = monthLogs.filter((log) => monthMediaByLogId[log.id] ?? false).length;
     const withWeather = monthLogs.filter((log) => Boolean(log.weather)).length;
     const withoutWork = monthLogs.filter((log) => Boolean(log.no_work_reason)).length;
     return { total, withRoom, withMedia, withWeather, withoutWork };
-  }, [monthLogs]);
+  }, [monthLogs, monthMediaByLogId]);
+
+  const selectedLogForUI = selectedLogDetailQuery.data ?? selectedLog;
+  const selectedUserIds = selectedLogDetailQuery.data?.presenceIds ?? selectedLog?.presenceIds ?? [];
 
   // Manipulador para abertura de um dia especifico no calendario.
   // Decide se deve abrir o formulario de criacao ou o modal de detalhes (se ja houver log).
@@ -1512,13 +1635,13 @@ export function DailyScreen() {
         </ScrollView>
       )}
 
-      {selectedDate && selectedLog ? (
+      {selectedDate && selectedLogForUI ? (
         <DailyLogDetailsModal
           date={selectedDate}
-          log={selectedLog}
+          log={selectedLogForUI}
           presenceEmployees={presenceEmployees}
-          userIds={userIdsQuery.data ?? []}
-          roomNames={getRoomNames(selectedLog?.room_ids ?? [], roomNameById)}
+          userIds={selectedUserIds}
+          roomNames={getRoomNames(selectedLogForUI.room_ids, roomNameById)}
           roomNameById={roomNameById}
           visible={detailsOpen}
           onClose={() => setDetailsOpen(false)}
@@ -1532,8 +1655,8 @@ export function DailyScreen() {
           date={selectedDate}
           presenceEmployees={presenceEmployees}
           rooms={rooms}
-          existingLog={selectedLog}
-          initialUserIds={userIdsQuery.data ?? []}
+          existingLog={selectedLogForUI}
+          initialUserIds={selectedUserIds}
           visible={formOpen}
           loading={upsertDailyLog.isPending}
           deleting={deleteDailyLog.isPending}
@@ -2304,23 +2427,6 @@ const styles = StyleSheet.create({
   mediaThumb: {
     width: "100%",
     height: "100%",
-  },
-  videoThumb: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: colors.surfaceMuted,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  videoIcon: {
-    fontSize: 32,
-    color: colors.text,
-  },
-  videoLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: colors.textMuted,
   },
   detailValue: {
     fontSize: 15,

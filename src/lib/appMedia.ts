@@ -1,5 +1,6 @@
 import { uploadLocalFileToStorage, UploadProgress } from "./storageUpload";
 import { supabase } from "./supabase";
+import { extractPathFromSupabaseUrl } from "./storageUpload";
 
 // Configurações padrão para o armazenamento de mídia do aplicativo.
 const DEFAULT_BUCKET = "app-media";
@@ -13,6 +14,36 @@ export type AppMediaUploadProgress = {
   currentItem?: number;
   currentItemLabel?: string;
 };
+
+export function getOptimizedStorageImageUrl(params: {
+  url: string | null | undefined;
+  bucket: string;
+  width: number;
+  height?: number;
+  quality?: number;
+}) {
+  const { url, bucket, width, height, quality = 65 } = params;
+
+  if (!url || !supabase || !isRemoteAssetUrl(url)) {
+    return url ?? "";
+  }
+
+  const filePath = extractPathFromSupabaseUrl(url);
+  if (!filePath) {
+    return url;
+  }
+
+  const { data } = supabase.storage.from(bucket).getPublicUrl(filePath, {
+    transform: {
+      width,
+      ...(height ? { height } : {}),
+      quality,
+      resize: "contain",
+    },
+  });
+
+  return data.publicUrl || url;
+}
 
 // Verifica se uma URI já é um link remoto (http/https).
 export function isRemoteAssetUrl(uri: string | null | undefined) {

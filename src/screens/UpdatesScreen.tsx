@@ -32,6 +32,12 @@ import { uploadAppMediaListIfNeeded } from "../lib/appMedia";
 import { AppIcon } from "../components/AppIcon";
 import { AppMediaUploadProgress } from "../lib/appMedia";
 import { useRooms } from "../hooks/useRooms";
+import {
+  AppPhotoViewerModal,
+  AppVideoThumbnail,
+  AppVideoViewerModal,
+  getOptimizedMediaImageSource,
+} from "../components/AppMediaViewer";
 
 const statusOptions: { value: UpdateStatus; label: string }[] = [
   { value: "no_prazo", label: "No Prazo" },
@@ -298,6 +304,10 @@ function UpdateFormModal(_: any) {
 function UpdateDetailModal(_: any) {
   const { update, roomNames, visible, isOwner, onClose, onEdit, onDelete, onReview } = _;
   const [comment, setComment] = useState("");
+  const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
+  const [photoViewerTitle, setPhotoViewerTitle] = useState("");
+  const [videoViewerUrl, setVideoViewerUrl] = useState<string | null>(null);
+  const [videoViewerTitle, setVideoViewerTitle] = useState("");
 
   useEffect(() => { setComment(update?.owner_comments || ""); }, [update, visible]);
 
@@ -331,11 +341,67 @@ function UpdateDetailModal(_: any) {
                 <Text style={styles.sectionTitle}>Mídias da Semana</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{gap: 10}}>
                   {update.photos?.map((url: string, i: number) => (
-                    <Pressable key={i} onPress={() => Linking.openURL(url)}><Image source={{ uri: url }} style={styles.mediaThumb} /></Pressable>
+                    <Pressable
+                      key={`photo_${i}`}
+                      style={styles.mediaCard}
+                      onPress={() => {
+                        setPhotoViewerUrl(url);
+                        setPhotoViewerTitle(`Foto ${i + 1} de ${update.photos?.length ?? 0}`);
+                      }}
+                    >
+                      <Image
+                        source={getOptimizedMediaImageSource({
+                          url,
+                          bucket: "app-media",
+                          width: 280,
+                          height: 280,
+                          quality: 55,
+                        })}
+                        style={styles.mediaThumb}
+                      />
+                    </Pressable>
+                  ))}
+                  {update.videos?.map((url: string, i: number) => (
+                    <AppVideoThumbnail
+                      key={`video_${i}`}
+                      url={url}
+                      index={i}
+                      containerStyle={styles.mediaCard}
+                      onPress={() => {
+                        if (Platform.OS !== "web") {
+                          void Linking.openURL(url);
+                          return;
+                        }
+
+                        setVideoViewerUrl(url);
+                        setVideoViewerTitle(`Video ${i + 1} de ${update.videos?.length ?? 0}`);
+                      }}
+                    />
                   ))}
                 </ScrollView>
               </View>
             ) : null}
+
+            <AppPhotoViewerModal
+              visible={Boolean(photoViewerUrl)}
+              url={photoViewerUrl}
+              title={photoViewerTitle}
+              bucket="app-media"
+              onClose={() => {
+                setPhotoViewerUrl(null);
+                setPhotoViewerTitle("");
+              }}
+            />
+
+            <AppVideoViewerModal
+              visible={Boolean(videoViewerUrl)}
+              url={videoViewerUrl}
+              title={videoViewerTitle}
+              onClose={() => {
+                setVideoViewerUrl(null);
+                setVideoViewerTitle("");
+              }}
+            />
 
             <View style={styles.divider} />
 
@@ -821,6 +887,7 @@ const styles = StyleSheet.create({
   detailSummary: { fontSize: 15, lineHeight: 24, color: colors.text },
   sectionTitle: { fontSize: 16, fontWeight: "800", color: colors.text, marginTop: 10, marginBottom: 8 },
   mediaSection: { marginVertical: 10 },
+  mediaCard: { width: 100, height: 100, borderRadius: 12, overflow: "hidden", backgroundColor: colors.surfaceMuted },
   mediaThumb: { width: 100, height: 100, borderRadius: 12, backgroundColor: colors.surfaceMuted },
   divider: { height: 1, backgroundColor: colors.divider, marginVertical: 15 },
   commentSection: { gap: 8 },
