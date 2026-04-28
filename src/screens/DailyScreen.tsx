@@ -75,6 +75,59 @@ function getRoomNames(roomIds: string[] | undefined, roomNameById: Record<string
   return (roomIds ?? []).map((roomId) => roomNameById[roomId] ?? "Cômodo removido");
 }
 
+function buildServiceSummary(
+  serviceItems: { roomId: string; description: string }[],
+  roomNameById: Record<string, string>,
+) {
+  const roomNames = Array.from(
+    new Set(
+      serviceItems
+        .map((item) => roomNameById[item.roomId])
+        .filter((roomName): roomName is string => Boolean(roomName)),
+    ),
+  );
+
+  if (roomNames.length === 0) {
+    return "Serviços realizados no dia.";
+  }
+
+  if (roomNames.length === 1) {
+    return `Serviços realizados em ${roomNames[0]}.`;
+  }
+
+  if (roomNames.length === 2) {
+    return `Serviços realizados em ${roomNames[0]} e ${roomNames[1]}.`;
+  }
+
+  return `Serviços realizados em ${roomNames.slice(0, -1).join(", ")} e ${roomNames[roomNames.length - 1]}.`;
+}
+
+function getDailyLogPreview(log: DailyLogRow, roomNameById: Record<string, string>) {
+  if (log.no_work_reason) {
+    return getNoWorkReasonLabel(log.no_work_reason);
+  }
+
+  if ((log.activities ?? "").trim()) {
+    return log.activities;
+  }
+
+  if (log.service_items.length > 0) {
+    const firstItem = log.service_items[0];
+    const roomName = roomNameById[firstItem.room_id] ?? "Cômodo removido";
+    const suffix = log.service_items.length > 1 ? ` +${log.service_items.length - 1}` : "";
+    return `${roomName}: ${firstItem.description}${suffix}`;
+  }
+
+  return "Sem descrição preenchida.";
+}
+
+type DraftServiceItem = {
+  id: string;
+  sequence: number;
+  roomId: string | null;
+  description: string;
+};
+
 // Componente de formulario para criacao e edicao de registros diarios.
 // Gerencia estados complexos de campos de texto, selecao de funcionarios e upload de midia.
 function DailyLogForm({
@@ -109,6 +162,7 @@ function DailyLogForm({
     noWorkNote?: string | null;
     userIds: string[];
     roomIds?: string[];
+    serviceItems?: { roomId: string; description: string }[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => Promise<void>;
@@ -124,7 +178,15 @@ function DailyLogForm({
   const [userIds, setUserIds] = useState<string[]>(initialUserIds);
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
-  const [roomIds, setRoomIds] = useState<string[]>(existingLog?.room_ids ?? []);
+  const [serviceItems, setServiceItems] = useState<DraftServiceItem[]>(
+    (existingLog?.service_items ?? []).map((item, index) => ({
+      id: item.id,
+      sequence: index + 1,
+      roomId: item.room_id,
+      description: item.description,
+    })),
+  );
+  const [openServiceRoomId, setOpenServiceRoomId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
@@ -133,6 +195,10 @@ function DailyLogForm({
   const previousVisibleRef = useRef(false);
   const lastHydratedLogIdRef = useRef<string | null>(null);
   const hasNoWorkReason = noWorkReason !== "";
+  const roomNameById = useMemo(
+    () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
+    [rooms],
+  );
 
   useEffect(() => {
     const openedNow = visible && !previousVisibleRef.current;
@@ -150,13 +216,21 @@ function DailyLogForm({
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
     setUserIds(initialUserIds);
-    setRoomIds(existingLog?.room_ids ?? []);
+    setServiceItems(
+      (existingLog?.service_items ?? []).map((item, index) => ({
+        id: item.id,
+        sequence: index + 1,
+        roomId: item.room_id,
+        description: item.description,
+      })),
+    );
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
     setPendingRemoval(null);
     setUploadProgress(null);
     setNoWorkReasonOpen(false);
+    setOpenServiceRoomId(null);
     lastHydratedLogIdRef.current = currentLogId;
     previousVisibleRef.current = visible;
   }, [date, existingLog, initialUserIds, visible]);
@@ -167,6 +241,7 @@ function DailyLogForm({
       lastHydratedLogIdRef.current = null;
       setUploadProgress(null);
       setNoWorkReasonOpen(false);
+      setOpenServiceRoomId(null);
     }
   }, [visible]);
 
@@ -257,23 +332,26 @@ function DailyLogForm({
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
     setUserIds(initialUserIds);
-    setRoomIds(existingLog?.room_ids ?? []);
+    setServiceItems(
+      (existingLog?.service_items ?? []).map((item, index) => ({
+        id: item.id,
+        sequence: index + 1,
+        roomId: item.room_id,
+        description: item.description,
+      })),
+    );
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
     setUploadProgress(null);
     setNoWorkReasonOpen(false);
+    setOpenServiceRoomId(null);
     onClose();
   };
 
   // Processo de salvamento do registro, incluindo o upload de midias para o Supabase Storage.
   // future_fix: implementar barra de progresso para uploads de videos grandes.
   const handleSave = async () => {
-    if (!hasNoWorkReason && !activities.trim()) {
-      setLocalError("Descreva ao menos as atividades realizadas no dia.");
-      return;
-    }
-
     if (noWorkReason === "outro" && !noWorkNote.trim()) {
       setLocalError("Descreva o motivo de não ter tido serviço hoje.");
       return;
@@ -293,12 +371,42 @@ function DailyLogForm({
           noWorkReason: noWorkReason || null,
           noWorkNote: noWorkReason === "outro" ? noWorkNote : null,
           userIds: [],
-          roomIds: [],
           photosUrls: [],
           videosUrls: [],
         });
         return;
       }
+
+      const normalizedServiceItems = serviceItems
+        .map((item) => ({
+          roomId: item.roomId?.trim() ?? "",
+          description: item.description.trim(),
+        }));
+
+      const hasPartialServiceItem = normalizedServiceItems.some(
+        (item) => Boolean(item.roomId) !== Boolean(item.description),
+      );
+
+      if (hasPartialServiceItem) {
+        setLocalError("Preencha cômodo e descrição em cada serviço detalhado, ou remova a linha incompleta.");
+        setUploading(false);
+        setUploadProgress(null);
+        return;
+      }
+
+      const validServiceItems = normalizedServiceItems.filter(
+        (item) => Boolean(item.roomId) && Boolean(item.description),
+      ) as { roomId: string; description: string }[];
+
+      if (!activities.trim() && validServiceItems.length === 0) {
+        setLocalError("Preencha um resumo geral do dia ou adicione ao menos uma frente de trabalho.");
+        setUploading(false);
+        setUploadProgress(null);
+        return;
+      }
+
+      const derivedRoomIds = Array.from(new Set(validServiceItems.map((item) => item.roomId)));
+      const resolvedActivities = activities.trim() || buildServiceSummary(validServiceItems, roomNameById);
 
       const uploadedPhotos = await uploadAppMediaListIfNeeded({
         uris: photosUrls,
@@ -329,13 +437,14 @@ function DailyLogForm({
 
       setUploadProgress({ progress: 100, message: "Salvando registro...", completedItems: 0, totalItems: 0 });
       await onSave({
-        activities,
+        activities: resolvedActivities,
         weather,
         observations,
         noWorkReason: null,
         noWorkNote: null,
         userIds,
-        roomIds,
+        roomIds: derivedRoomIds,
+        serviceItems: validServiceItems,
         photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
         videosUrls: uploadedVideos.length > 0 ? uploadedVideos : undefined,
       });
@@ -378,10 +487,31 @@ function DailyLogForm({
     setNoWorkReasonOpen(false);
   };
 
-  const handleToggleRoom = (roomId: string) => {
-    setRoomIds((current) =>
-      current.includes(roomId) ? current.filter((item) => item !== roomId) : [...current, roomId],
+  const handleAddServiceItem = () => {
+    setServiceItems((current) => {
+      const nextSequence = current.reduce((highest, item) => Math.max(highest, item.sequence), 0) + 1;
+
+      return [
+        {
+          id: `draft-${Date.now()}-${current.length}`,
+          sequence: nextSequence,
+          roomId: null,
+          description: "",
+        },
+        ...current,
+      ];
+    });
+  };
+
+  const handleChangeServiceItem = (itemId: string, updates: Partial<DraftServiceItem>) => {
+    setServiceItems((current) =>
+      current.map((item) => (item.id === itemId ? { ...item, ...updates } : item)),
     );
+  };
+
+  const handleRemoveServiceItem = (itemId: string) => {
+    setServiceItems((current) => current.filter((item) => item.id !== itemId));
+    setOpenServiceRoomId((current) => (current === itemId ? null : current));
   };
   return (
     <AnimatedModal visible={visible} onRequestClose={handleClose} position="center" contentStyle={styles.modalCard}>
@@ -399,19 +529,6 @@ function DailyLogForm({
         keyboardShouldPersistTaps="handled"
         nestedScrollEnabled
       >
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Atividades realizadas *</Text>
-              <TextInput
-                multiline
-                placeholder="Descreva o que foi feito hoje ..."
-                placeholderTextColor={colors.textMuted}
-                style={[styles.fieldInput, styles.textAreaLarge, hasNoWorkReason && styles.fieldDisabled]}
-                value={activities}
-                onChangeText={setActivities}
-                editable={!hasNoWorkReason}
-              />
-            </View>
-
             {localError ? <Text style={styles.localError}>{localError}</Text> : null}
 
             {uploadProgress ? (
@@ -420,6 +537,67 @@ function DailyLogForm({
                   <View style={[styles.progressFill, { width: `${uploadProgress.progress}%` }]} />
                 </View>
                 <Text style={styles.progressText}>{Math.round(uploadProgress.progress)}% • {uploadProgress.message}</Text>
+              </View>
+            ) : null}
+
+            <Text style={styles.formSectionTitle}>Contexto do dia</Text>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Não teve serviço no dia?</Text>
+              <View style={styles.selectBlock}>
+                <Pressable
+                  style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
+                  onPress={() => setNoWorkReasonOpen((current) => !current)}
+                >
+                  <Text style={[styles.selectButtonText, !hasNoWorkReason && styles.selectPlaceholderText]}>
+                    {hasNoWorkReason ? getNoWorkReasonLabel(noWorkReason) : "Selecione o motivo"}
+                  </Text>
+                  <AppIcon name={noWorkReasonOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+                </Pressable>
+                {noWorkReasonOpen ? (
+                  <View style={styles.selectMenu}>
+                    <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                      <Pressable
+                        style={[styles.selectOption, !hasNoWorkReason && styles.selectOptionActive]}
+                        onPress={() => handleChangeNoWorkReason("")}
+                      >
+                        <Text style={[styles.selectOptionText, !hasNoWorkReason && styles.selectOptionTextActive]}>Selecione o motivo</Text>
+                      </Pressable>
+                      {noWorkReasonOptions.map((option) => (
+                        <Pressable
+                          key={option.value}
+                          style={[styles.selectOption, noWorkReason === option.value && styles.selectOptionActive]}
+                          onPress={() => handleChangeNoWorkReason(option.value)}
+                        >
+                          <Text style={[styles.selectOptionText, noWorkReason === option.value && styles.selectOptionTextActive]}>{option.label}</Text>
+                        </Pressable>
+                      ))}
+                    </ScrollView>
+                  </View>
+                ) : null}
+              </View>
+            </View>
+
+            {hasNoWorkReason ? (
+              <View style={styles.noWorkInfoCard}>
+                <AppIcon name="CircleAlert" size={18} color={colors.danger} />
+                <Text style={styles.noWorkInfoText}>
+                  Ao salvar, este dia será registrado como sem serviço e os campos operacionais abaixo serão ignorados.
+                </Text>
+              </View>
+            ) : null}
+
+            {noWorkReason === "outro" ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Qual motivo de não ter tido serviço hoje?</Text>
+                <TextInput
+                  multiline
+                  placeholder="Descreva o motivo..."
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.fieldInput, styles.textAreaMedium]}
+                  value={noWorkNote}
+                  onChangeText={setNoWorkNote}
+                />
               </View>
             ) : null}
 
@@ -433,54 +611,6 @@ function DailyLogForm({
                 onChangeText={setWeather}
                 editable={!hasNoWorkReason}
               />
-            </View>
-
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Observações</Text>
-              <TextInput
-                multiline
-                placeholder="Observações do dia ..."
-                placeholderTextColor={colors.textMuted}
-                style={[styles.fieldInput, styles.textAreaMedium, hasNoWorkReason && styles.fieldDisabled]}
-                value={observations}
-                onChangeText={setObservations}
-                editable={!hasNoWorkReason}
-              />
-            </View>
-
-            <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Cômodos relacionados</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
-                <Pressable
-                  style={[styles.optionChip, roomIds.length === 0 && styles.optionChipActive, hasNoWorkReason && styles.fieldDisabled]}
-                  onPress={() => {
-                    if (hasNoWorkReason) return;
-                    setRoomIds([]);
-                  }}
-                >
-                  <Text style={[styles.optionChipText, roomIds.length === 0 && styles.optionChipTextActive]}>Sem cômodo</Text>
-                </Pressable>
-                {rooms.map((room) => {
-                  const selected = roomIds.includes(room.id);
-                  return (
-                    <Pressable
-                      key={room.id}
-                      style={[styles.optionChip, selected && styles.optionChipActive, hasNoWorkReason && styles.fieldDisabled]}
-                      onPress={() => {
-                        if (hasNoWorkReason) return;
-                        handleToggleRoom(room.id);
-                      }}
-                    >
-                      <Text style={[styles.optionChipText, selected && styles.optionChipTextActive]}>{room.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-              <Text style={styles.helperTextSmall}>
-                {roomIds.length === 0
-                  ? "Nenhum cômodo selecionado."
-                  : `${roomIds.length} cômodo(s) selecionado(s).`}
-              </Text>
             </View>
 
             <View style={styles.fieldBlock}>
@@ -594,66 +724,118 @@ function DailyLogForm({
               </View>
             </View>
 
-            <View style={styles.divider} />
+            {!hasNoWorkReason ? <View style={styles.divider} /> : null}
+
+            <Text style={styles.formSectionTitle}>Frentes de trabalho</Text>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Não teve serviço no dia?</Text>
-              <View style={styles.selectBlock}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>Adicionar frente</Text>
                 <Pressable
-                  style={({ pressed }) => [styles.selectButton, pressed && styles.buttonPressed]}
-                  onPress={() => setNoWorkReasonOpen((current) => !current)}
+                  style={({ pressed }) => [styles.inlineActionButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
+                  onPress={handleAddServiceItem}
+                  disabled={hasNoWorkReason}
                 >
-                  <Text style={[styles.selectButtonText, !hasNoWorkReason && styles.selectPlaceholderText]}>
-                    {hasNoWorkReason ? getNoWorkReasonLabel(noWorkReason) : "Selecione o motivo"}
-                  </Text>
-                  <AppIcon name={noWorkReasonOpen ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+                  <Text style={styles.inlineActionButtonText}>+ Nova frente</Text>
                 </Pressable>
-                {noWorkReasonOpen ? (
-                  <View style={styles.selectMenu}>
-                    <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
-                      <Pressable
-                        style={[styles.selectOption, !hasNoWorkReason && styles.selectOptionActive]}
-                        onPress={() => handleChangeNoWorkReason("")}
-                      >
-                        <Text style={[styles.selectOptionText, !hasNoWorkReason && styles.selectOptionTextActive]}>Selecione o motivo</Text>
-                      </Pressable>
-                      {noWorkReasonOptions.map((option) => (
-                        <Pressable
-                          key={option.value}
-                          style={[styles.selectOption, noWorkReason === option.value && styles.selectOptionActive]}
-                          onPress={() => handleChangeNoWorkReason(option.value)}
-                        >
-                          <Text style={[styles.selectOptionText, noWorkReason === option.value && styles.selectOptionTextActive]}>{option.label}</Text>
-                        </Pressable>
-                      ))}
-                    </ScrollView>
-                  </View>
-                ) : null}
               </View>
+              {serviceItems.length === 0 ? (
+                <View style={styles.emptyServiceBox}>
+                  <Text style={styles.emptyServiceText}>
+                    Registre cada frente como um par simples: cômodo + descrição do serviço realizado.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.serviceItemList}>
+                  {serviceItems.map((item, index) => (
+                    <View key={item.id} style={styles.serviceItemCard}>
+                      <View style={styles.serviceItemHeader}>
+                        <Text style={styles.serviceItemTitle}>Frente {item.sequence}</Text>
+                        <Pressable onPress={() => handleRemoveServiceItem(item.id)}>
+                          <Text style={styles.serviceItemRemove}>Remover</Text>
+                        </Pressable>
+                      </View>
+                      <View style={styles.selectBlock}>
+                        <Pressable
+                          style={({ pressed }) => [styles.selectButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
+                          onPress={() => {
+                            if (hasNoWorkReason) return;
+                            setOpenServiceRoomId((current) => (current === item.id ? null : item.id));
+                          }}
+                        >
+                          <Text style={[styles.selectButtonText, !item.roomId && styles.selectPlaceholderText]}>
+                            {item.roomId ? roomNameById[item.roomId] ?? "Cômodo removido" : "Selecione o cômodo"}
+                          </Text>
+                          <AppIcon name={openServiceRoomId === item.id ? "ChevronUp" : "ChevronDown"} size={18} color={colors.textMuted} />
+                        </Pressable>
+                        {openServiceRoomId === item.id ? (
+                          <View style={styles.selectMenu}>
+                            <ScrollView nestedScrollEnabled style={styles.selectMenuScroll}>
+                              {rooms.map((room) => (
+                                <Pressable
+                                  key={`${item.id}-${room.id}`}
+                                  style={[styles.selectOption, item.roomId === room.id && styles.selectOptionActive]}
+                                  onPress={() => {
+                                    handleChangeServiceItem(item.id, { roomId: room.id });
+                                    setOpenServiceRoomId(null);
+                                  }}
+                                >
+                                  <Text style={[styles.selectOptionText, item.roomId === room.id && styles.selectOptionTextActive]}>
+                                    {room.name}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                            </ScrollView>
+                          </View>
+                        ) : null}
+                      </View>
+                      <TextInput
+                        multiline
+                        placeholder="Ex: assentamento de piso, passagem elétrica, impermeabilização..."
+                        placeholderTextColor={colors.textMuted}
+                        style={[styles.fieldInput, styles.textAreaMedium, hasNoWorkReason && styles.fieldDisabled]}
+                        value={item.description}
+                        onChangeText={(value) => handleChangeServiceItem(item.id, { description: value })}
+                        editable={!hasNoWorkReason}
+                      />
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
 
-            {hasNoWorkReason ? (
-              <View style={styles.noWorkInfoCard}>
-                <AppIcon name="CircleAlert" size={18} color={colors.danger} />
-                <Text style={styles.noWorkInfoText}>
-                  Ao salvar, este dia será registrado como sem serviço e os campos operacionais acima serão ignorados.
-                </Text>
-              </View>
-            ) : null}
+            <View style={styles.divider} />
 
-            {noWorkReason === "outro" ? (
-              <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Qual motivo de não ter tido serviço hoje?</Text>
-                <TextInput
-                  multiline
-                  placeholder="Descreva o motivo..."
-                  placeholderTextColor={colors.textMuted}
-                  style={[styles.fieldInput, styles.textAreaMedium]}
-                  value={noWorkNote}
-                  onChangeText={setNoWorkNote}
-                />
-              </View>
-            ) : null}
+            <Text style={styles.formSectionTitle}>Resumo geral do dia</Text>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Resumo geral</Text>
+              <TextInput
+                multiline
+                placeholder="Opcional. Se deixar vazio, o app gera um resumo a partir das frentes de trabalho."
+                placeholderTextColor={colors.textMuted}
+                style={[styles.fieldInput, styles.textAreaLarge, hasNoWorkReason && styles.fieldDisabled]}
+                value={activities}
+                onChangeText={setActivities}
+                editable={!hasNoWorkReason}
+              />
+              <Text style={styles.helperTextSmall}>
+                Use este campo para um resumo consolidado do dia. O detalhamento principal fica nas frentes de trabalho acima.
+              </Text>
+            </View>
+
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>Observações</Text>
+              <TextInput
+                multiline
+                placeholder="Observações do dia ..."
+                placeholderTextColor={colors.textMuted}
+                style={[styles.fieldInput, styles.textAreaMedium, hasNoWorkReason && styles.fieldDisabled]}
+                value={observations}
+                onChangeText={setObservations}
+                editable={!hasNoWorkReason}
+              />
+            </View>
 
             <AnimatedModal visible={Boolean(pendingRemoval)} onRequestClose={() => setPendingRemoval(null)} position="center" contentStyle={styles.confirmCard}>
               <Text style={styles.confirmTitle}>Excluir arquivo?</Text>
@@ -704,6 +886,7 @@ function DailyLogDetailsModal({
   presenceEmployees,
   userIds,
   roomNames,
+  roomNameById,
   visible,
   onClose,
   onEdit,
@@ -713,6 +896,7 @@ function DailyLogDetailsModal({
   presenceEmployees: PresenceEmployeeRow[];
   userIds: string[];
   roomNames: string[];
+  roomNameById: Record<string, string>;
   visible: boolean;
   onClose: () => void;
   onEdit: () => void;
@@ -738,7 +922,7 @@ function DailyLogDetailsModal({
             ) : (
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Atividades realizadas</Text>
-                <Text style={styles.detailValue}>{log.activities || "Nenhuma atividade descrita."}</Text>
+                <Text style={styles.detailValue}>{getDailyLogPreview(log, roomNameById)}</Text>
               </View>
             )}
 
@@ -760,6 +944,20 @@ function DailyLogDetailsModal({
               <View style={styles.fieldBlock}>
                 <Text style={styles.fieldLabel}>Cômodos relacionados</Text>
                 <Text style={styles.detailValue}>{roomNames.join(", ")}</Text>
+              </View>
+            ) : null}
+
+            {!isNoWorkDay && log.service_items.length > 0 ? (
+              <View style={styles.fieldBlock}>
+                <Text style={styles.fieldLabel}>Serviços por cômodo</Text>
+                <View style={styles.serviceDetailList}>
+                  {log.service_items.map((item) => (
+                    <View key={item.id} style={styles.serviceDetailCard}>
+                      <Text style={styles.serviceDetailRoom}>{roomNameById[item.room_id] ?? "Cômodo removido"}</Text>
+                      <Text style={styles.serviceDetailText}>{item.description}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             ) : null}
 
@@ -868,6 +1066,7 @@ export function DailyScreen() {
     return [...monthLogs]
       .filter((log) => {
         const roomName = getRoomNames(log.room_ids, roomNameById).join(", ");
+        const serviceDescriptions = log.service_items.map((item) => item.description).join(" ");
         const query = searchQuery.trim().toLowerCase();
         const hasMedia = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
         const matchesSearch =
@@ -878,7 +1077,8 @@ export function DailyScreen() {
           (log.observations ?? "").toLowerCase().includes(query) ||
           getNoWorkReasonLabel(log.no_work_reason).toLowerCase().includes(query) ||
           (log.no_work_note ?? "").toLowerCase().includes(query) ||
-          roomName.toLowerCase().includes(query);
+          roomName.toLowerCase().includes(query) ||
+          serviceDescriptions.toLowerCase().includes(query);
         const matchesRoom = roomFilter === "todos" || log.room_ids.includes(roomFilter);
         const matchesMedia =
           mediaFilter === "todos" ||
@@ -953,6 +1153,7 @@ export function DailyScreen() {
       noWorkNote?: string | null;
       userIds: string[];
       roomIds?: string[];
+      serviceItems?: { roomId: string; description: string }[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => {
@@ -971,6 +1172,7 @@ export function DailyScreen() {
       createdBy: user.id,
       userIds: payload.userIds,
       roomIds: payload.roomIds ?? [],
+      serviceItems: payload.serviceItems ?? [],
       photosUrls: payload.photosUrls,
       videosUrls: payload.videosUrls,
     });
@@ -1287,11 +1489,12 @@ export function DailyScreen() {
                       </Text>
                     </View>
                     <Text numberOfLines={2} style={styles.monthLogActivities}>
-                      {log.no_work_reason ? getNoWorkReasonLabel(log.no_work_reason) : log.activities || "Sem descrição preenchida."}
+                      {getDailyLogPreview(log, roomNameById)}
                     </Text>
                     {log.no_work_reason && log.no_work_note ? <Text style={styles.monthLogMeta}>{log.no_work_note}</Text> : null}
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
                     {log.room_ids.length > 0 ? <Text style={styles.monthLogMeta}>Cômodos: {getRoomNames(log.room_ids, roomNameById).join(", ")}</Text> : null}
+                    {log.service_items.length > 0 ? <Text style={styles.monthLogMeta}>Serviços detalhados: {log.service_items.length}</Text> : null}
                   </Pressable>
                 ))}
 
@@ -1316,6 +1519,7 @@ export function DailyScreen() {
           presenceEmployees={presenceEmployees}
           userIds={userIdsQuery.data ?? []}
           roomNames={getRoomNames(selectedLog?.room_ids ?? [], roomNameById)}
+          roomNameById={roomNameById}
           visible={detailsOpen}
           onClose={() => setDetailsOpen(false)}
           onEdit={handleEditFromDetails}
@@ -1810,10 +2014,35 @@ const styles = StyleSheet.create({
   fieldBlock: {
     gap: 8,
   },
+  formSectionTitle: {
+    marginTop: 4,
+    fontSize: 18,
+    fontWeight: "800",
+    color: colors.text,
+  },
   fieldLabel: {
     fontSize: 16,
     fontWeight: "600",
     color: colors.text,
+  },
+  fieldLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  inlineActionButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  inlineActionButtonText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.primary,
   },
   fieldInput: {
     borderRadius: 14,
@@ -1924,6 +2153,46 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontSize: 12,
     color: colors.textMuted,
+  },
+  emptyServiceBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+  },
+  emptyServiceText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  serviceItemList: {
+    gap: 12,
+  },
+  serviceItemCard: {
+    gap: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surface,
+    padding: 12,
+  },
+  serviceItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  serviceItemTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.text,
+  },
+  serviceItemRemove: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.danger,
   },
   employeeChip: {
     borderRadius: 12,
@@ -2060,6 +2329,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceMuted,
     padding: 12,
     borderRadius: 12,
+  },
+  serviceDetailList: {
+    gap: 10,
+  },
+  serviceDetailCard: {
+    gap: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  serviceDetailRoom: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.primary,
+    textTransform: "uppercase",
+  },
+  serviceDetailText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.text,
   },
   detailValueDanger: {
     color: colors.danger,

@@ -19,8 +19,17 @@ export type DailyLogRow = {
   project_id: string;
   room_id: string | null;
   room_ids: string[];
+  service_items: DailyLogServiceItemRow[];
   photos_urls?: string[] | null;
   videos_urls?: string[] | null;
+};
+
+export type DailyLogServiceItemRow = {
+  id: string;
+  log_id: string;
+  room_id: string;
+  description: string;
+  order_index: number;
 };
 
 export type PresenceEmployeeRow = {
@@ -47,7 +56,8 @@ export function useDailyLogs() {
         .select(`
           id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
           daily_log_employees ( user_id ),
-          daily_log_rooms ( room_id )
+          daily_log_rooms ( room_id ),
+          daily_log_service_items ( id, log_id, room_id, description, order_index )
         `)
         .eq("project_id", project.id)
         .order("date", { ascending: false });
@@ -64,6 +74,9 @@ export function useDailyLogs() {
               .concat(log.room_id ? [log.room_id] : []),
           ),
         ),
+        service_items: ((log.daily_log_service_items as DailyLogServiceItemRow[] | null) ?? [])
+          .filter((item) => Boolean(item.room_id) && Boolean(item.description))
+          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)),
         presenceIds: (log.daily_log_employees as any[] || []).map(item => item.user_id).filter(Boolean)
       }));
     },
@@ -116,6 +129,13 @@ export function useDailyLogs() {
         () => {
           void logsQuery.refetch();
           void presenceEmployeesQuery.refetch();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_log_service_items" },
+        () => {
+          void logsQuery.refetch();
         },
       )
       .subscribe();
@@ -194,6 +214,7 @@ export function useUpsertDailyLog() {
       createdBy: string;
       userIds: string[];
       roomIds?: string[];
+      serviceItems?: { roomId: string; description: string }[];
       photosUrls?: string[];
       videosUrls?: string[];
     }) => {
@@ -213,6 +234,12 @@ export function useUpsertDailyLog() {
           p_created_by: payload.createdBy,
           p_user_ids: payload.userIds,
           p_room_ids: payload.roomIds ?? [],
+          p_service_items: payload.serviceItems?.length
+            ? payload.serviceItems.map((item) => ({
+                room_id: item.roomId,
+                description: item.description,
+              }))
+            : [],
           p_photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,
           p_videos_urls: payload.videosUrls?.length ? payload.videosUrls : null,
         })
