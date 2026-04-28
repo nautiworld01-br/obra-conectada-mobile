@@ -62,6 +62,24 @@ function getRoomHealthTone(status: "sem_dados" | "atencao" | "em_andamento" | "c
   }
 }
 
+function buildServiceFrontPreview(
+  serviceItems: { description: string }[],
+) {
+  const descriptions = serviceItems
+    .map((item) => item.description.trim())
+    .filter(Boolean);
+
+  if (descriptions.length === 0) {
+    return "Sem frentes detalhadas ainda.";
+  }
+
+  if (descriptions.length <= 2) {
+    return descriptions.join(" | ");
+  }
+
+  return `${descriptions.slice(0, 2).join(" | ")} | +${descriptions.length - 2} frentes`;
+}
+
 export function DashboardScreen() {
   // Inicializacao de hooks de contexto e busca de dados (Supabase).
   // Carrega informacoes de perfil, logs diarios, etapas, atualizacoes e pagamentos.
@@ -96,8 +114,18 @@ export function DashboardScreen() {
     const paidTotal = payments
       .filter((payment) => payment.status === "pago" || payment.status === "aprovado")
       .reduce((sum, payment) => sum + Number(payment.requested_amount), 0);
+    const totalServiceFronts = logs.reduce((sum, log) => sum + log.service_items.length, 0);
+    const logsWithDetailedServices = logs.filter((log) => log.service_items.length > 0).length;
     const roomSummaries = rooms.map((room) => {
       const roomLogs = logs.filter((log) => log.room_ids.includes(room.id));
+      const roomServiceItems = roomLogs.flatMap((log) =>
+        log.service_items
+          .filter((item) => item.room_id === room.id)
+          .map((item) => ({
+            ...item,
+            logDate: log.date,
+          })),
+      );
       const roomStages = stages.filter((stage) => stage.room_id === room.id);
       const roomUpdates = updates.filter((update) => update.room_ids.includes(room.id));
       const completedStagesByRoom = roomStages.filter((stage) => stage.status === "concluido").length;
@@ -107,6 +135,12 @@ export function DashboardScreen() {
         : 0;
       const latestLogDate = roomLogs[0]?.date ?? null;
       const latestUpdate = roomUpdates[0] ?? null;
+      const latestFrontLog = roomLogs.find((log) => log.service_items.some((item) => item.room_id === room.id)) ?? null;
+      const latestFrontPreview = latestFrontLog
+        ? buildServiceFrontPreview(latestFrontLog.service_items.filter((item) => item.room_id === room.id))
+        : "Sem frentes detalhadas ainda.";
+      const serviceFrontsCount = roomServiceItems.length;
+      const serviceFrontDaysCount = new Set(roomServiceItems.map((item) => item.logDate)).size;
       const hasAnyData = roomLogs.length > 0 || roomStages.length > 0 || roomUpdates.length > 0;
       const healthStatus: "sem_dados" | "atencao" | "em_andamento" | "concluido" =
         !hasAnyData ? "sem_dados"
@@ -118,17 +152,21 @@ export function DashboardScreen() {
         id: room.id,
         name: room.name,
         logsCount: roomLogs.length,
+        serviceFrontsCount,
+        serviceFrontDaysCount,
         stagesCount: roomStages.length,
         updatesCount: roomUpdates.length,
         completedStagesByRoom,
         delayedStagesByRoom,
         stageProgressByRoom,
         latestLogDate,
+        latestFrontPreview,
         latestUpdateStatus: latestUpdate?.status ?? null,
         healthStatus,
       };
     });
     const roomsWithActivity = roomSummaries.filter((room) => room.logsCount || room.stagesCount || room.updatesCount).length;
+    const roomsWithServiceFronts = roomSummaries.filter((room) => room.serviceFrontsCount > 0).length;
     const roomsNeedingAttention = roomSummaries.filter((room) => room.healthStatus === "atencao").length;
     const roomsCompleted = roomSummaries.filter((room) => room.healthStatus === "concluido").length;
 
@@ -141,8 +179,11 @@ export function DashboardScreen() {
       delayedStages,
       stageProgress,
       paidTotal,
+      totalServiceFronts,
+      logsWithDetailedServices,
       roomSummaries,
       roomsWithActivity,
+      roomsWithServiceFronts,
       roomsNeedingAttention,
       roomsCompleted,
     };
@@ -244,6 +285,14 @@ export function DashboardScreen() {
             <Text style={styles.metricLabel}>Com atividade</Text>
           </View>
           <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{dashboardData.roomsWithServiceFronts}</Text>
+            <Text style={styles.metricLabel}>Com frentes</Text>
+          </View>
+          <View style={styles.metricCard}>
+            <Text style={styles.metricValue}>{dashboardData.totalServiceFronts}</Text>
+            <Text style={styles.metricLabel}>Frentes</Text>
+          </View>
+          <View style={styles.metricCard}>
             <Text style={styles.metricValue}>{dashboardData.roomsCompleted}</Text>
             <Text style={styles.metricLabel}>Concluídos</Text>
           </View>
@@ -289,6 +338,10 @@ export function DashboardScreen() {
                     <Text style={styles.roomMiniMetricLabel}>Dia a Dia</Text>
                   </View>
                   <View style={styles.roomMiniMetric}>
+                    <Text style={styles.roomMiniMetricValue}>{room.serviceFrontsCount}</Text>
+                    <Text style={styles.roomMiniMetricLabel}>Frentes</Text>
+                  </View>
+                  <View style={styles.roomMiniMetric}>
                     <Text style={styles.roomMiniMetricValue}>{room.completedStagesByRoom}/{room.stagesCount}</Text>
                     <Text style={styles.roomMiniMetricLabel}>Etapas</Text>
                   </View>
@@ -301,6 +354,12 @@ export function DashboardScreen() {
                 <View style={styles.roomMetaList}>
                   <Text style={styles.roomMetaText}>
                     Último dia a dia: {formatDate(room.latestLogDate)}
+                  </Text>
+                  <Text style={styles.roomMetaText}>
+                    Dias com frentes: {room.serviceFrontDaysCount}
+                  </Text>
+                  <Text style={styles.roomMetaTextStrong}>
+                    Frentes recentes: {room.latestFrontPreview}
                   </Text>
                   <Text style={styles.roomMetaText}>
                     Relatório recente: {room.latestUpdateStatus ? room.latestUpdateStatus.replace("_", " ") : "—"}
@@ -318,6 +377,8 @@ export function DashboardScreen() {
       <SectionCard title="Equipe em campo" subtitle="Registros operacionais dos funcionários.">
         <View style={styles.employeeOverviewList}>
           <Text style={styles.infoRow}>Lancamentos da equipe: {logs.length}</Text>
+          <Text style={styles.infoRow}>Registros com frentes: {dashboardData.logsWithDetailedServices}</Text>
+          <Text style={styles.infoRow}>Frentes detalhadas: {dashboardData.totalServiceFronts}</Text>
           <Text style={styles.infoRow}>Lancamentos seus: {dashboardData.myLogs.length}</Text>
           <Text style={styles.infoRow}>Lancamentos deste mes: {dashboardData.myLogsThisMonth.length}</Text>
         </View>
@@ -486,6 +547,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.textMuted,
+  },
+  roomMetaTextStrong: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.text,
   },
   employeeLatestWrap: {
     gap: 6,

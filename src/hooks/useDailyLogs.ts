@@ -37,6 +37,7 @@ export type DailyLogServiceItemRow = {
   log_id: string;
   room_id: string;
   description: string;
+  status: "pendente" | "em_andamento" | "concluido";
   order_index: number;
 };
 
@@ -65,7 +66,7 @@ export function useDailyLogs() {
           id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id,
           daily_log_employees ( user_id ),
           daily_log_rooms ( room_id ),
-          daily_log_service_items ( id, log_id, room_id, description, order_index )
+          daily_log_service_items ( id, log_id, room_id, description, status, order_index )
         `)
         .eq("project_id", project.id)
         .order("date", { ascending: false });
@@ -197,7 +198,7 @@ export function useDailyLogDetail(logId: string | null) {
           id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
           daily_log_employees ( user_id ),
           daily_log_rooms ( room_id ),
-          daily_log_service_items ( id, log_id, room_id, description, order_index )
+          daily_log_service_items ( id, log_id, room_id, description, status, order_index )
         `)
         .eq("id", logId)
         .maybeSingle();
@@ -275,7 +276,7 @@ export function useUpsertDailyLog() {
       createdBy: string;
       userIds: string[];
       roomIds?: string[];
-      serviceItems?: { roomId: string; description: string }[];
+      serviceItems?: { roomId: string; description: string; status: "pendente" | "em_andamento" | "concluido" }[];
       photosUrls?: string[];
       videosUrls?: string[];
     }) => {
@@ -299,6 +300,7 @@ export function useUpsertDailyLog() {
             ? payload.serviceItems.map((item) => ({
                 room_id: item.roomId,
                 description: item.description,
+                status: item.status,
               }))
             : [],
           p_photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,

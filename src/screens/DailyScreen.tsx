@@ -74,6 +74,13 @@ const noWorkReasonOptions = [
 ] as const;
 
 type NoWorkReason = (typeof noWorkReasonOptions)[number]["value"];
+type ServiceItemStatus = "pendente" | "em_andamento" | "concluido";
+
+const serviceItemStatusOptions: { value: ServiceItemStatus; label: string }[] = [
+  { value: "pendente", label: "Pendente" },
+  { value: "em_andamento", label: "Em andamento" },
+  { value: "concluido", label: "Concluído" },
+];
 
 function getNoWorkReasonLabel(reason: string | null | undefined) {
   return noWorkReasonOptions.find((option) => option.value === reason)?.label ?? "Motivo não informado";
@@ -81,6 +88,34 @@ function getNoWorkReasonLabel(reason: string | null | undefined) {
 
 function getRoomNames(roomIds: string[] | undefined, roomNameById: Record<string, string>) {
   return (roomIds ?? []).map((roomId) => roomNameById[roomId] ?? "Cômodo removido");
+}
+
+function getServiceItemStatusLabel(status: ServiceItemStatus) {
+  return serviceItemStatusOptions.find((option) => option.value === status)?.label ?? "Em andamento";
+}
+
+function getServiceItemStatusTone(status: ServiceItemStatus) {
+  switch (status) {
+    case "pendente":
+      return {
+        backgroundColor: "#fef3c7",
+        borderColor: "#f7d27a",
+        textColor: "#92400e",
+      };
+    case "concluido":
+      return {
+        backgroundColor: "#dcfce7",
+        borderColor: "#86efac",
+        textColor: "#166534",
+      };
+    case "em_andamento":
+    default:
+      return {
+        backgroundColor: colors.primarySoft,
+        borderColor: "#cbd5ff",
+        textColor: colors.primary,
+      };
+  }
 }
 
 function buildServiceSummary(
@@ -177,6 +212,7 @@ type DraftServiceItem = {
   sequence: number;
   roomId: string | null;
   description: string;
+  status: ServiceItemStatus;
 };
 
 // Componente de formulario para criacao e edicao de registros diarios.
@@ -213,7 +249,7 @@ function DailyLogForm({
     noWorkNote?: string | null;
     userIds: string[];
     roomIds?: string[];
-    serviceItems?: { roomId: string; description: string }[];
+    serviceItems?: { roomId: string; description: string; status: ServiceItemStatus }[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => Promise<void>;
@@ -235,6 +271,7 @@ function DailyLogForm({
       sequence: index + 1,
       roomId: item.room_id,
       description: item.description,
+      status: item.status ?? "em_andamento",
     })),
   );
   const [openServiceRoomId, setOpenServiceRoomId] = useState<string | null>(null);
@@ -281,6 +318,7 @@ function DailyLogForm({
         sequence: index + 1,
         roomId: item.room_id,
         description: item.description,
+        status: item.status ?? "em_andamento",
       })),
     );
     setPhotosUrls(existingLog?.photos_urls ?? []);
@@ -420,6 +458,7 @@ function DailyLogForm({
         sequence: index + 1,
         roomId: item.room_id,
         description: item.description,
+        status: item.status ?? "em_andamento",
       })),
     );
     setPhotosUrls(existingLog?.photos_urls ?? []);
@@ -467,6 +506,7 @@ function DailyLogForm({
         .map((item) => ({
           roomId: item.roomId?.trim() ?? "",
           description: item.description.trim(),
+          status: item.status,
         }));
 
       const hasPartialServiceItem = normalizedServiceItems.some(
@@ -482,7 +522,7 @@ function DailyLogForm({
 
       const validServiceItems = normalizedServiceItems.filter(
         (item) => Boolean(item.roomId) && Boolean(item.description),
-      ) as { roomId: string; description: string }[];
+      ) as { roomId: string; description: string; status: ServiceItemStatus }[];
 
       if (!activities.trim() && validServiceItems.length === 0) {
         setLocalError("Preencha um resumo geral do dia ou adicione ao menos uma frente de trabalho.");
@@ -583,6 +623,7 @@ function DailyLogForm({
           sequence: nextSequence,
           roomId: null,
           description: "",
+          status: "em_andamento",
         },
         ...current,
       ];
@@ -899,6 +940,29 @@ function DailyLogForm({
                         onChangeText={(value) => handleChangeServiceItem(item.id, { description: value })}
                         editable={!hasNoWorkReason}
                       />
+                      <View>
+                        <Text style={styles.fieldLabel}>Status da frente</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
+                          {serviceItemStatusOptions.map((option) => (
+                            <Pressable
+                              key={`${item.id}-${option.value}`}
+                              style={[
+                                styles.optionChip,
+                                item.status === option.value && styles.optionChipActive,
+                                hasNoWorkReason && styles.fieldDisabled,
+                              ]}
+                              onPress={() => {
+                                if (hasNoWorkReason) return;
+                                handleChangeServiceItem(item.id, { status: option.value });
+                              }}
+                            >
+                              <Text style={[styles.optionChipText, item.status === option.value && styles.optionChipTextActive]}>
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -1079,7 +1143,27 @@ function DailyLogDetailsModal({
                 <View style={styles.serviceDetailList}>
                   {log.service_items.map((item) => (
                     <View key={item.id} style={styles.serviceDetailCard}>
-                      <Text style={styles.serviceDetailRoom}>{roomNameById[item.room_id] ?? "Cômodo removido"}</Text>
+                      <View style={styles.serviceDetailHeader}>
+                        <Text style={styles.serviceDetailRoom}>{roomNameById[item.room_id] ?? "Cômodo removido"}</Text>
+                        <View
+                          style={[
+                            styles.serviceStatusBadge,
+                            {
+                              backgroundColor: getServiceItemStatusTone(item.status).backgroundColor,
+                              borderColor: getServiceItemStatusTone(item.status).borderColor,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.serviceStatusBadgeText,
+                              { color: getServiceItemStatusTone(item.status).textColor },
+                            ]}
+                          >
+                            {getServiceItemStatusLabel(item.status)}
+                          </Text>
+                        </View>
+                      </View>
                       <Text style={styles.serviceDetailText}>{item.description}</Text>
                     </View>
                   ))}
@@ -1332,7 +1416,7 @@ export function DailyScreen() {
       noWorkNote?: string | null;
       userIds: string[];
       roomIds?: string[];
-      serviceItems?: { roomId: string; description: string }[];
+      serviceItems?: { roomId: string; description: string; status: ServiceItemStatus }[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => {
@@ -2543,11 +2627,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  serviceDetailHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
   serviceDetailRoom: {
     fontSize: 12,
     fontWeight: "800",
     color: colors.primary,
     textTransform: "uppercase",
+  },
+  serviceStatusBadge: {
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  serviceStatusBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
   serviceDetailText: {
     fontSize: 14,
