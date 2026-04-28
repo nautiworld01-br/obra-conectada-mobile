@@ -108,6 +108,7 @@ export function useProfile() {
     occupationLabel: occupationLabelFromFlags(isOwner, isEmployee),
     initials: buildInitials(fullName),
     isLoading: query.isLoading,
+    isFetched: query.isFetched,
     error: query.error,
   };
 }

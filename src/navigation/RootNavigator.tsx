@@ -184,16 +184,17 @@ function AppShell() {
   const [isHouseMenuOpen, setIsHouseMenuOpen] = useState(false);
   const { signOut } = useAuth();
   const { project, isLoading: projectLoading } = useProject();
-  const { isOwner, profile, isLoading: profileLoading } = useProfile();
+  const { isOwner, profile, isLoading: profileLoading, isFetched: profileFetched, error: profileError } = useProfile();
 
   const ActiveScreen = useMemo(() => appRoutes.find(r => r.key === currentRouteKey)?.component ?? appRoutes[0].component, [currentRouteKey]);
   
-  // SEGURANCA SENIOR: Se o perfil sumiu do banco mas a sessao existe, desloga na hora.
+  // So desloga se a consulta terminou sem erro e realmente nao encontrou perfil.
+  // Em PWA isso evita "logout fantasma" por falha transitória de storage/rede na largada.
   useEffect(() => {
-    if (!profileLoading && !profile) {
+    if (!profileLoading && profileFetched && !profileError && !profile) {
       void signOut();
     }
-  }, [profile, profileLoading, signOut]);
+  }, [profile, profileError, profileFetched, profileLoading, signOut]);
 
   // Lógica sênior para nome da casa: aguarda carregamento e trata nulos
   const houseName = useMemo(() => {
