@@ -87,27 +87,26 @@ function buildServiceSummary(
   serviceItems: { roomId: string; description: string }[],
   roomNameById: Record<string, string>,
 ) {
-  const roomNames = Array.from(
-    new Set(
-      serviceItems
-        .map((item) => roomNameById[item.roomId])
-        .filter((roomName): roomName is string => Boolean(roomName)),
-    ),
-  );
+  const normalizedItems = serviceItems
+    .map((item) => ({
+      roomName: roomNameById[item.roomId] ?? "Cômodo removido",
+      description: item.description.trim(),
+    }))
+    .filter((item) => item.description.length > 0);
 
-  if (roomNames.length === 0) {
+  if (normalizedItems.length === 0) {
     return "Serviços realizados no dia.";
   }
 
-  if (roomNames.length === 1) {
-    return `Serviços realizados em ${roomNames[0]}.`;
+  const highlightedItems = normalizedItems
+    .slice(0, 2)
+    .map((item) => `${item.roomName}: ${item.description}`);
+
+  if (normalizedItems.length <= 2) {
+    return highlightedItems.join(" | ");
   }
 
-  if (roomNames.length === 2) {
-    return `Serviços realizados em ${roomNames[0]} e ${roomNames[1]}.`;
-  }
-
-  return `Serviços realizados em ${roomNames.slice(0, -1).join(", ")} e ${roomNames[roomNames.length - 1]}.`;
+  return `${highlightedItems.join(" | ")} | +${normalizedItems.length - 2} frentes`;
 }
 
 function getDailyLogPreview(log: DailyLogRow, roomNameById: Record<string, string>) {
@@ -127,6 +126,50 @@ function getDailyLogPreview(log: DailyLogRow, roomNameById: Record<string, strin
   }
 
   return "Sem descrição preenchida.";
+}
+
+function getServiceItemsStats(
+  serviceItems: { roomId: string | null; description: string }[],
+) {
+  const validItems = serviceItems.filter((item) => Boolean(item.roomId) && Boolean(item.description.trim()));
+  const roomCount = new Set(validItems.map((item) => item.roomId)).size;
+  return {
+    serviceCount: validItems.length,
+    roomCount,
+  };
+}
+
+function getServiceItemsSummaryLabel(
+  serviceItems: { roomId: string | null; description: string }[],
+) {
+  const { serviceCount, roomCount } = getServiceItemsStats(serviceItems);
+
+  if (!serviceCount) {
+    return "Nenhuma frente adicionada";
+  }
+
+  const frontLabel = `${serviceCount} ${serviceCount === 1 ? "frente" : "frentes"}`;
+  const roomLabel = `${roomCount} ${roomCount === 1 ? "cômodo" : "cômodos"}`;
+  return `${frontLabel} em ${roomLabel}`;
+}
+
+function getServiceItemsInlinePreview(
+  serviceItems: { room_id: string; description: string }[],
+  roomNameById: Record<string, string>,
+) {
+  if (!serviceItems.length) {
+    return null;
+  }
+
+  const items = serviceItems
+    .slice(0, 2)
+    .map((item) => `${roomNameById[item.room_id] ?? "Cômodo removido"}: ${item.description}`);
+
+  if (serviceItems.length <= 2) {
+    return items.join(" | ");
+  }
+
+  return `${items.join(" | ")} | +${serviceItems.length - 2} frentes`;
 }
 
 type DraftServiceItem = {
@@ -210,6 +253,10 @@ function DailyLogForm({
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
+  );
+  const serviceItemsSummaryLabel = useMemo(
+    () => getServiceItemsSummaryLabel(serviceItems),
+    [serviceItems],
   );
 
   useEffect(() => {
@@ -775,7 +822,10 @@ function DailyLogForm({
 
             <View style={styles.fieldBlock}>
               <View style={styles.fieldLabelRow}>
-                <Text style={styles.fieldLabel}>Adicionar frente</Text>
+                <View style={styles.fieldLabelStack}>
+                  <Text style={styles.fieldLabel}>Adicionar frente</Text>
+                  <Text style={styles.fieldHintInline}>{serviceItemsSummaryLabel}</Text>
+                </View>
                 <Pressable
                   style={({ pressed }) => [styles.inlineActionButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
                   onPress={handleAddServiceItem}
@@ -792,6 +842,12 @@ function DailyLogForm({
                 </View>
               ) : (
                 <View style={styles.serviceItemList}>
+                  <View style={styles.serviceItemsSummaryCard}>
+                    <Text style={styles.serviceItemsSummaryTitle}>{serviceItemsSummaryLabel}</Text>
+                    <Text style={styles.serviceItemsSummaryText}>
+                      Use uma frente por cômodo para deixar a leitura do dia e a busca da lista mensal mais claras.
+                    </Text>
+                  </View>
                   {serviceItems.map((item, index) => (
                     <View key={item.id} style={styles.serviceItemCard}>
                       <View style={styles.serviceItemHeader}>
@@ -1617,7 +1673,14 @@ export function DailyScreen() {
                     {log.no_work_reason && log.no_work_note ? <Text style={styles.monthLogMeta}>{log.no_work_note}</Text> : null}
                     {log.weather ? <Text style={styles.monthLogMeta}>Clima: {log.weather}</Text> : null}
                     {log.room_ids.length > 0 ? <Text style={styles.monthLogMeta}>Cômodos: {getRoomNames(log.room_ids, roomNameById).join(", ")}</Text> : null}
-                    {log.service_items.length > 0 ? <Text style={styles.monthLogMeta}>Serviços detalhados: {log.service_items.length}</Text> : null}
+                    {log.service_items.length > 0 ? (
+                      <>
+                        <Text style={styles.monthLogMeta}>{getServiceItemsSummaryLabel(log.service_items.map((item) => ({ roomId: item.room_id, description: item.description })))}</Text>
+                        <Text style={styles.monthLogMetaStrong}>
+                          {getServiceItemsInlinePreview(log.service_items, roomNameById)}
+                        </Text>
+                      </>
+                    ) : null}
                   </Pressable>
                 ))}
 
@@ -2080,6 +2143,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.textMuted,
   },
+  monthLogMetaStrong: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.text,
+  },
   monthLogEmpty: {
     borderRadius: 16,
     borderWidth: 1,
@@ -2153,6 +2221,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
+  },
+  fieldLabelStack: {
+    flex: 1,
+    gap: 2,
+  },
+  fieldHintInline: {
+    fontSize: 12,
+    color: colors.textMuted,
   },
   inlineActionButton: {
     borderRadius: 999,
@@ -2292,6 +2368,25 @@ const styles = StyleSheet.create({
   },
   serviceItemList: {
     gap: 12,
+  },
+  serviceItemsSummaryCard: {
+    gap: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  serviceItemsSummaryTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.primary,
+  },
+  serviceItemsSummaryText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
   },
   serviceItemCard: {
     gap: 10,
