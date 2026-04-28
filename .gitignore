@@ -33,6 +33,7 @@ yarn-error.*
 .env.
 .env*.local
 supabase/functions/.env
+supabase/.temp/
 README.local.md
 README.multi-room-plan.local.md
 README.media-performance-plan.local.md
