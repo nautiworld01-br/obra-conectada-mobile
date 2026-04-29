@@ -789,8 +789,6 @@ function DailyLogForm({
               </View>
             ) : null}
 
-            <Text style={styles.formSectionTitle}>Contexto do dia</Text>
-
             <View style={styles.fieldBlock}>
               <Text style={styles.fieldLabel}>Não teve serviço no dia?</Text>
               <View style={styles.selectBlock}>
@@ -851,9 +849,8 @@ function DailyLogForm({
             ) : null}
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Clima</Text>
               <TextInput
-                placeholder="Ex: Ensolarado, Chuvoso ..."
+                placeholder="Clima do dia"
                 placeholderTextColor={colors.textMuted}
                 style={[styles.fieldInput, hasNoWorkReason && styles.fieldDisabled]}
                 value={weather}
@@ -863,7 +860,7 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Funcionários presentes ({userIds.length}/{presenceEmployees.length})</Text>
+              <Text style={styles.fieldLabel}>Equipe presente ({userIds.length}/{presenceEmployees.length})</Text>
               {presenceEmployees.length > 0 ? (
                 <View style={styles.employeeList}>
                   {presenceEmployees.map((employee) => {
@@ -898,7 +895,6 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Mídias gerais do dia</Text>
               <View style={styles.mediaSection}>
                 <Pressable 
                   style={({ pressed }) => [styles.mediaButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
@@ -912,7 +908,7 @@ function DailyLogForm({
                   )}
                 </Pressable>
                 <View style={styles.previewSection}>
-                  <Text style={styles.mediaGridTitle}>Fotos ({photosUrls.length})</Text>
+                  <Text style={styles.mediaGridTitle}>Fotos do dia ({photosUrls.length})</Text>
                   {photosUrls.length ? (
                     <View style={styles.mediaListRow}>
                       {photosUrls.map((url, index) => (
@@ -955,7 +951,7 @@ function DailyLogForm({
                   )}
                 </Pressable>
                 <View style={styles.previewSection}>
-                  <Text style={styles.mediaGridTitle}>Vídeos ({videosUrls.length})</Text>
+                  <Text style={styles.mediaGridTitle}>Vídeos do dia ({videosUrls.length})</Text>
                   {videosUrls.length ? (
                     <View style={styles.mediaListRow}>
                       {videosUrls.map((url, index) => (
@@ -986,7 +982,7 @@ function DailyLogForm({
             <View style={styles.fieldBlock}>
               <View style={styles.fieldLabelRow}>
                 <View style={styles.fieldLabelStack}>
-                  <Text style={styles.fieldLabel}>Adicionar frente</Text>
+                  <Text style={styles.fieldLabel}>Frentes do dia</Text>
                   <Text style={styles.fieldHintInline}>{serviceItemsSummaryLabel}</Text>
                 </View>
                 <Pressable
@@ -1007,14 +1003,31 @@ function DailyLogForm({
                 <View style={styles.serviceItemList}>
                   <View style={styles.serviceItemsSummaryCard}>
                     <Text style={styles.serviceItemsSummaryTitle}>{serviceItemsSummaryLabel}</Text>
-                    <Text style={styles.serviceItemsSummaryText}>
-                      Use uma frente por cômodo para deixar a leitura do dia e a busca da lista mensal mais claras.
-                    </Text>
                   </View>
                   {serviceItems.map((item) => (
                     <View key={item.id} style={styles.serviceItemCard}>
                       <View style={styles.serviceItemHeader}>
-                        <Text style={styles.serviceItemTitle}>Frente {item.sequence}</Text>
+                        <View style={styles.serviceItemTitleRow}>
+                          <Text style={styles.serviceItemTitle}>Frente {item.sequence}</Text>
+                          <View
+                            style={[
+                              styles.serviceItemStatusBadgeInline,
+                              {
+                                backgroundColor: getServiceItemStatusTone(item.status).backgroundColor,
+                                borderColor: getServiceItemStatusTone(item.status).borderColor,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.serviceItemStatusBadgeInlineText,
+                                { color: getServiceItemStatusTone(item.status).textColor },
+                              ]}
+                            >
+                              {getServiceItemStatusLabel(item.status)}
+                            </Text>
+                          </View>
+                        </View>
                         <Pressable onPress={() => handleRemoveServiceItem(item.id)}>
                           <Text style={styles.serviceItemRemove}>Remover</Text>
                         </Pressable>
@@ -1062,34 +1075,28 @@ function DailyLogForm({
                         onChangeText={(value) => handleChangeServiceItem(item.id, { description: value })}
                         editable={!hasNoWorkReason}
                       />
-                      <View>
-                        <Text style={styles.fieldLabel}>Status da frente</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
-                          {serviceItemStatusOptions.map((option) => (
-                            <Pressable
-                              key={`${item.id}-${option.value}`}
-                              style={[
-                                styles.optionChip,
-                                item.status === option.value && styles.optionChipActive,
-                                hasNoWorkReason && styles.fieldDisabled,
-                              ]}
-                              onPress={() => {
-                                if (hasNoWorkReason) return;
-                                handleChangeServiceItem(item.id, { status: option.value });
-                              }}
-                            >
-                              <Text style={[styles.optionChipText, item.status === option.value && styles.optionChipTextActive]}>
-                                {option.label}
-                              </Text>
-                            </Pressable>
-                          ))}
-                        </ScrollView>
-                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
+                        {serviceItemStatusOptions.map((option) => (
+                          <Pressable
+                            key={`${item.id}-${option.value}`}
+                            style={[
+                              styles.optionChip,
+                              styles.optionChipCompact,
+                              item.status === option.value && styles.optionChipActive,
+                              hasNoWorkReason && styles.fieldDisabled,
+                            ]}
+                            onPress={() => {
+                              if (hasNoWorkReason) return;
+                              handleChangeServiceItem(item.id, { status: option.value });
+                            }}
+                          >
+                            <Text style={[styles.optionChipText, item.status === option.value && styles.optionChipTextActive]}>
+                              {option.label}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </ScrollView>
                       <View style={styles.serviceItemMediaSection}>
-                        <Text style={styles.fieldLabel}>Mídias desta frente</Text>
-                        <Text style={styles.helperTextSmall}>
-                          Opcional. Use quando a foto ou vídeo precisa ficar vinculado a esta frente específica.
-                        </Text>
                         <View style={styles.serviceItemMediaButtonsRow}>
                           <Pressable
                             style={({ pressed }) => [
@@ -1177,10 +1184,9 @@ function DailyLogForm({
 
             <View style={styles.divider} />
 
-            <Text style={styles.formSectionTitle}>Resumo geral do dia</Text>
+            <Text style={styles.formSectionTitle}>Resumo do dia</Text>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Resumo geral</Text>
               <TextInput
                 multiline
                 placeholder="Opcional. Se deixar vazio, o app gera um resumo a partir das frentes de trabalho."
@@ -1190,16 +1196,12 @@ function DailyLogForm({
                 onChangeText={setActivities}
                 editable={!hasNoWorkReason}
               />
-              <Text style={styles.helperTextSmall}>
-                Use este campo para um resumo consolidado do dia. O detalhamento principal fica nas frentes de trabalho acima.
-              </Text>
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Observações</Text>
               <TextInput
                 multiline
-                placeholder="Observações do dia ..."
+                placeholder="Observações do dia"
                 placeholderTextColor={colors.textMuted}
                 style={[styles.fieldInput, styles.textAreaMedium, hasNoWorkReason && styles.fieldDisabled]}
                 value={observations}
@@ -2517,34 +2519,36 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     width: "100%",
-    height: "82%",
+    height: "84%",
     backgroundColor: colors.surface,
     borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     overflow: "hidden",
   },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    marginBottom: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
   modalTitle: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "700",
-    textAlign: "center",
+    fontSize: 17,
+    fontWeight: "800",
     color: colors.text,
   },
   closeIcon: {
     fontSize: 24,
     color: colors.textMuted,
-    marginLeft: 10,
+    marginLeft: 12,
   },
   modalContent: {
-    gap: 14,
-    paddingBottom: 20,
+    gap: 16,
+    paddingBottom: 24,
     flexGrow: 1,
   },
   modalScroll: {
@@ -2552,16 +2556,16 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   fieldBlock: {
-    gap: 8,
+    gap: 6,
   },
   formSectionTitle: {
-    marginTop: 4,
-    fontSize: 18,
+    marginTop: 6,
+    fontSize: 17,
     fontWeight: "800",
     color: colors.text,
   },
   fieldLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: "600",
     color: colors.text,
   },
@@ -2596,7 +2600,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: colors.text,
@@ -2623,7 +2627,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
     paddingHorizontal: 14,
     paddingVertical: 12,
     flexDirection: "row",
@@ -2675,7 +2679,7 @@ const styles = StyleSheet.create({
   },
   optionChipsRow: {
     gap: 8,
-    paddingVertical: 4,
+    paddingVertical: 2,
   },
   optionChip: {
     borderRadius: 12,
@@ -2684,6 +2688,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
     backgroundColor: colors.surfaceMuted,
+  },
+  optionChipCompact: {
+    paddingVertical: 8,
   },
   optionChipActive: {
     borderColor: colors.primary,
@@ -2706,7 +2713,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 12,
   },
@@ -2721,9 +2728,7 @@ const styles = StyleSheet.create({
   serviceItemsSummaryCard: {
     gap: 4,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.primarySoft,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -2738,17 +2743,17 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   serviceItemCard: {
-    gap: 10,
+    gap: 8,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: colors.surface,
-    padding: 12,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   serviceItemMediaSection: {
-    gap: 8,
+    gap: 6,
     marginTop: 2,
-    paddingTop: 2,
   },
   serviceItemMediaButtonsRow: {
     flexDirection: "row",
@@ -2761,14 +2766,29 @@ const styles = StyleSheet.create({
   },
   serviceItemHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 12,
   },
+  serviceItemTitleRow: {
+    flex: 1,
+    gap: 6,
+  },
   serviceItemTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
     color: colors.text,
+  },
+  serviceItemStatusBadgeInline: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  serviceItemStatusBadgeInlineText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
   serviceItemRemove: {
     fontSize: 12,
@@ -2781,7 +2801,7 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
   },
   employeeChipActive: {
     borderColor: colors.primary,
@@ -2807,7 +2827,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
@@ -2844,7 +2864,7 @@ const styles = StyleSheet.create({
     borderColor: colors.cardBorder,
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.surfaceMuted,
   },
   mediaButtonText: {
     color: colors.text,
@@ -2853,9 +2873,10 @@ const styles = StyleSheet.create({
   },
   previewSection: { gap: 8 },
   mediaGridTitle: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: colors.text,
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.textMuted,
+    textTransform: "uppercase",
   },
   mediaListRow: {
     flexDirection: "row",
@@ -2864,9 +2885,7 @@ const styles = StyleSheet.create({
   },
   emptyPreviewBox: {
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.surfaceMuted,
+    backgroundColor: colors.surface,
     paddingHorizontal: 12,
     paddingVertical: 14,
   },
@@ -3022,9 +3041,9 @@ const styles = StyleSheet.create({
   saveButton: {
     borderRadius: 14,
     backgroundColor: "#d97b00",
-    paddingVertical: 14,
+    paddingVertical: 15,
     alignItems: "center",
-    marginTop: 2,
+    marginTop: 4,
   },
   saveButtonText: {
     color: colors.surface,

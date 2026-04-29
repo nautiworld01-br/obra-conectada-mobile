@@ -170,6 +170,25 @@ Contrato atual da midia:
 
 ### Atualizações recentes
 
+#### Polimento mobile operacional
+
+- base visual compartilhada refinada em `AppScreen`, `SectionCard`, `AnimatedModal` e `theme`
+- criação de `AppState` para loading, vazio e erro com linguagem visual unificada
+- `Dashboard` ajustado para mobile com melhor densidade, cartões mais compactos e métricas por cômodo em grade `2x2`
+- `Updates`, `Documents`, `Team` e `Presence` alinhados ao novo padrão de estados e ritmo visual
+- `Daily` entrou em rodada de polimento focada em:
+  - header mais seco
+  - menos margem lateral acumulada
+  - filtros e resumos mais legíveis no mobile
+  - modal de registro com menos texto redundante
+  - frentes de trabalho com visual mais leve
+
+Diretriz prática atual:
+
+- evitar gradientes e artifícios visuais que deixem a interface com aparência genérica
+- priorizar clareza operacional, densidade controlada e leitura rápida em celular
+- validar manualmente no mobile antes de consolidar novas rodadas grandes de UI
+
 #### Recuperacao de senha web/PWA
 
 - remocao da estrategia de deep link nativo
