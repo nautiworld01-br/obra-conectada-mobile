@@ -9,6 +9,7 @@
     <link rel="apple-touch-icon" href="./icon.png" />
     <script>
       (function () {
+        var SW_RELOAD_FLAG = "obra-sw-reload-pending";
         var isLocalhost =
           window.location.hostname === "localhost" ||
           window.location.hostname === "127.0.0.1";
@@ -33,9 +34,47 @@
         }
 
         window.addEventListener("load", function () {
-          navigator.serviceWorker.register("./sw.js").catch(function (error) {
-            console.error("Falha ao registrar o service worker:", error);
+          var hasReloadedForServiceWorker = false;
+
+          navigator.serviceWorker.addEventListener("controllerchange", function () {
+            if (hasReloadedForServiceWorker) {
+              return;
+            }
+
+            hasReloadedForServiceWorker = true;
+
+            try {
+              if (window.sessionStorage && window.sessionStorage.getItem(SW_RELOAD_FLAG) !== "true") {
+                window.sessionStorage.setItem(SW_RELOAD_FLAG, "true");
+                window.location.reload();
+                return;
+              }
+
+              if (window.sessionStorage) {
+                window.sessionStorage.removeItem(SW_RELOAD_FLAG);
+              }
+            } catch (error) {
+              window.location.reload();
+              return;
+            }
           });
+
+          navigator.serviceWorker
+            .register("./sw.js")
+            .then(function (registration) {
+              try {
+                if (window.sessionStorage) {
+                  window.sessionStorage.removeItem(SW_RELOAD_FLAG);
+                }
+              } catch (error) {}
+
+              return registration.update().then(function () {
+                return registration;
+              });
+            })
+            .catch(function (error) {
+              console.error("Falha ao registrar o service worker:", error);
+            });
         });
       })();
     </script>

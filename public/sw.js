@@ -1,5 +1,6 @@
-const APP_SHELL_CACHE = "obra-conectada-shell-v4";
-const STATIC_CACHE = "obra-conectada-static-v4";
+const CACHE_VERSION = "v5";
+const APP_SHELL_CACHE = `obra-conectada-shell-${CACHE_VERSION}`;
+const STATIC_CACHE = `obra-conectada-static-${CACHE_VERSION}`;
 const PRECACHE_URLS = ["./", "./index.html", "./manifest.json", "./icon.png", "./icon-192.png", "./icon-512.png", "./favicon.ico"];
 const DEFAULT_NOTIFICATION_URL = "./";
 
@@ -22,6 +23,12 @@ self.addEventListener("activate", (event) => {
       )
       .then(() => self.clients.claim()),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    void self.skipWaiting();
+  }
 });
 
 self.addEventListener("fetch", (event) => {
