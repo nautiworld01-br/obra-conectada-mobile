@@ -39,6 +39,8 @@ export type DailyLogServiceItemRow = {
   description: string;
   status: "pendente" | "em_andamento" | "concluido";
   order_index: number;
+  photos_urls?: string[] | null;
+  videos_urls?: string[] | null;
 };
 
 export type PresenceEmployeeRow = {
@@ -48,8 +50,27 @@ export type PresenceEmployeeRow = {
   status: "ativo" | "inativo";
 };
 
+function normalizeStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const normalized = value
+    .map((item) => (typeof item === "string" ? item.trim() : ""))
+    .filter(Boolean);
+
+  return normalized.length > 0 ? normalized : null;
+}
+
 function normalizeDailyLogServiceItems(
-  items: Array<Partial<DailyLogServiceItemRow> & { room_id?: string | null; description?: string | null }> | null,
+  items: Array<
+    Partial<DailyLogServiceItemRow> & {
+      room_id?: string | null;
+      description?: string | null;
+      photos_urls?: unknown;
+      videos_urls?: unknown;
+    }
+  > | null,
 ) {
   return (items ?? [])
     .filter((item) => Boolean(item.room_id) && Boolean(item.description))
@@ -60,6 +81,8 @@ function normalizeDailyLogServiceItems(
       description: item.description as string,
       status: item.status ?? "em_andamento",
       order_index: item.order_index ?? 0,
+      photos_urls: normalizeStringArray(item.photos_urls),
+      videos_urls: normalizeStringArray(item.videos_urls),
     }))
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 }
@@ -218,7 +241,7 @@ export function useDailyLogDetail(logId: string | null) {
           id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id, photos_urls, videos_urls,
           daily_log_employees ( user_id ),
           daily_log_rooms ( room_id ),
-          daily_log_service_items ( id, log_id, room_id, description, status, order_index )
+          daily_log_service_items ( id, log_id, room_id, description, status, order_index, photos_urls, videos_urls )
         `)
         .eq("id", logId)
         .maybeSingle();
@@ -263,7 +286,7 @@ export function useDailyLogMonthMedia(projectId: string | null | undefined, mont
 
       const { data, error } = await supabase
         .from("daily_logs")
-        .select("id, photos_urls, videos_urls")
+        .select("id, photos_urls, videos_urls, daily_log_service_items ( photos_urls, videos_urls )")
         .eq("project_id", projectId)
         .gte("date", monthStart)
         .lte("date", monthEnd);
@@ -273,7 +296,11 @@ export function useDailyLogMonthMedia(projectId: string | null | undefined, mont
       }
 
       return (data ?? []).reduce<Record<string, boolean>>((acc, log) => {
-        acc[log.id] = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
+        const hasGeneralMedia = Boolean((log.photos_urls?.length ?? 0) || (log.videos_urls?.length ?? 0));
+        const hasServiceItemMedia = ((log.daily_log_service_items as { photos_urls?: string[] | null; videos_urls?: string[] | null }[] | null) ?? [])
+          .some((item) => Boolean((item.photos_urls?.length ?? 0) || (item.videos_urls?.length ?? 0)));
+
+        acc[log.id] = hasGeneralMedia || hasServiceItemMedia;
         return acc;
       }, {});
     },
@@ -296,7 +323,13 @@ export function useUpsertDailyLog() {
       createdBy: string;
       userIds: string[];
       roomIds?: string[];
-      serviceItems?: { roomId: string; description: string; status: "pendente" | "em_andamento" | "concluido" }[];
+      serviceItems?: {
+        roomId: string;
+        description: string;
+        status: "pendente" | "em_andamento" | "concluido";
+        photosUrls?: string[];
+        videosUrls?: string[];
+      }[];
       photosUrls?: string[];
       videosUrls?: string[];
     }) => {
@@ -321,6 +354,8 @@ export function useUpsertDailyLog() {
                 room_id: item.roomId,
                 description: item.description,
                 status: item.status,
+                photos_urls: item.photosUrls?.length ? item.photosUrls : null,
+                videos_urls: item.videosUrls?.length ? item.videosUrls : null,
               }))
             : [],
           p_photos_urls: payload.photosUrls?.length ? payload.photosUrls : null,

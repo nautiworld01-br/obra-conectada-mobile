@@ -22,6 +22,7 @@ import { useRooms } from "../hooks/useRooms";
 import {
   DailyLogDetailRow,
   DailyLogRow,
+  DailyLogServiceItemRow,
   DailyLogSummaryRow,
   PresenceEmployeeRow,
   useDailyLogDetail,
@@ -213,7 +214,21 @@ type DraftServiceItem = {
   roomId: string | null;
   description: string;
   status: ServiceItemStatus;
+  photosUrls: string[];
+  videosUrls: string[];
 };
+
+function buildDraftServiceItems(items: DailyLogServiceItemRow[] | undefined) {
+  return (items ?? []).map((item, index) => ({
+    id: item.id,
+    sequence: index + 1,
+    roomId: item.room_id,
+    description: item.description,
+    status: item.status ?? "em_andamento",
+    photosUrls: item.photos_urls ?? [],
+    videosUrls: item.videos_urls ?? [],
+  }));
+}
 
 // Componente de formulario para criacao e edicao de registros diarios.
 // Gerencia estados complexos de campos de texto, selecao de funcionarios e upload de midia.
@@ -249,7 +264,13 @@ function DailyLogForm({
     noWorkNote?: string | null;
     userIds: string[];
     roomIds?: string[];
-    serviceItems?: { roomId: string; description: string; status: ServiceItemStatus }[];
+    serviceItems?: {
+      roomId: string;
+      description: string;
+      status: ServiceItemStatus;
+      photosUrls?: string[];
+      videosUrls?: string[];
+    }[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => Promise<void>;
@@ -265,19 +286,16 @@ function DailyLogForm({
   const [userIds, setUserIds] = useState<string[]>(initialUserIds);
   const [photosUrls, setPhotosUrls] = useState<string[]>(existingLog?.photos_urls ?? []);
   const [videosUrls, setVideosUrls] = useState<string[]>(existingLog?.videos_urls ?? []);
-  const [serviceItems, setServiceItems] = useState<DraftServiceItem[]>(
-    (existingLog?.service_items ?? []).map((item, index) => ({
-      id: item.id,
-      sequence: index + 1,
-      roomId: item.room_id,
-      description: item.description,
-      status: item.status ?? "em_andamento",
-    })),
-  );
+  const [serviceItems, setServiceItems] = useState<DraftServiceItem[]>(buildDraftServiceItems(existingLog?.service_items));
   const [openServiceRoomId, setOpenServiceRoomId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const [pendingRemoval, setPendingRemoval] = useState<{ type: "photo" | "video"; index: number } | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<{
+    type: "photo" | "video";
+    index: number;
+    scope: "day" | "service_item";
+    serviceItemId?: string;
+  } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<AppMediaUploadProgress | null>(null);
   const [noWorkReasonOpen, setNoWorkReasonOpen] = useState(false);
   const [photoViewerUrl, setPhotoViewerUrl] = useState<string | null>(null);
@@ -312,15 +330,7 @@ function DailyLogForm({
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
     setUserIds(initialUserIds);
-    setServiceItems(
-      (existingLog?.service_items ?? []).map((item, index) => ({
-        id: item.id,
-        sequence: index + 1,
-        roomId: item.room_id,
-        description: item.description,
-        status: item.status ?? "em_andamento",
-      })),
-    );
+    setServiceItems(buildDraftServiceItems(existingLog?.service_items));
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -398,12 +408,64 @@ function DailyLogForm({
     }
   };
 
+  const appendServiceItemMedia = (
+    itemId: string,
+    type: "photo" | "video",
+    urls: string[],
+  ) => {
+    if (!urls.length) {
+      return;
+    }
+
+    setServiceItems((current) =>
+      current.map((item) =>
+        item.id === itemId
+          ? {
+              ...item,
+              photosUrls: type === "photo" ? [...item.photosUrls, ...urls] : item.photosUrls,
+              videosUrls: type === "video" ? [...item.videosUrls, ...urls] : item.videosUrls,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const handleAddServiceItemPhoto = async (itemId: string) => {
+    const urls = await pickMediaFiles(true);
+    appendServiceItemMedia(itemId, "photo", urls);
+  };
+
+  const handleAddServiceItemVideo = async (itemId: string) => {
+    const urls = await pickMediaFiles(false);
+    appendServiceItemMedia(itemId, "video", urls);
+  };
+
   const handleRemovePhoto = (index: number) => {
     setPhotosUrls((current) => current.filter((_, i) => i !== index));
   };
 
   const handleRemoveVideo = (index: number) => {
     setVideosUrls((current) => current.filter((_, i) => i !== index));
+  };
+
+  const handleRemoveServiceItemMedia = (
+    itemId: string,
+    type: "photo" | "video",
+    index: number,
+  ) => {
+    setServiceItems((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+
+        return {
+          ...item,
+          photosUrls: type === "photo" ? item.photosUrls.filter((_, i) => i !== index) : item.photosUrls,
+          videosUrls: type === "video" ? item.videosUrls.filter((_, i) => i !== index) : item.videosUrls,
+        };
+      }),
+    );
   };
 
   const handleOpenMedia = async (url: string) => {
@@ -414,8 +476,13 @@ function DailyLogForm({
     }
   };
 
-  const handleRequestRemoval = (type: "photo" | "video", index: number) => {
-    setPendingRemoval({ type, index });
+  const handleRequestRemoval = (
+    type: "photo" | "video",
+    index: number,
+    scope: "day" | "service_item" = "day",
+    serviceItemId?: string,
+  ) => {
+    setPendingRemoval({ type, index, scope, serviceItemId });
   };
 
   const handleOpenPhotoViewer = (url: string, index: number, total: number) => {
@@ -436,7 +503,13 @@ function DailyLogForm({
   const handleConfirmRemoval = () => {
     if (!pendingRemoval) return;
 
-    if (pendingRemoval.type === "photo") {
+    if (pendingRemoval.scope === "service_item" && pendingRemoval.serviceItemId) {
+      handleRemoveServiceItemMedia(
+        pendingRemoval.serviceItemId,
+        pendingRemoval.type,
+        pendingRemoval.index,
+      );
+    } else if (pendingRemoval.type === "photo") {
       handleRemovePhoto(pendingRemoval.index);
     } else {
       handleRemoveVideo(pendingRemoval.index);
@@ -452,15 +525,7 @@ function DailyLogForm({
     setNoWorkReason((existingLog?.no_work_reason as NoWorkReason | null) ?? "");
     setNoWorkNote(existingLog?.no_work_note ?? "");
     setUserIds(initialUserIds);
-    setServiceItems(
-      (existingLog?.service_items ?? []).map((item, index) => ({
-        id: item.id,
-        sequence: index + 1,
-        roomId: item.room_id,
-        description: item.description,
-        status: item.status ?? "em_andamento",
-      })),
-    );
+    setServiceItems(buildDraftServiceItems(existingLog?.service_items));
     setPhotosUrls(existingLog?.photos_urls ?? []);
     setVideosUrls(existingLog?.videos_urls ?? []);
     setLocalError(null);
@@ -496,6 +561,8 @@ function DailyLogForm({
           noWorkReason: noWorkReason || null,
           noWorkNote: noWorkReason === "outro" ? noWorkNote : null,
           userIds: [],
+          roomIds: [],
+          serviceItems: [],
           photosUrls: [],
           videosUrls: [],
         });
@@ -507,6 +574,8 @@ function DailyLogForm({
           roomId: item.roomId?.trim() ?? "",
           description: item.description.trim(),
           status: item.status,
+          photosUrls: item.photosUrls,
+          videosUrls: item.videosUrls,
         }));
 
       const hasPartialServiceItem = normalizedServiceItems.some(
@@ -522,7 +591,13 @@ function DailyLogForm({
 
       const validServiceItems = normalizedServiceItems.filter(
         (item) => Boolean(item.roomId) && Boolean(item.description),
-      ) as { roomId: string; description: string; status: ServiceItemStatus }[];
+      ) as {
+        roomId: string;
+        description: string;
+        status: ServiceItemStatus;
+        photosUrls: string[];
+        videosUrls: string[];
+      }[];
 
       if (!activities.trim() && validServiceItems.length === 0) {
         setLocalError("Preencha um resumo geral do dia ou adicione ao menos uma frente de trabalho.");
@@ -561,6 +636,51 @@ function DailyLogForm({
         },
       });
 
+      const uploadedServiceItems: {
+        roomId: string;
+        description: string;
+        status: ServiceItemStatus;
+        photosUrls?: string[];
+        videosUrls?: string[];
+      }[] = [];
+
+      for (const [index, item] of validServiceItems.entries()) {
+        const uploadedItemPhotos = await uploadAppMediaListIfNeeded({
+          uris: item.photosUrls ?? [],
+          pathPrefix: `${projectId}/service-items/photos`,
+          fileBaseName: `service_photo_${index + 1}`,
+          bucket: "daily-logs",
+          onProgress: (progress) => {
+            setUploadProgress({
+              ...progress,
+              message: `Frente ${index + 1} - fotos: ${progress.message}`,
+            });
+          },
+        });
+
+        const uploadedItemVideos = await uploadAppMediaListIfNeeded({
+          uris: item.videosUrls ?? [],
+          pathPrefix: `${projectId}/service-items/videos`,
+          fileBaseName: `service_video_${index + 1}`,
+          bucket: "daily-logs",
+          contentType: "video/mp4",
+          onProgress: (progress) => {
+            setUploadProgress({
+              ...progress,
+              message: `Frente ${index + 1} - videos: ${progress.message}`,
+            });
+          },
+        });
+
+        uploadedServiceItems.push({
+          roomId: item.roomId,
+          description: item.description,
+          status: item.status,
+          photosUrls: uploadedItemPhotos.length > 0 ? uploadedItemPhotos : undefined,
+          videosUrls: uploadedItemVideos.length > 0 ? uploadedItemVideos : undefined,
+        });
+      }
+
       setUploadProgress({ progress: 100, message: "Salvando registro...", completedItems: 0, totalItems: 0 });
       await onSave({
         activities: resolvedActivities,
@@ -570,7 +690,7 @@ function DailyLogForm({
         noWorkNote: null,
         userIds,
         roomIds: derivedRoomIds,
-        serviceItems: validServiceItems,
+        serviceItems: uploadedServiceItems,
         photosUrls: uploadedPhotos.length > 0 ? uploadedPhotos : undefined,
         videosUrls: uploadedVideos.length > 0 ? uploadedVideos : undefined,
       });
@@ -624,6 +744,8 @@ function DailyLogForm({
           roomId: null,
           description: "",
           status: "em_andamento",
+          photosUrls: [],
+          videosUrls: [],
         },
         ...current,
       ];
@@ -776,7 +898,7 @@ function DailyLogForm({
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Fotos e Vídeos</Text>
+              <Text style={styles.fieldLabel}>Mídias gerais do dia</Text>
               <View style={styles.mediaSection}>
                 <Pressable 
                   style={({ pressed }) => [styles.mediaButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
@@ -889,7 +1011,7 @@ function DailyLogForm({
                       Use uma frente por cômodo para deixar a leitura do dia e a busca da lista mensal mais claras.
                     </Text>
                   </View>
-                  {serviceItems.map((item, index) => (
+                  {serviceItems.map((item) => (
                     <View key={item.id} style={styles.serviceItemCard}>
                       <View style={styles.serviceItemHeader}>
                         <Text style={styles.serviceItemTitle}>Frente {item.sequence}</Text>
@@ -962,6 +1084,90 @@ function DailyLogForm({
                             </Pressable>
                           ))}
                         </ScrollView>
+                      </View>
+                      <View style={styles.serviceItemMediaSection}>
+                        <Text style={styles.fieldLabel}>Mídias desta frente</Text>
+                        <Text style={styles.helperTextSmall}>
+                          Opcional. Use quando a foto ou vídeo precisa ficar vinculado a esta frente específica.
+                        </Text>
+                        <View style={styles.serviceItemMediaButtonsRow}>
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.mediaButton,
+                              styles.serviceItemMediaButton,
+                              hasNoWorkReason && styles.fieldDisabled,
+                              pressed && !hasNoWorkReason && styles.buttonPressed,
+                            ]}
+                            onPress={() => void handleAddServiceItemPhoto(item.id)}
+                            disabled={uploading || hasNoWorkReason}
+                          >
+                            <Text style={styles.mediaButtonText}>+ Fotos da frente</Text>
+                          </Pressable>
+                          <Pressable
+                            style={({ pressed }) => [
+                              styles.mediaButton,
+                              styles.serviceItemMediaButton,
+                              hasNoWorkReason && styles.fieldDisabled,
+                              pressed && !hasNoWorkReason && styles.buttonPressed,
+                            ]}
+                            onPress={() => void handleAddServiceItemVideo(item.id)}
+                            disabled={uploading || hasNoWorkReason}
+                          >
+                            <Text style={styles.mediaButtonText}>+ Vídeos da frente</Text>
+                          </Pressable>
+                        </View>
+                        <View style={styles.previewSection}>
+                          <Text style={styles.mediaGridTitle}>Fotos ({item.photosUrls.length})</Text>
+                          {item.photosUrls.length ? (
+                            <View style={styles.mediaListRow}>
+                              {item.photosUrls.map((url, mediaIndex) => (
+                                <Pressable
+                                  key={`${item.id}-photo-${mediaIndex}`}
+                                  style={styles.mediaItemContainer}
+                                  onPress={() => handleOpenPhotoViewer(url, mediaIndex, item.photosUrls.length)}
+                                  onLongPress={() => handleRequestRemoval("photo", mediaIndex, "service_item", item.id)}
+                                  delayLongPress={1500}
+                                >
+                                  <Image
+                                    source={getOptimizedMediaImageSource({
+                                      url,
+                                      bucket: "daily-logs",
+                                      width: 240,
+                                      height: 240,
+                                      quality: 55,
+                                    })}
+                                    style={styles.mediaThumb}
+                                  />
+                                </Pressable>
+                              ))}
+                            </View>
+                          ) : (
+                            <View style={styles.emptyPreviewBox}>
+                              <Text style={styles.emptyPreviewText}>Nenhuma foto vinculada a esta frente.</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.previewSection}>
+                          <Text style={styles.mediaGridTitle}>Vídeos ({item.videosUrls.length})</Text>
+                          {item.videosUrls.length ? (
+                            <View style={styles.mediaListRow}>
+                              {item.videosUrls.map((url, mediaIndex) => (
+                                <AppVideoThumbnail
+                                  key={`${item.id}-video-${mediaIndex}`}
+                                  url={url}
+                                  containerStyle={styles.mediaItemContainer}
+                                  onPress={() => handleOpenVideoViewer(url, mediaIndex, item.videosUrls.length)}
+                                  onLongPress={() => handleRequestRemoval("video", mediaIndex, "service_item", item.id)}
+                                  delayLongPress={1500}
+                                />
+                              ))}
+                            </View>
+                          ) : (
+                            <View style={styles.emptyPreviewBox}>
+                              <Text style={styles.emptyPreviewText}>Nenhum vídeo vinculado a esta frente.</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
                     </View>
                   ))}
@@ -1076,6 +1282,7 @@ function DailyLogDetailsModal({
   visible,
   onClose,
   onEdit,
+  editDisabled,
 }: {
   date: string;
   log: DailyLogRow | DailyLogDetailRow;
@@ -1086,6 +1293,7 @@ function DailyLogDetailsModal({
   visible: boolean;
   onClose: () => void;
   onEdit: () => void;
+  editDisabled?: boolean;
 }) {
   const selectedEmployees = presenceEmployees.filter((employee) => userIds.includes(employee.id));
   const isNoWorkDay = Boolean(log.no_work_reason);
@@ -1165,6 +1373,50 @@ function DailyLogDetailsModal({
                         </View>
                       </View>
                       <Text style={styles.serviceDetailText}>{item.description}</Text>
+                      {(item.photos_urls?.length ?? 0) > 0 || (item.videos_urls?.length ?? 0) > 0 ? (
+                        <View style={styles.serviceDetailMediaSection}>
+                          <Text style={styles.serviceDetailMediaTitle}>Mídias da frente</Text>
+                          <View style={styles.mediaListRow}>
+                            {item.photos_urls?.map((url, mediaIndex) => (
+                              <Pressable
+                                key={`${item.id}-detail-photo-${mediaIndex}`}
+                                style={styles.mediaItemContainer}
+                                onPress={() => {
+                                  setPhotoViewerUrl(url);
+                                  setPhotoViewerTitle(`${roomNameById[item.room_id] ?? "Frente"} - foto ${mediaIndex + 1}`);
+                                }}
+                              >
+                                <Image
+                                  source={getOptimizedMediaImageSource({
+                                    url,
+                                    bucket: "daily-logs",
+                                    width: 240,
+                                    height: 240,
+                                    quality: 55,
+                                  })}
+                                  style={styles.mediaThumb}
+                                />
+                              </Pressable>
+                            ))}
+                            {item.videos_urls?.map((url, mediaIndex) => (
+                              <AppVideoThumbnail
+                                key={`${item.id}-detail-video-${mediaIndex}`}
+                                url={url}
+                                containerStyle={styles.mediaItemContainer}
+                                onPress={() => {
+                                  if (Platform.OS !== "web") {
+                                    void Linking.openURL(url);
+                                    return;
+                                  }
+
+                                  setVideoViewerUrl(url);
+                                  setVideoViewerTitle(`${roomNameById[item.room_id] ?? "Frente"} - video ${mediaIndex + 1}`);
+                                }}
+                              />
+                            ))}
+                          </View>
+                        </View>
+                      ) : null}
                     </View>
                   ))}
                 </View>
@@ -1197,7 +1449,7 @@ function DailyLogDetailsModal({
 
             {!isNoWorkDay && ((log.photos_urls?.length ?? 0) > 0 || (log.videos_urls?.length ?? 0) > 0) ? (
               <View style={styles.fieldBlock}>
-                <Text style={styles.fieldLabel}>Mídias</Text>
+                <Text style={styles.fieldLabel}>Mídias gerais do dia</Text>
                 <View style={styles.mediaListRow}>
                   {log.photos_urls?.map((url, i) => (
                     <Pressable
@@ -1262,7 +1514,7 @@ function DailyLogDetailsModal({
               }}
             />
 
-            <Pressable style={styles.editButton} onPress={onEdit}>
+            <Pressable style={[styles.editButton, editDisabled && styles.fieldDisabled]} onPress={onEdit} disabled={editDisabled}>
               <Text style={styles.editButtonText}>Editar Registro</Text>
             </Pressable>
       </ScrollView>
@@ -1400,6 +1652,10 @@ export function DailyScreen() {
   };
 
   const handleEditFromDetails = () => {
+    if (selectedLog && !selectedLogDetailQuery.data) {
+      return;
+    }
+
     setDetailsOpen(false);
     setTimeout(() => {
       setFormOpen(true);
@@ -1416,7 +1672,13 @@ export function DailyScreen() {
       noWorkNote?: string | null;
       userIds: string[];
       roomIds?: string[];
-      serviceItems?: { roomId: string; description: string; status: ServiceItemStatus }[];
+      serviceItems?: {
+        roomId: string;
+        description: string;
+        status: ServiceItemStatus;
+        photosUrls?: string[];
+        videosUrls?: string[];
+      }[];
     photosUrls?: string[];
     videosUrls?: string[];
   }) => {
@@ -1793,6 +2055,7 @@ export function DailyScreen() {
           visible={detailsOpen}
           onClose={() => setDetailsOpen(false)}
           onEdit={handleEditFromDetails}
+          editDisabled={Boolean(selectedLog && !selectedLogDetailQuery.data)}
         />
       ) : null}
 
@@ -2480,6 +2743,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     padding: 12,
   },
+  serviceItemMediaSection: {
+    gap: 8,
+    marginTop: 2,
+    paddingTop: 2,
+  },
+  serviceItemMediaButtonsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  serviceItemMediaButton: {
+    paddingHorizontal: 12,
+    flexShrink: 1,
+  },
   serviceItemHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -2653,6 +2930,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: colors.text,
+  },
+  serviceDetailMediaSection: {
+    gap: 8,
+    marginTop: 4,
+  },
+  serviceDetailMediaTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.textMuted,
+    textTransform: "uppercase",
   },
   detailValueDanger: {
     color: colors.danger,
