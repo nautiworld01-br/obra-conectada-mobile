@@ -191,7 +191,16 @@ async function ensureServiceWorkerRegistration() {
     return currentRegistration;
   }
 
-  return navigator.serviceWorker.register("./sw.js");
+  return navigator.serviceWorker.register(getServiceWorkerUrl());
+}
+
+function getServiceWorkerUrl() {
+  if (typeof window === "undefined") {
+    return "./sw.js";
+  }
+
+  const globalWindow = window as Window & { __OBRA_SW_URL__?: string };
+  return globalWindow.__OBRA_SW_URL__ || "./sw.js";
 }
 
 function serializePushSubscription(subscription: PushSubscription) {

@@ -1,9 +1,19 @@
 const fs = require("fs");
 const path = require("path");
 
+const buildId =
+  (process.env.GITHUB_SHA && process.env.GITHUB_SHA.slice(0, 8)) ||
+  process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 8) ||
+  `${Date.now()}`;
+const versionedServiceWorkerFileName = `sw-${buildId}.js`;
+const buildMeta = {
+  buildId,
+  generatedAt: new Date().toISOString(),
+  serviceWorkerUrl: `./${versionedServiceWorkerFileName}`,
+};
+
 const PUBLIC_FILES = [
   "manifest.json",
-  "sw.js",
   "icon.png",
   "icon-192.png",
   "icon-512.png",
@@ -29,6 +39,16 @@ for (const fileName of PUBLIC_FILES) {
   }
 }
 
+const serviceWorkerSourcePath = path.join(publicDir, "sw.js");
+if (fs.existsSync(serviceWorkerSourcePath)) {
+  const originalServiceWorker = fs.readFileSync(serviceWorkerSourcePath, "utf8");
+  const versionedServiceWorker = originalServiceWorker.replace(/__BUILD_ID__/g, buildId);
+  fs.writeFileSync(path.join(distDir, versionedServiceWorkerFileName), versionedServiceWorker, "utf8");
+  fs.writeFileSync(path.join(distDir, "sw.js"), versionedServiceWorker, "utf8");
+}
+
+fs.writeFileSync(path.join(distDir, "build.json"), JSON.stringify(buildMeta, null, 2), "utf8");
+
 for (const relativePath of targets) {
   const filePath = path.join(process.cwd(), relativePath);
 
@@ -41,6 +61,9 @@ for (const relativePath of targets) {
     .replace(/httpEquiv=/g, "http-equiv=")
     .replace(/<\/style>\s*<meta /i, "</style>\n    <meta ")
     .replace(/">\s*<link /i, '">\n    <link ')
+    .replace(/__BUILD_ID__/g, buildId)
+    .replace(/__SW_URL__/g, `./${versionedServiceWorkerFileName}`)
+    .replace(/href="\.\/manifest\.json"/i, `href="./manifest.json?v=${buildId}"`)
     .replace(/<meta name="theme-color" content="[^"]*">/i, '<meta name="theme-color" content="#f4f1ea">')
     .replace(/<\/div>\s*<script /i, '</div>\n    <script ')
     .replace(/<\/script>\s*<\/body>/i, "</script>\n  </body>");

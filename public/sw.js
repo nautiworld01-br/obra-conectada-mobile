@@ -1,4 +1,4 @@
-const CACHE_VERSION = "v5";
+const CACHE_VERSION = "__BUILD_ID__";
 const APP_SHELL_CACHE = `obra-conectada-shell-${CACHE_VERSION}`;
 const STATIC_CACHE = `obra-conectada-static-${CACHE_VERSION}`;
 const PRECACHE_URLS = ["./", "./index.html", "./manifest.json", "./icon.png", "./icon-192.png", "./icon-512.png", "./favicon.ico"];

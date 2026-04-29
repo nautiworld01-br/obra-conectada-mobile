@@ -9,10 +9,17 @@
     <link rel="apple-touch-icon" href="./icon.png" />
     <script>
       (function () {
+        var BUILD_ID = "__BUILD_ID__";
+        var SW_URL = "__SW_URL__";
+        var BUILD_INFO_URL = "./build.json?v=" + BUILD_ID;
         var SW_RELOAD_FLAG = "obra-sw-reload-pending";
+        var BUILD_RELOAD_FLAG = "obra-build-reload-pending";
         var isLocalhost =
           window.location.hostname === "localhost" ||
           window.location.hostname === "127.0.0.1";
+
+        window.__OBRA_BUILD_ID__ = BUILD_ID;
+        window.__OBRA_SW_URL__ = SW_URL;
 
         if (!("serviceWorker" in navigator)) {
           return;
@@ -33,7 +40,32 @@
           return;
         }
 
-        window.addEventListener("load", function () {
+        function reloadWithCacheBust() {
+          try {
+            var nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set("refresh", Date.now().toString());
+            window.location.replace(nextUrl.toString());
+            return;
+          } catch (error) {
+            window.location.reload();
+          }
+        }
+
+        function fetchLatestBuild() {
+          return fetch("./build.json?ts=" + Date.now(), { cache: "no-store" })
+            .then(function (response) {
+              if (!response.ok) {
+                return null;
+              }
+
+              return response.json();
+            })
+            .catch(function () {
+              return null;
+            });
+        }
+
+        function registerServiceWorker() {
           var hasReloadedForServiceWorker = false;
 
           navigator.serviceWorker.addEventListener("controllerchange", function () {
@@ -46,7 +78,7 @@
             try {
               if (window.sessionStorage && window.sessionStorage.getItem(SW_RELOAD_FLAG) !== "true") {
                 window.sessionStorage.setItem(SW_RELOAD_FLAG, "true");
-                window.location.reload();
+                reloadWithCacheBust();
                 return;
               }
 
@@ -54,13 +86,13 @@
                 window.sessionStorage.removeItem(SW_RELOAD_FLAG);
               }
             } catch (error) {
-              window.location.reload();
+              reloadWithCacheBust();
               return;
             }
           });
 
-          navigator.serviceWorker
-            .register("./sw.js")
+          return navigator.serviceWorker
+            .register(SW_URL)
             .then(function (registration) {
               try {
                 if (window.sessionStorage) {
@@ -71,6 +103,34 @@
               return registration.update().then(function () {
                 return registration;
               });
+            });
+        }
+
+        window.addEventListener("load", function () {
+          fetchLatestBuild()
+            .then(function (latestBuild) {
+              if (
+                latestBuild &&
+                latestBuild.buildId &&
+                latestBuild.buildId !== BUILD_ID
+              ) {
+                try {
+                  if (window.sessionStorage && window.sessionStorage.getItem(BUILD_RELOAD_FLAG) !== latestBuild.buildId) {
+                    window.sessionStorage.setItem(BUILD_RELOAD_FLAG, latestBuild.buildId);
+                    reloadWithCacheBust();
+                    return null;
+                  }
+
+                  if (window.sessionStorage) {
+                    window.sessionStorage.removeItem(BUILD_RELOAD_FLAG);
+                  }
+                } catch (error) {
+                  reloadWithCacheBust();
+                  return null;
+                }
+              }
+
+              return registerServiceWorker();
             })
             .catch(function (error) {
               console.error("Falha ao registrar o service worker:", error);
