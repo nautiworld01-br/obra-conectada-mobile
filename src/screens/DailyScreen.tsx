@@ -1725,7 +1725,6 @@ export function DailyScreen() {
       <View style={styles.dailyHeader}>
         <View>
           <Text style={styles.dailyTitle}>Dia a Dia</Text>
-          <Text style={styles.dailySubtitle}>Registro diário da obra</Text>
         </View>
 
         <Pressable style={({ pressed }) => [styles.todayButton, pressed && styles.buttonPressed]} onPress={() => handleOpenDate(new Date())}>
@@ -2083,34 +2082,31 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: colors.background,
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop: 16,
   },
   dailyHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingBottom: 8,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
   dailyTitle: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "800",
     color: colors.text,
-  },
-  dailySubtitle: {
-    marginTop: 2,
-    fontSize: 14,
-    color: colors.textMuted,
   },
   todayButton: {
     borderRadius: 14,
     backgroundColor: "#d97b00",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
   },
   todayButtonText: {
     color: colors.surface,
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "800",
   },
   loadingState: {
@@ -2125,35 +2121,36 @@ const styles = StyleSheet.create({
   },
   calendarCard: {
     flex: 1,
-    borderTopWidth: 1,
-    borderTopColor: colors.cardBorder,
-    paddingTop: 18,
+    paddingTop: 14,
   },
   dailyContent: {
-    paddingBottom: 28,
+    paddingBottom: 24,
   },
   monthHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 16,
+    marginBottom: 14,
   },
   monthArrow: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 18,
-    backgroundColor: colors.surface,
+    borderRadius: 20,
+    backgroundColor: colors.surfaceMuted,
     borderWidth: 1,
     borderColor: colors.cardBorder,
   },
   monthArrowText: {
-    fontSize: 26,
-    lineHeight: 28,
-    color: colors.textMuted,
+    fontSize: 22,
+    lineHeight: 22,
+    color: colors.text,
+    fontWeight: "700",
     textAlign: "center",
     includeFontPadding: false,
+    textAlignVertical: "center",
+    marginTop: -1,
   },
   monthLabel: {
     flex: 1,
@@ -2237,9 +2234,9 @@ const styles = StyleSheet.create({
   legendRow: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 14,
+    gap: 12,
     flexWrap: "wrap",
-    marginTop: 18,
+    marginTop: 16,
   },
   legendItem: {
     flexDirection: "row",
@@ -2281,7 +2278,7 @@ const styles = StyleSheet.create({
     color: "#4f6185",
   },
   monthListSection: {
-    marginTop: 22,
+    marginTop: 18,
     gap: 12,
   },
   monthListTitle: {
@@ -2320,6 +2317,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     gap: 4,
+    alignItems: "center",
   },
   summaryCardRoom: {
     backgroundColor: colors.primarySoft,
@@ -2337,6 +2335,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
     color: colors.text,
+    textAlign: "center",
   },
   summaryCountRoom: {
     color: colors.primary,
@@ -2352,6 +2351,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.textMuted,
     textTransform: "uppercase",
+    textAlign: "center",
   },
   summaryLabelRoom: {
     color: colors.primary,
@@ -2387,8 +2387,10 @@ const styles = StyleSheet.create({
   filtersDropdownBadges: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
     gap: 8,
     flexShrink: 1,
+    flexWrap: "wrap",
   },
   filtersDropdownPanel: {
     gap: 10,

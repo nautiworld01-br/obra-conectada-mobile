@@ -9,7 +9,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { colors } from "../config/theme";
+import { colors, radii, shadows, spacing } from "../config/theme";
 
 type AnimatedModalProps = {
   visible: boolean;
@@ -34,19 +34,19 @@ export function AnimatedModal({
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(position === "bottom" ? 36 : 18)).current;
-  const scale = useRef(new Animated.Value(position === "center" ? 0.96 : 1)).current;
+  const scale = useRef(new Animated.Value(position === "center" ? 0.97 : 1)).current;
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
       translateY.setValue(position === "bottom" ? 36 : 18);
-      scale.setValue(position === "center" ? 0.96 : 1);
+      scale.setValue(position === "center" ? 0.97 : 1);
       contentOpacity.setValue(0);
 
       Animated.parallel([
         Animated.timing(backdropOpacity, {
           toValue: 1,
-          duration: 220,
+          duration: 200,
           easing: Easing.out(Easing.quad),
           useNativeDriver: true,
         }),
@@ -58,7 +58,7 @@ export function AnimatedModal({
         }),
         Animated.timing(translateY, {
           toValue: 0,
-          duration: 280,
+          duration: position === "bottom" ? 240 : 220,
           easing: Easing.out(Easing.cubic),
           useNativeDriver: true,
         }),
@@ -92,7 +92,7 @@ export function AnimatedModal({
         useNativeDriver: true,
       }),
       Animated.timing(scale, {
-        toValue: position === "center" ? 0.98 : 1,
+        toValue: position === "center" ? 0.985 : 1,
         duration: 160,
         easing: Easing.in(Easing.quad),
         useNativeDriver: true,
@@ -130,6 +130,8 @@ export function AnimatedModal({
         >
           <Animated.View
             style={[
+              styles.contentShell,
+              position === "bottom" ? styles.bottomShell : styles.centerShell,
               contentStyle,
               {
                 opacity: contentOpacity,
@@ -157,7 +159,8 @@ const styles = StyleSheet.create({
   },
   positioner: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
   },
   center: {
     alignItems: "center",
@@ -165,5 +168,19 @@ const styles = StyleSheet.create({
   },
   bottom: {
     justifyContent: "flex-end",
+  },
+  contentShell: {
+    width: "100%",
+    borderRadius: radii.xl,
+    overflow: "hidden",
+    ...shadows.modal,
+  },
+  centerShell: {
+    maxWidth: 420,
+    alignSelf: "center",
+  },
+  bottomShell: {
+    maxWidth: 720,
+    alignSelf: "center",
   },
 });

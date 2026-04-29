@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeInUp, LinearTransition } from "react-native-reanimated";
-import { colors } from "../config/theme";
+import { colors, radii, spacing, typography } from "../config/theme";
 
 /**
  * Propriedades do componente AppScreen.
@@ -24,10 +24,11 @@ export function AppScreen({ title, titleColor, subtitle, children, scrollable = 
   const content = (
     <Animated.View style={styles.content} layout={LinearTransition.springify().damping(20).stiffness(180)}>
       <Animated.View entering={FadeInDown.duration(260).springify()} style={styles.header}>
-        <View style={styles.titleRow}>
+        <View style={styles.headerBadge}>
           <Image source={require("../../assets/icon.png")} style={styles.headerLogo} />
-          <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
+          <Text style={styles.headerBadgeText}>Obra Conectada</Text>
         </View>
+        <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </Animated.View>
       <Animated.View entering={FadeInUp.duration(300).delay(40)} style={styles.body}>
@@ -55,37 +56,48 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: spacing.screenBottomPadding,
   },
   content: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    gap: 18,
+    paddingHorizontal: 16,
+    paddingTop: spacing.lg,
+    gap: spacing.sectionGap,
   },
   body: {
-    gap: 18,
+    gap: spacing.sectionGap,
   },
   header: {
-    gap: 6,
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.cardBorder,
   },
-  titleRow: {
+  headerBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    gap: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
   headerLogo: {
-    width: 32,
-    height: 32,
+    width: 22,
+    height: 22,
     borderRadius: 8,
   },
+  headerBadgeText: {
+    ...typography.overline,
+    color: colors.primary,
+  },
   title: {
-    fontSize: 30,
-    fontWeight: "800",
+    ...typography.screenTitle,
     color: colors.text,
   },
   subtitle: {
-    fontSize: 15,
+    ...typography.screenSubtitle,
     color: colors.textMuted,
-    lineHeight: 22,
+    maxWidth: 560,
   },
 });

@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
+import { AppEmptyState, AppLoadingState } from "../components/AppState";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
-import { colors } from "../config/theme";
+import { colors, radii, spacing, typography } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useDailyLogs } from "../hooks/useDailyLogs";
 import { usePayments } from "../hooks/usePayments";
@@ -192,10 +193,9 @@ export function DashboardScreen() {
   // Renderizacao do estado de carregamento enquanto os dados sao buscados.
   if (loading) {
     return (
-      <View style={styles.loadingWrap}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Montando dashboard...</Text>
-      </View>
+      <AppScreen title="Dashboard" subtitle="Consolidando o panorama operacional da obra.">
+        <AppLoadingState label="Montando dashboard..." />
+      </AppScreen>
     );
   }
 
@@ -203,7 +203,7 @@ export function DashboardScreen() {
   // Foca em metricas pessoais de registros realizados.
   if (!isOwner) {
     return (
-      <AppScreen title="Início" subtitle="Resumo operacional do que você registrou na obra.">
+      <AppScreen title="Dashboard">
         <View style={styles.grid}>
           <View style={styles.metricCard}>
             <Text style={styles.metricValue}>{dashboardData.myLogs.length}</Text>
@@ -225,7 +225,10 @@ export function DashboardScreen() {
               <Text style={styles.employeeMeta}>Clima: {dashboardData.latestMyLog.weather || "Não informado"}</Text>
             </View>
           ) : (
-            <Text style={styles.emptyCopy}>Você ainda não registrou atividades no Dia a Dia.</Text>
+            <AppEmptyState
+              title="Nenhum registro seu ainda"
+              description="Seu último lançamento do Dia a Dia vai aparecer aqui assim que você começar a registrar a rotina da obra."
+            />
           )}
         </SectionCard>
 
@@ -243,7 +246,7 @@ export function DashboardScreen() {
   // Renderizacao principal para proprietarios/administradores.
   // Exibe panorama geral de progresso, metricas globais e situacao da equipe.
   return (
-    <AppScreen title="Dashboard" subtitle="Resumo geral da obra e dos registros operacionais.">
+    <AppScreen title="Dashboard">
       <SectionCard title="Progresso geral" subtitle="Leitura consolidada das etapas e da operacao.">
         <View style={styles.heroRow}>
           <View style={styles.progressCircle}>
@@ -304,7 +307,10 @@ export function DashboardScreen() {
 
         <View style={styles.roomList}>
           {dashboardData.roomSummaries.length === 0 ? (
-            <Text style={styles.emptyCopy}>Cadastre cômodos nas configurações da casa/obra para acompanhar o andamento por ambiente.</Text>
+            <AppEmptyState
+              title="Nenhum cômodo cadastrado"
+              description="Cadastre os ambientes da obra para acompanhar progresso, frentes de serviço e relatórios por cômodo."
+            />
           ) : dashboardData.roomSummaries.map((room) => {
             const tone = getRoomHealthTone(room.healthStatus);
             return (
@@ -388,19 +394,9 @@ export function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  loadingWrap: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.background,
-    gap: 12,
-  },
-  loadingText: {
-    color: colors.textMuted,
-  },
   heroRow: {
     flexDirection: "row",
-    gap: 16,
+    gap: spacing.lg,
     alignItems: "center",
   },
   progressCircle: {
@@ -420,32 +416,32 @@ const styles = StyleSheet.create({
   },
   heroCopy: {
     flex: 1,
-    gap: 6,
+    gap: spacing.xs,
   },
   heroTitle: {
+    ...typography.sectionTitle,
     fontSize: 16,
-    fontWeight: "700",
+    lineHeight: 22,
     color: colors.text,
   },
   heroText: {
-    fontSize: 14,
-    lineHeight: 21,
+    ...typography.body,
     color: colors.textMuted,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 12,
+    gap: spacing.md,
   },
   metricCard: {
     width: "47%",
     backgroundColor: colors.surface,
-    borderRadius: 22,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    paddingHorizontal: 16,
-    paddingVertical: 18,
-    gap: 8,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
   },
   metricValue: {
     fontSize: 22,
@@ -453,21 +449,20 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   metricLabel: {
-    fontSize: 13,
-    fontWeight: "700",
+    ...typography.helper,
     color: colors.textMuted,
   },
   roomList: {
-    marginTop: 16,
-    gap: 12,
+    marginTop: spacing.sm,
+    gap: spacing.md,
   },
   roomCard: {
-    borderRadius: 18,
+    borderRadius: radii.lg,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    backgroundColor: colors.surface,
-    padding: 14,
-    gap: 12,
+    backgroundColor: colors.surfaceMuted,
+    padding: spacing.md,
+    gap: spacing.md,
   },
   roomCardHeader: {
     flexDirection: "row",
@@ -482,7 +477,7 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   roomStatusPill: {
-    borderRadius: 999,
+    borderRadius: radii.pill,
     borderWidth: 1,
     paddingHorizontal: 10,
     paddingVertical: 6,
@@ -519,26 +514,30 @@ const styles = StyleSheet.create({
   },
   roomMetricsRow: {
     flexDirection: "row",
-    gap: 8,
+    flexWrap: "wrap",
+    gap: spacing.sm,
   },
   roomMiniMetric: {
-    flex: 1,
-    borderRadius: 14,
-    backgroundColor: colors.surfaceMuted,
-    paddingHorizontal: 10,
-    paddingVertical: 10,
+    width: "48%",
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
     gap: 4,
+    alignItems: "center",
   },
   roomMiniMetricValue: {
     fontSize: 16,
     fontWeight: "800",
     color: colors.text,
+    textAlign: "center",
   },
   roomMiniMetricLabel: {
     fontSize: 11,
+    lineHeight: 14,
     fontWeight: "700",
     color: colors.textMuted,
-    textTransform: "uppercase",
+    textAlign: "center",
   },
   roomMetaList: {
     gap: 6,
@@ -568,11 +567,6 @@ const styles = StyleSheet.create({
   },
   employeeMeta: {
     fontSize: 13,
-    color: colors.textMuted,
-  },
-  emptyCopy: {
-    fontSize: 14,
-    lineHeight: 22,
     color: colors.textMuted,
   },
   employeeOverviewList: {

@@ -2,6 +2,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { AnimatedModal } from "../components/AnimatedModal";
+import { AppEmptyState, AppLoadingState } from "../components/AppState";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -389,14 +390,17 @@ export function DocumentsScreen() {
         </View>
 
         {isLoading ? (
-          <View style={styles.loadingState}>
-            <ActivityIndicator color={colors.primary} />
-            <Text style={styles.loadingText}>Carregando documentos...</Text>
-          </View>
+          <AppLoadingState label="Carregando documentos..." />
         ) : !project ? (
-          <Text style={styles.emptyText}>Configure a obra antes de cadastrar a biblioteca de documentos.</Text>
+          <AppEmptyState
+            title="Obra ainda não configurada"
+            description="Defina os dados da obra antes de montar a biblioteca de contratos, alvarás, laudos e notas fiscais."
+          />
         ) : filteredDocuments.length === 0 ? (
-          <Text style={styles.emptyText}>Nenhum documento encontrado nesse filtro.</Text>
+          <AppEmptyState
+            title="Nenhum documento neste filtro"
+            description="Ajuste a categoria selecionada ou cadastre um novo arquivo para começar a biblioteca da obra."
+          />
         ) : (
           <View style={styles.list}>
             {filteredDocuments.map((document) => {
@@ -647,9 +651,6 @@ const styles = StyleSheet.create({
   filterChipActive: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
   filterChipText: { color: colors.text, fontSize: 13, fontWeight: "700" },
   filterChipTextActive: { color: colors.primary },
-  loadingState: { gap: 10, alignItems: "center", paddingVertical: 16 },
-  loadingText: { color: colors.textMuted, fontSize: 13 },
-  emptyText: { color: colors.textMuted, fontSize: 14, lineHeight: 22 },
   list: { gap: 12 },
   documentCard: {
     gap: 12,

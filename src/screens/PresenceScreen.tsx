@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, Modal, ScrollView } from "react-native";
+import { AppEmptyState, AppLoadingState } from "../components/AppState";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
 import { colors } from "../config/theme";
@@ -115,7 +116,7 @@ export function PresenceScreen() {
   }, [dailyLog, activeEmployees]);
 
   return (
-    <AppScreen title="Relatório de Presença" subtitle="Frequência baseada no Diário de Obra.">
+    <AppScreen title="Presença">
       
       <View style={styles.dateNavigator}>
         <Pressable style={styles.arrowButton} onPress={() => changeDay(-1)}><Text style={styles.arrowText}>‹</Text></Pressable>
@@ -139,7 +140,7 @@ export function PresenceScreen() {
 
       <SectionCard title="Frequência Semanal" subtitle="Dias trabalhados por cada membro da equipe.">
         {isLoading ? (
-          <ActivityIndicator color={colors.primary} style={{ marginVertical: 20 }} />
+          <AppLoadingState label="Carregando presença..." />
         ) : (
           <View style={styles.chartContainer}>
             <View style={styles.yAxis}>
@@ -199,10 +200,10 @@ export function PresenceScreen() {
           </View>
         </SectionCard>
       ) : !isLoading && (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>Nenhum diário registrado.</Text>
-          <Text style={styles.emptyStateSubtext}>Os dados são importados do Diário de Obra.</Text>
-        </View>
+        <AppEmptyState
+          title="Nenhum diário registrado"
+          description="Os dados de presença são importados automaticamente do Diário de Obra."
+        />
       )}
 
       <SectionCard title="Resumos Mensais" subtitle="Clique para ver estatísticas consolidadas por mês.">
@@ -249,14 +250,14 @@ export function PresenceScreen() {
 }
 
 const styles = StyleSheet.create({
-  dateNavigator: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16, backgroundColor: colors.surface, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder },
+  dateNavigator: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12, backgroundColor: colors.surface, padding: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder },
   arrowButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
   arrowText: { fontSize: 24, color: colors.text, fontWeight: "300" },
   dateDisplay: { alignItems: "center" },
   dateTitle: { fontSize: 15, fontWeight: "700", color: colors.text },
   todayBadge: { fontSize: 11, fontWeight: "800", color: colors.primary, marginTop: 2, textTransform: "uppercase" },
-  summaryRow: { flexDirection: "row", gap: 8, marginBottom: 16 },
-  summaryCard: { flex: 1, paddingVertical: 14, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, alignItems: "center", gap: 4 },
+  summaryRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
+  summaryCard: { flex: 1, paddingVertical: 12, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, alignItems: "center", gap: 4 },
   summaryValue: { fontSize: 22, fontWeight: "800", color: colors.text },
   summaryLabel: { fontSize: 12, color: colors.textMuted },
   chartContainer: { paddingVertical: 10 },
@@ -274,24 +275,21 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 10, height: 10, borderRadius: 5 },
   legendText: { fontSize: 12, color: colors.text, fontWeight: "600" },
-  list: { gap: 16 },
-  employeeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
+  list: { gap: 14 },
+  employeeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   employeeInfo: { flexDirection: "row", alignItems: "center", gap: 10, flex: 1 },
   avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.primarySoft, alignItems: "center", justifyContent: "center" },
   avatarTxt: { color: colors.primary, fontWeight: "800", fontSize: 14 },
   employeeName: { fontSize: 14, fontWeight: "700", color: colors.text },
   employeeRole: { fontSize: 12, color: colors.textMuted, textTransform: "capitalize" },
-  statusBadgeSuccess: { backgroundColor: colors.success, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
-  statusBadgeDanger: { backgroundColor: colors.danger, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  statusBadgeSuccess: { backgroundColor: colors.success, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  statusBadgeDanger: { backgroundColor: colors.danger, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   statusBadgeNeutral: { backgroundColor: colors.surfaceMuted, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colors.cardBorder },
   statusBadgeText: { color: colors.surface, fontSize: 12, fontWeight: "800" },
   statusBadgeTextNeutral: { color: colors.textMuted, fontSize: 12, fontWeight: "800" },
-  emptyState: { alignItems: "center", paddingVertical: 40 },
-  emptyStateText: { fontSize: 15, fontWeight: "700", color: colors.textMuted },
-  emptyStateSubtext: { fontSize: 13, color: colors.textMuted, textAlign: "center", marginTop: 4 },
-  footerNote: { marginTop: 12, marginBottom: 30, textAlign: "center", color: colors.textMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 20 },
+  footerNote: { marginTop: 8, marginBottom: 24, textAlign: "center", color: colors.textMuted, fontSize: 12, lineHeight: 18, paddingHorizontal: 8 },
   monthsList: { gap: 8 },
-  monthItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 14, paddingHorizontal: 16, borderRadius: 14, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
+  monthItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, paddingHorizontal: 14, borderRadius: 14, backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
   monthItemPressed: { opacity: 0.7, backgroundColor: colors.cardBorder },
   monthLabel: { fontSize: 15, fontWeight: "700", color: colors.text },
   monthArrow: { fontSize: 20, color: colors.textMuted },

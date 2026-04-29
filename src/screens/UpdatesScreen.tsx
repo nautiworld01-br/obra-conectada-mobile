@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import Toast from "react-native-toast-message";
 import { colors } from "../config/theme";
+import { AppEmptyState, AppLoadingState } from "../components/AppState";
 import { useAuth } from "../contexts/AuthContext";
 import { AnimatedModal } from "../components/AnimatedModal";
 import {
@@ -586,7 +587,9 @@ export function UpdatesScreen() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <View><Text style={styles.title}>Relatórios</Text><Text style={styles.subtitle}>Acompanhamento semanal</Text></View>
-        <Pressable style={styles.newButton} onPress={() => { setEditingUpdate(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Novo</Text></Pressable>
+        <Pressable style={styles.newButton} onPress={() => { setEditingUpdate(null); setFormOpen(true); }}>
+          <Text style={styles.newButtonText}>Novo relatório</Text>
+        </Pressable>
       </View>
       <View style={styles.filterSection}>
         <View style={styles.searchBar}>
@@ -600,12 +603,10 @@ export function UpdatesScreen() {
         </View>
       </View>
 
-      {isLoading ? (
-        <View style={styles.loadingWrap}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {isLoading ? (
+          <AppLoadingState label="Carregando relatórios..." />
+        ) : (
+          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <View style={styles.summaryGrid}>
             <View style={styles.summaryCard}>
               <Text style={styles.summaryCount}>{summary.total}</Text>
@@ -727,7 +728,10 @@ export function UpdatesScreen() {
             </View>
           ) : null}
           {filteredUpdates.length === 0 ? (
-            <Text style={styles.emptySearchText}>Nenhum relatório semanal registrado ainda.</Text>
+            <AppEmptyState
+              title="Nenhum relatório semanal encontrado"
+              description="Ajuste os filtros ou registre um novo relatório para acompanhar a evolução da obra."
+            />
           ) : filteredUpdates.map(u => (
             <Pressable 
               key={u.id} 
@@ -746,8 +750,8 @@ export function UpdatesScreen() {
               {u.owner_comments && <View style={styles.commentBadgeRow}><AppIcon name="MessageSquare" size={12} color={colors.primary} /><Text style={styles.commentBadge}>Comentado</Text></View>}
             </Pressable>
           ))}
-        </ScrollView>
-      )}
+          </ScrollView>
+        )}
 
       <UpdateFormModal visible={formOpen} update={editingUpdate} projectId={project?.id} rooms={rooms} loading={upsertUpdate.isPending || Boolean(uploadProgress)} uploadProgress={uploadProgress} onClose={() => setFormOpen(false)} onSave={handleSave} />
       <UpdateDetailModal update={selectedUpdate} roomNames={getRoomNames(selectedUpdate?.room_ids ?? [], roomNameById)} visible={Boolean(selectedUpdate)} isOwner={isOwner} onClose={() => setSelectedUpdate(null)} onEdit={() => { setEditingUpdate(selectedUpdate); setFormOpen(true); setSelectedUpdate(null); }} onReview={handleReview} onDelete={() => {
@@ -780,7 +784,6 @@ export function UpdatesScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 16 },
-  loadingWrap: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.background },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
   subtitle: { fontSize: 13, color: colors.textMuted },
@@ -789,21 +792,21 @@ const styles = StyleSheet.create({
   filterSection: { paddingTop: 12 },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.text },
-  content: { paddingTop: 16, paddingBottom: 32, gap: 12 },
+  content: { paddingTop: 4, paddingBottom: 12, gap: 12 },
   summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  summaryCard: { minWidth: 96, flexGrow: 1, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 12, gap: 4 },
+  summaryCard: { width: "48%", borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 12, paddingVertical: 12, gap: 4, alignItems: "center" },
   summaryCardApproved: { backgroundColor: colors.successLight, borderColor: colors.success },
   summaryCardCommented: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
-  summaryCount: { fontSize: 20, fontWeight: "900", color: colors.text },
+  summaryCount: { fontSize: 20, fontWeight: "900", color: colors.text, textAlign: "center" },
   summaryCountApproved: { color: colors.success },
   summaryCountCommented: { color: colors.primary },
-  summaryLabel: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
+  summaryLabel: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", textAlign: "center" },
   summaryLabelApproved: { color: colors.success },
   summaryLabelCommented: { color: colors.primary },
   filtersDropdownButton: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, paddingHorizontal: 14, paddingVertical: 12 },
   filtersDropdownInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
   filtersDropdownTitle: { fontSize: 14, fontWeight: "800", color: colors.text },
-  filtersDropdownBadges: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  filtersDropdownBadges: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, flexShrink: 1, flexWrap: "wrap" },
   filtersDropdownPanel: { gap: 10, borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surface, padding: 12 },
   activeBadge: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 999, borderWidth: 1, borderColor: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 10, paddingVertical: 6 },
   activeBadgeText: { fontSize: 11, fontWeight: "800", color: colors.primary },
@@ -908,7 +911,6 @@ const styles = StyleSheet.create({
   dropdownTitle: { fontSize: 18, fontWeight: "800", color: colors.text, marginBottom: 15, textAlign: "center" },
   dropdownItem: { padding: 16, borderBottomWidth: 1, borderBottomColor: colors.divider, borderRadius: 12 },
   dropdownText: { fontSize: 15, fontWeight: "600", color: colors.text },
-  emptySearchText: { textAlign: "center", paddingVertical: 40, color: colors.textMuted },
   buttonPressed: { opacity: 0.8 },
   progressBlock: { gap: 8 },
   progressTrack: {

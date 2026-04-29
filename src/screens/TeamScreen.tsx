@@ -4,6 +4,7 @@ import { ActivityIndicator, Alert, Image, Linking, Modal, Platform, Pressable, S
 import Toast from "react-native-toast-message";
 import { AppScreen } from "../components/AppScreen";
 import { SectionCard } from "../components/SectionCard";
+import { AppEmptyState, AppLoadingState } from "../components/AppState";
 import { AnimatedModal } from "../components/AnimatedModal";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
@@ -246,7 +247,7 @@ export function TeamScreen() {
     <AppScreen title="Equipe" subtitle="Gestão de contas da obra e empreiteiras parceiras.">
       <SectionCard title="Contas de funcionários" subtitle={`Ativos: ${summary.active} • Inativos: ${summary.inactive}`}>
         {isLoading ? (
-          <View style={styles.loadingState}><ActivityIndicator color={colors.primary} /><Text style={styles.loadingText}>Carregando equipe...</Text></View>
+          <AppLoadingState label="Carregando equipe..." />
         ) : employees.length ? (
           <View style={styles.list}>
             {employees.map((employee) => {
@@ -300,7 +301,12 @@ export function TeamScreen() {
               );
             })}
           </View>
-        ) : <Text style={styles.emptyText}>Nenhuma conta de funcionário encontrada.</Text>}
+        ) : (
+          <AppEmptyState
+            title="Nenhuma conta encontrada"
+            description="As contas vinculadas à obra vão aparecer aqui para revisão, edição e controle de acesso."
+          />
+        )}
       </SectionCard>
 
       <SectionCard title="Equipe da obra" subtitle={`Times: ${workCrewSummary.total} • Média de pessoas: ${workCrewSummary.workersAverage}`}>
@@ -309,7 +315,7 @@ export function TeamScreen() {
             <Text style={styles.primaryActionText}>+ Nova equipe</Text>
           </Pressable>
         </View>
-        {crewsLoading ? <ActivityIndicator color={colors.primary} /> : (
+        {crewsLoading ? <AppLoadingState label="Carregando equipes..." /> : (
           <View style={styles.list}>
             {workCrews.map((workCrew) => (
               <View key={workCrew.id} style={styles.card}>
@@ -363,8 +369,6 @@ export function TeamScreen() {
 }
 
 const styles = StyleSheet.create({
-  loadingState: { flex: 1, alignItems: "center", justifyContent: "center", paddingVertical: 40, gap: 10 },
-  loadingText: { color: colors.textMuted, fontSize: 14 },
   list: { gap: 12 },
   card: { backgroundColor: colors.surface, borderRadius: 20, padding: 16, borderWidth: 1, borderColor: colors.cardBorder, gap: 14 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" },
@@ -389,7 +393,6 @@ const styles = StyleSheet.create({
   secondaryAction: { flex: 1, paddingVertical: 10, borderRadius: 10, backgroundColor: colors.surfaceMuted, alignItems: "center", justifyContent: "center" },
   secondaryActionText: { fontSize: 13, fontWeight: "700", color: colors.text },
   dangerText: { color: colors.danger },
-  emptyText: { textAlign: "center", color: colors.textMuted, paddingVertical: 30 },
   actionRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 10 },
   primaryAction: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, backgroundColor: colors.primary },
   primaryActionText: { color: colors.surface, fontSize: 14, fontWeight: "800" },

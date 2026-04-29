@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInUp, LinearTransition } from "react-native-reanimated";
-import { colors } from "../config/theme";
+import { colors, radii, shadows, spacing, typography } from "../config/theme";
 
 /**
  * Propriedades do componente SectionCard.
@@ -25,8 +25,10 @@ export function SectionCard({ title, subtitle, children }: SectionCardProps) {
       layout={LinearTransition.springify().damping(22).stiffness(200)}
       style={styles.card}
     >
-      <Text style={styles.title}>{title}</Text>
-      {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      <View style={styles.header}>
+        <Text style={styles.title}>{title}</Text>
+        {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+      </View>
       {children}
     </Animated.View>
   );
@@ -35,20 +37,26 @@ export function SectionCard({ title, subtitle, children }: SectionCardProps) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 24,
+    borderRadius: radii.xl,
     borderWidth: 1,
     borderColor: colors.cardBorder,
-    padding: 18,
-    gap: 10,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    gap: spacing.lg,
+    ...shadows.card,
+  },
+  header: {
+    gap: spacing.xs,
+    paddingBottom: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
   },
   title: {
-    fontSize: 17,
-    fontWeight: "700",
+    ...typography.sectionTitle,
     color: colors.text,
   },
   subtitle: {
-    fontSize: 14,
-    lineHeight: 21,
+    ...typography.sectionSubtitle,
     color: colors.textMuted,
   },
 });
