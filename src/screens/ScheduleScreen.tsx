@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from "react-native";
 import Toast from "react-native-toast-message";
+import { AppEmptyState, AppLoadingState } from "../components/AppState";
 import { colors } from "../config/theme";
 import { Validator } from "../lib/validation";
 import { StageRow, StageStatus, useDeleteStage, useStages, useUpsertStage } from "../hooks/useStages";
@@ -19,6 +20,7 @@ import { useRooms } from "../hooks/useRooms";
 import { AppIcon } from "../components/AppIcon";
 import { AppDatePicker } from "../components/AppDatePicker";
 import { AnimatedModal } from "../components/AnimatedModal";
+import { PendingOpenRequest, ScheduleScreenProps } from "../navigation/AppShellNavigation";
 
 /**
  * Opções de status permitidas para as etapas da obra.
@@ -154,12 +156,11 @@ function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, 
       </View>
       <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Nome da Etapa *</Text>
-              <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Ex: Fundacao" />
+              <TextInput style={styles.fieldInput} value={name} onChangeText={setName} placeholder="Nome da etapa" />
             </View>
             
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Cômodo relacionado</Text>
+              <Text style={styles.fieldLabel}>Cômodo</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.optionChipsRow}>
                 <Pressable style={[styles.optionChip, roomId === null && styles.optionChipActive]} onPress={() => setRoomId(null)}>
                   <Text style={[styles.optionChipText, roomId === null && styles.optionChipTextActive]}>Sem cômodo</Text>
@@ -189,7 +190,7 @@ function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, 
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Status Manual</Text>
+              <Text style={styles.fieldLabel}>Status</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.statusPillsRow}>
                 {statusOptions.map(opt => (
                   <Pressable 
@@ -201,11 +202,10 @@ function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, 
                   </Pressable>
                 ))}
               </ScrollView>
-              <Text style={styles.helperTextSmall}>`Concluído` fecha em 100%. `Não Iniciado` volta para 0%. Para usar 100%, selecione `Concluído`.</Text>
             </View>
 
             <View style={styles.fieldBlock}>
-              <Text style={styles.fieldLabel}>Evolução da Etapa: {percentComplete}%</Text>
+              <Text style={styles.fieldLabel}>Progresso: {percentComplete}%</Text>
               <View style={styles.statusPillsRow}>
                 {[0, 25, 50, 75, 100].map(val => (
                   <Pressable 
@@ -238,7 +238,7 @@ function StageForm({ stage, rooms, visible, loading, deleting, onClose, onSave, 
  * Tela de Cronograma: Listagem inteligente com busca e filtros por status.
  * future_fix: Implementar arrastar-e-soltar para reordenar importancia das etapas.
  */
-export function ScheduleScreen() {
+export function ScheduleScreen({ pendingOpenRequest, onPendingFlowComplete }: ScheduleScreenProps = {}) {
   const { project } = useProject();
   const { rooms } = useRooms();
   const { stages, isLoading } = useStages();
@@ -252,10 +252,36 @@ export function ScheduleScreen() {
   const [sortOrder, setSortOrder] = useState<StageSortOrder>("recentes");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [roomFilterDropdownOpen, setRoomFilterDropdownOpen] = useState(false);
+  const handledPendingRequestIdRef = useRef<number | null>(null);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
   );
+
+  useEffect(() => {
+    if (!pendingOpenRequest || pendingOpenRequest.kind !== "stage") {
+      handledPendingRequestIdRef.current = null;
+      return;
+    }
+
+    if (handledPendingRequestIdRef.current === pendingOpenRequest.requestId) {
+      return;
+    }
+
+    const requestedStage = stages.find((stage) => stage.id === pendingOpenRequest.stageId);
+    if (!requestedStage) {
+      return;
+    }
+
+    handledPendingRequestIdRef.current = pendingOpenRequest.requestId;
+    setSelectedStage(requestedStage);
+    setFormOpen(true);
+  }, [pendingOpenRequest, stages]);
+
+  const completePendingFlow = () => {
+    handledPendingRequestIdRef.current = null;
+    onPendingFlowComplete?.();
+  };
 
   /**
    * Filtra as etapas em tempo real baseado no nome e no status selecionado.
@@ -339,6 +365,10 @@ export function ScheduleScreen() {
         await deleteStage.mutateAsync({ id: selectedStage.id, projectId: selectedStage.project_id });
         setFormOpen(false);
         setSelectedStage(null);
+        if (pendingOpenRequest?.kind === "stage") {
+          completePendingFlow();
+          return;
+        }
         Toast.show({ type: "success", text1: "Etapa removida", text2: "O cronograma foi atualizado." });
       } catch (e) {
         Alert.alert("Erro", "Não foi possível excluir a etapa.");
@@ -360,7 +390,7 @@ export function ScheduleScreen() {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}><Text style={styles.title}>Cronograma</Text><Pressable style={styles.newButton} onPress={() => { setSelectedStage(null); setFormOpen(true); }}><Text style={styles.newButtonText}>+ Nova</Text></Pressable></View>
+      <View style={styles.header}><Text style={styles.title}>Etapas</Text><Pressable style={styles.newButton} onPress={() => { setSelectedStage(null); setFormOpen(true); }}><Text style={styles.newButtonText}>Nova etapa</Text></Pressable></View>
 
       <View style={styles.filterSection}>
         <View style={styles.searchBar}>
@@ -497,19 +527,29 @@ export function ScheduleScreen() {
             </View>
           </View>
         ) : null}
-        {isLoading ? <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} /> : (
+        {isLoading ? <AppLoadingState label="Carregando etapas..." /> : (
           <>
+          {filteredStages.length === 0 ? (
+            <AppEmptyState
+              title="Nenhuma etapa encontrada"
+              description="Ajuste os filtros ou cadastre uma nova etapa para montar o cronograma da obra."
+            />
+          ) : null}
           {filteredStages.map((s) => {
             const c = getStageStatusColors(s.status);
             return (
               <Pressable key={s.id} style={[styles.stageCard, { backgroundColor: c.cardBackground }]} onPress={() => { setSelectedStage(s); setFormOpen(true); }}>
                 <View style={styles.stageHeader}>
-                  <View style={{flex: 1}}>
+                  <View style={styles.stageCopy}>
                     <Text style={styles.stageName}>{s.name}</Text>
+                    {s.room_id ? <Text style={styles.stageRoom}>{roomNameById[s.room_id] ?? "Cômodo removido"}</Text> : null}
                     <Text style={styles.stageMeta}>Prev: {s.planned_start ? toDisplayDate(s.planned_start) : "—"} até {s.planned_end ? toDisplayDate(s.planned_end) : "—"}</Text>
-                    {s.room_id ? <Text style={styles.stageMeta}>Cômodo: {roomNameById[s.room_id] ?? "Cômodo removido"}</Text> : null}
                   </View>
                   <View style={[styles.stageStatusPill, { backgroundColor: c.pillBackground }]}><Text style={[styles.stageStatusText, { color: c.pillText }]}>{statusOptions.find(o => o.value === s.status)?.label}</Text></View>
+                </View>
+                <View style={styles.stageProgressRow}>
+                  <Text style={styles.stageProgressLabel}>Progresso</Text>
+                  <Text style={styles.stageProgressValue}>{s.percent_complete ?? 0}%</Text>
                 </View>
                 <View style={styles.stageProgressTrack}><View style={[styles.stageProgressFill, { width: `${s.percent_complete ?? 0}%` }]} /></View>
               </Pressable>
@@ -525,12 +565,21 @@ export function ScheduleScreen() {
         visible={formOpen} 
         loading={upsertStage.isPending} 
         deleting={deleteStage.isPending} 
-        onClose={() => setFormOpen(false)} 
+        onClose={() => {
+          setFormOpen(false);
+          if (pendingOpenRequest?.kind === "stage") {
+            completePendingFlow();
+          }
+        }} 
         onSave={(p: any) =>
           upsertStage
             .mutateAsync({ id: selectedStage?.id, projectId: project?.id ?? "", ...p })
             .then(() => {
               setFormOpen(false);
+              if (pendingOpenRequest?.kind === "stage") {
+                completePendingFlow();
+                return;
+              }
               Toast.show({ type: "success", text1: "Etapa salva", text2: "O cronograma foi atualizado." });
             })
             .catch((error) => {
@@ -546,11 +595,11 @@ export function ScheduleScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.background, paddingHorizontal: 16, paddingTop: 16 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
-  newButton: { borderRadius: 12, backgroundColor: colors.secondary, paddingHorizontal: 14, paddingVertical: 12 },
+  newButton: { borderRadius: 12, backgroundColor: colors.secondary, paddingHorizontal: 14, paddingVertical: 10 },
   newButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
-  filterSection: { marginBottom: 16, gap: 10 },
+  filterSection: { marginBottom: 12, marginTop: 4, gap: 10 },
   searchBar: { flexDirection: "row", alignItems: "center", backgroundColor: colors.surface, borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 12, height: 46 },
   searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: colors.text },
   filterChips: { gap: 8 },
@@ -572,7 +621,7 @@ const styles = StyleSheet.create({
   },
   filtersDropdownInfo: { flexDirection: "row", alignItems: "center", gap: 8 },
   filtersDropdownTitle: { fontSize: 14, fontWeight: "800", color: colors.text },
-  filtersDropdownBadges: { flexDirection: "row", alignItems: "center", gap: 8, flexShrink: 1 },
+  filtersDropdownBadges: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8, flexShrink: 1, flexWrap: "wrap" },
   filtersDropdownPanel: {
     gap: 10,
     borderRadius: 16,
@@ -640,8 +689,7 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", backgroundColor: colors.primary },
   statusSummaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   statusSummaryCard: {
-    minWidth: 96,
-    flexGrow: 1,
+    width: "48%",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: colors.cardBorder,
@@ -649,37 +697,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 12,
     gap: 4,
+    alignItems: "center",
   },
-  statusSummaryCount: { fontSize: 20, fontWeight: "900", color: colors.text },
-  statusSummaryLabel: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase" },
-  stageCard: { borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, padding: 16, gap: 10 },
+  statusSummaryCount: { fontSize: 20, fontWeight: "900", color: colors.text, textAlign: "center" },
+  statusSummaryLabel: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textTransform: "uppercase", textAlign: "center" },
+  stageCard: { borderRadius: 16, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 14, paddingVertical: 14, gap: 10 },
   stageHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  stageCopy: { flex: 1, gap: 3 },
   stageName: { fontSize: 18, fontWeight: "700", color: colors.text },
-  stageMeta: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  stageRoom: { fontSize: 11, fontWeight: "800", color: colors.primary, textTransform: "uppercase" },
+  stageMeta: { fontSize: 12, color: colors.textMuted },
   stageStatusPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   stageStatusText: { fontSize: 10, fontWeight: "800" },
+  stageProgressRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  stageProgressLabel: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  stageProgressValue: { fontSize: 12, fontWeight: "800", color: colors.text },
   stageProgressTrack: { height: 6, borderRadius: 999, backgroundColor: "rgba(0,0,0,0.05)", overflow: "hidden" },
   stageProgressFill: { height: "100%", backgroundColor: colors.primary },
   modalBackdrop: { flex: 1, backgroundColor: colors.overlay, justifyContent: "flex-end" },
   modalCard: { width: "100%", backgroundColor: colors.surface, borderRadius: 24, padding: 20, height: "86%", overflow: "hidden" },
-  modalHeader: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20 },
+  modalHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   modalTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
   modalScroll: { flex: 1, minHeight: 0 },
-  modalContent: { gap: 16, paddingBottom: 20, flexGrow: 1 },
-  fieldBlock: { gap: 4 },
+  modalContent: { gap: 16, paddingBottom: 24, flexGrow: 1 },
+  fieldBlock: { gap: 6 },
   fieldLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   fieldInput: { borderRadius: 12, borderWidth: 1, borderColor: colors.cardBorder, padding: 14, fontSize: 15, backgroundColor: colors.surfaceMuted, color: colors.text },
-  optionChipsRow: { gap: 8, paddingVertical: 4 },
+  optionChipsRow: { gap: 8, paddingVertical: 2 },
   optionChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted },
   optionChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
   optionChipText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
   optionChipTextActive: { color: colors.primary },
-  statusPillsRow: { gap: 8, paddingVertical: 4 },
+  statusPillsRow: { gap: 8, paddingVertical: 2 },
   statusPillBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted },
   statusPillBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
   statusPillBtnText: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
   statusPillBtnTextActive: { color: colors.surface },
-  helperTextSmall: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
   row: { flexDirection: "row", gap: 10 },
   formActions: { gap: 10, marginTop: 10 },
   primaryButton: { borderRadius: 14, backgroundColor: colors.primary, paddingVertical: 16, alignItems: "center" },

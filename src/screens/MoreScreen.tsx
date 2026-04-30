@@ -7,7 +7,7 @@ import { SectionCard } from "../components/SectionCard";
 import { AnimatedModal } from "../components/AnimatedModal";
 import { colors } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
-import { buildInitials, useProfile } from "../hooks/useProfile";
+import { useProfile } from "../hooks/useProfile";
 import { usePushNotifications } from "../hooks/usePushNotifications";
 import { uploadAppMediaIfNeeded } from "../lib/appMedia";
 import { getErrorMessage } from "../lib/errorMessage";
@@ -30,14 +30,12 @@ export function MoreScreen() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmRemoveAvatar, setConfirmRemoveAvatar] = useState(false);
 
   // Sincroniza estado com dados reais ao abrir modal de edicao.
   useEffect(() => {
     if (editVisible) {
       setDraftName(fullName);
       setDraftAvatar(avatarUrl || "");
-      setConfirmRemoveAvatar(false);
     }
   }, [avatarUrl, editVisible, fullName]);
 
@@ -166,11 +164,15 @@ export function MoreScreen() {
 
   return (
     <>
-      <AppScreen title="Perfil" subtitle="Seus dados pessoais.">
-        <SectionCard title="Usuario" subtitle="Resumo da conta.">
+      <AppScreen title="Perfil">
+        <SectionCard title="Conta">
           <View style={styles.profileRow}>
             <View style={styles.avatarShell}>{avatarUrl ? <Image source={{ uri: avatarUrl }} style={styles.avatarImage} /> : <Text style={styles.avatarText}>{initials}</Text>}</View>
-            <View style={styles.profileCopy}><Text style={styles.name}>{fullName}</Text><Text style={styles.meta}>{user?.email}</Text><Text style={styles.meta}>{occupationLabel}</Text></View>
+            <View style={styles.profileCopy}>
+              <Text style={styles.name}>{fullName}</Text>
+              <Text style={styles.meta}>{occupationLabel}</Text>
+              <Text style={styles.meta}>{user?.email}</Text>
+            </View>
           </View>
           <View style={styles.profileActions}>
             <Pressable style={styles.editButton} onPress={() => setEditVisible(true)}><Text style={styles.editButtonText}>Editar perfil</Text></Pressable>
@@ -178,7 +180,7 @@ export function MoreScreen() {
           </View>
         </SectionCard>
 
-        <SectionCard title="Notificações" subtitle="Receba avisos importantes da obra neste navegador.">
+        <SectionCard title="Notificações">
           <View style={styles.notificationBlock}>
             <Text style={styles.notificationTitle}>{notificationCopy.title}</Text>
             <Text style={styles.notificationDescription}>{notificationCopy.description}</Text>
@@ -208,39 +210,47 @@ export function MoreScreen() {
       </AppScreen>
 
       <AnimatedModal visible={editVisible} onRequestClose={() => setEditVisible(false)} position="center" contentStyle={styles.modalCard}>
-        <Text style={styles.modalTitle}>Editar perfil</Text>
-        <View style={styles.modalAvatarArea}>
-          <Pressable style={styles.photoButton} onPress={() => void pickAvatarFromGallery()}><Text style={styles.photoButtonText}>Trocar foto</Text></Pressable>
-          <View style={styles.avatarShellLarge}>{draftAvatar ? <Image source={{ uri: draftAvatar }} style={styles.avatarImage} /> : <Text style={styles.avatarTextLarge}>{initials}</Text>}</View>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Editar perfil</Text>
         </View>
-        <View style={styles.formBlock}><Text style={styles.formLabel}>Nome</Text><TextInput style={styles.formInput} value={draftName} onChangeText={setDraftName} placeholder="Nome completo" /></View>
+        <View style={styles.modalAvatarArea}>
+          <View style={styles.avatarShellLarge}>{draftAvatar ? <Image source={{ uri: draftAvatar }} style={styles.avatarImage} /> : <Text style={styles.avatarTextLarge}>{initials}</Text>}</View>
+          <Pressable style={styles.photoButton} onPress={() => void pickAvatarFromGallery()}><Text style={styles.photoButtonText}>Trocar foto</Text></Pressable>
+        </View>
+        <View style={styles.formBlock}>
+          <TextInput
+            style={styles.formInput}
+            value={draftName}
+            onChangeText={setDraftName}
+            placeholder="Nome completo"
+            placeholderTextColor={colors.textMuted}
+          />
+        </View>
         <View style={styles.modalActions}>
-          <Pressable style={styles.cancelButton} onPress={() => setEditVisible(false)}><Text>Cancelar</Text></Pressable>
+          <Pressable style={styles.cancelButton} onPress={() => setEditVisible(false)}><Text style={styles.cancelButtonText}>Cancelar</Text></Pressable>
           <Pressable style={styles.saveButton} onPress={() => void handleSaveProfile()}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveButtonText}>Salvar</Text>}</Pressable>
         </View>
       </AnimatedModal>
 
       <AnimatedModal visible={deleteVisible} onRequestClose={() => !deleting && setDeleteVisible(false)} position="center" contentStyle={styles.modalCard} dismissOnBackdropPress={!deleting}>
-        <Text style={styles.modalTitle}>Excluir conta</Text>
-        <Text style={styles.deleteDescription}>
-          Esta ação é irreversível. Para continuar, confirme sua senha atual.
-        </Text>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>Excluir conta</Text>
+          <Text style={styles.deleteDescription}>Confirme sua senha atual para continuar.</Text>
+        </View>
         <View style={styles.deleteNotice}>
           <Text style={styles.deleteNoticeText}>
             Seus dados pessoais, vínculo com a obra e acesso ao app serão removidos. Se esta conta for o último proprietário da obra, a exclusão será bloqueada.
           </Text>
         </View>
         <View style={styles.formBlock}>
-          <Text style={styles.formLabel}>Email</Text>
           <TextInput style={[styles.formInput, styles.formInputDisabled]} value={user?.email ?? ""} editable={false} />
         </View>
         <View style={styles.formBlock}>
-          <Text style={styles.formLabel}>Senha atual</Text>
           <TextInput
             style={styles.formInput}
             value={currentPassword}
             onChangeText={setCurrentPassword}
-            placeholder="Digite sua senha para confirmar"
+            placeholder="Senha atual"
             placeholderTextColor={colors.textMuted}
             secureTextEntry
             editable={!deleting}
@@ -302,14 +312,14 @@ function getNotificationStateCopy(state: ReturnType<typeof usePushNotifications>
 
 const styles = StyleSheet.create({
   profileRow: { flexDirection: "row", alignItems: "center", gap: 14 },
-  avatarShell: { width: 72, height: 72, borderRadius: 24, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
+  avatarShell: { width: 76, height: 76, borderRadius: 26, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
   avatarImage: { width: "100%", height: "100%" },
   avatarText: { fontSize: 22, fontWeight: "800", color: colors.primary },
-  profileCopy: { flex: 1, gap: 4 },
+  profileCopy: { flex: 1, gap: 3, minWidth: 0 },
   name: { fontSize: 22, fontWeight: "800", color: colors.text },
   meta: { fontSize: 14, color: colors.textMuted },
-  profileActions: { gap: 10, marginTop: 20 },
-  notificationBlock: { gap: 12 },
+  profileActions: { gap: 10, marginTop: 18 },
+  notificationBlock: { gap: 10 },
   notificationActions: { gap: 10 },
   notificationTitle: { fontSize: 16, fontWeight: "800", color: colors.text },
   notificationDescription: { fontSize: 14, lineHeight: 21, color: colors.textMuted },
@@ -320,10 +330,10 @@ const styles = StyleSheet.create({
   notificationButtonDisabled: { backgroundColor: colors.textMuted, opacity: 0.6 },
   editButton: { borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },
   editButtonText: { color: colors.surface, fontSize: 15, fontWeight: "800" },
-  deleteAccountButton: { paddingVertical: 10, alignItems: "center" },
+  deleteAccountButton: { paddingVertical: 8, alignItems: "center" },
   deleteAccountText: { color: colors.danger, fontSize: 13, fontWeight: "600" },
-  modalBackdrop: { flex: 1, backgroundColor: "rgba(31, 28, 23, 0.42)", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   modalCard: { width: "100%", maxWidth: 360, gap: 16, borderRadius: 24, padding: 18, backgroundColor: colors.surface },
+  modalHeader: { gap: 6, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: colors.cardBorder },
   modalTitle: { fontSize: 20, fontWeight: "800", color: colors.text, textAlign: "center" },
   modalAvatarArea: { alignItems: "center", gap: 12 },
   avatarShellLarge: { width: 92, height: 92, borderRadius: 28, overflow: "hidden", alignItems: "center", justifyContent: "center", backgroundColor: colors.primarySoft },
@@ -331,12 +341,11 @@ const styles = StyleSheet.create({
   photoButton: { borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, paddingHorizontal: 14, paddingVertical: 10, backgroundColor: colors.surfaceMuted },
   photoButtonText: { fontSize: 14, fontWeight: "700", color: colors.text },
   formBlock: { gap: 8 },
-  formLabel: { fontSize: 14, fontWeight: "700", color: colors.text },
   formInput: { minHeight: 52, borderRadius: 14, borderWidth: 1, borderColor: colors.cardBorder, backgroundColor: colors.surfaceMuted, paddingHorizontal: 14, fontSize: 15 },
   formInputDisabled: { color: colors.textMuted },
   modalActions: { flexDirection: "row", gap: 12 },
   deleteModalActions: { gap: 12 },
-  cancelButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.surfaceMuted },
+  cancelButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
   deleteCancelButton: { minHeight: 56, borderRadius: 16, paddingHorizontal: 18, paddingVertical: 14, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceMuted, borderWidth: 1, borderColor: colors.cardBorder },
   cancelButtonText: { color: colors.text, fontSize: 15, fontWeight: "700", textAlign: "center" },
   saveButton: { flex: 1, borderRadius: 16, paddingVertical: 14, alignItems: "center", backgroundColor: colors.primary },

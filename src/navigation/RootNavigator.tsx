@@ -14,6 +14,7 @@ import { DocumentsScreen } from "../screens/DocumentsScreen";
 import { HouseFormScreen } from "../screens/HouseFormScreen";
 import { LoginScreen } from "../screens/LoginScreen";
 import { MoreScreen } from "../screens/MoreScreen";
+import { PendingItemsScreen } from "../screens/PendingItemsScreen";
 import { PaymentsScreen } from "../screens/PaymentsScreen";
 import { PresenceScreen } from "../screens/PresenceScreen";
 import { ResetPasswordScreen } from "../screens/ResetPasswordScreen";
@@ -23,6 +24,8 @@ import { SignUpScreen } from "../screens/SignUpScreen";
 import { TeamScreen } from "../screens/TeamScreen";
 import { UpdatesScreen } from "../screens/UpdatesScreen";
 import { AppIcon, IconName } from "../components/AppIcon";
+import { defaultPendingScreenUiState, PendingOpenRequest, PendingScreenUiState } from "./AppShellNavigation";
+import { usePendingMenuBadgeCount } from "../hooks/usePendingMenuBadgeCount";
 
 type RootStackParamList = { Login: undefined; SignUp: undefined; ResetPassword: undefined; App: undefined; };
 
@@ -36,7 +39,7 @@ type AppRoute = {
   label: string;
   menuLabel: string;
   icon: IconName;
-  component: ComponentType;
+  component: ComponentType<any>;
   inDrawer?: boolean;
   inBottomNav?: boolean;
   ownerOnly?: boolean;
@@ -45,8 +48,9 @@ type AppRoute = {
 const appRoutes: AppRoute[] = [
   { key: "inicio", label: "Início", menuLabel: "Dashboard", icon: "Home", component: DashboardScreen, inBottomNav: true, inDrawer: true },
   { key: "dia-a-dia", label: "Dia a Dia", menuLabel: "Dia a Dia", icon: "LayoutList", component: DailyScreen, inBottomNav: true },
-  { key: "crono", label: "Crono", menuLabel: "Crono", icon: "CalendarDays", component: ScheduleScreen, inBottomNav: true },
+  { key: "crono", label: "Etapas", menuLabel: "Etapas", icon: "CalendarDays", component: ScheduleScreen, inBottomNav: true },
   { key: "atualizacoes", label: "Relatórios", menuLabel: "Relatórios", icon: "Camera", component: UpdatesScreen, inDrawer: true },
+  { key: "pendencias", label: "Pendências", menuLabel: "Pendências", icon: "Clock", component: PendingItemsScreen, inDrawer: true },
   { key: "mais", label: "Perfil", menuLabel: "Perfil", icon: "User", component: MoreScreen, inBottomNav: true },
   
   // Rotas exclusivas do Proprietario
@@ -86,6 +90,20 @@ function BottomNav({ routes, currentRouteKey, onNavigate }: any) {
           );
         })}
       </View>
+    </View>
+  );
+}
+
+function PendingMenuBadge({ visible }: { visible: boolean }) {
+  const { total } = usePendingMenuBadgeCount(visible);
+
+  if (total <= 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.pendingBadge}>
+      <Text style={styles.pendingBadgeText}>{total}</Text>
     </View>
   );
 }
@@ -160,6 +178,7 @@ function SideMenu(_: any) {
                     <Pressable key={route.key} style={styles.drawerItem} onPress={() => onNavigate(route.key)}>
                       <AppIcon name={route.icon} size={20} color={active ? colors.primary : colors.textMuted} />
                       <Text style={[styles.drawerItemText, active && styles.drawerItemTextActive]}>{route.menuLabel}</Text>
+                      {route.key === "pendencias" ? <PendingMenuBadge visible={visible} /> : null}
                     </Pressable>
                   );
                 })}
@@ -182,11 +201,12 @@ function AppShell() {
   const [currentRouteKey, setCurrentRouteKey] = useState("inicio");
   const [isSideMenuOpen, setIsSideMenuOpen] = useState(false);
   const [isHouseMenuOpen, setIsHouseMenuOpen] = useState(false);
+  const [pendingOpenRequest, setPendingOpenRequest] = useState<PendingOpenRequest | null>(null);
+  const [pendingScreenUiState, setPendingScreenUiState] = useState<PendingScreenUiState>(defaultPendingScreenUiState);
   const { signOut } = useAuth();
   const { project, isLoading: projectLoading } = useProject();
   const { isOwner, profile, isLoading: profileLoading, isFetched: profileFetched, error: profileError } = useProfile();
-
-  const ActiveScreen = useMemo(() => appRoutes.find(r => r.key === currentRouteKey)?.component ?? appRoutes[0].component, [currentRouteKey]);
+  const activeRoute = useMemo(() => appRoutes.find(r => r.key === currentRouteKey) ?? appRoutes[0], [currentRouteKey]);
   
   // So desloga se a consulta terminou sem erro e realmente nao encontrou perfil.
   // Em PWA isso evita "logout fantasma" por falha transitória de storage/rede na largada.
@@ -225,7 +245,57 @@ function AppShell() {
     window.history.replaceState({}, "", nextUrl);
   }, [availableRoutes]);
 
-  const handleNavigate = (routeKey: string) => { setCurrentRouteKey(routeKey); setIsHouseMenuOpen(false); setIsSideMenuOpen(false); };
+  const handleNavigate = (routeKey: string) => {
+    setCurrentRouteKey(routeKey);
+    setPendingOpenRequest(null);
+    setIsHouseMenuOpen(false);
+    setIsSideMenuOpen(false);
+  };
+
+  const handleOpenPendingItem = (request: PendingOpenRequest) => {
+    setPendingOpenRequest(request);
+    setCurrentRouteKey(request.kind === "front" ? "dia-a-dia" : "crono");
+    setIsHouseMenuOpen(false);
+    setIsSideMenuOpen(false);
+  };
+
+  const handlePendingFlowComplete = () => {
+    setPendingOpenRequest(null);
+    setCurrentRouteKey("pendencias");
+  };
+
+  const renderActiveScreen = () => {
+    if (activeRoute.key === "pendencias") {
+      return (
+        <PendingItemsScreen
+          onOpenPendingItem={handleOpenPendingItem}
+          uiState={pendingScreenUiState}
+          onUiStateChange={setPendingScreenUiState}
+        />
+      );
+    }
+
+    if (activeRoute.key === "dia-a-dia") {
+      return (
+        <DailyScreen
+          pendingOpenRequest={pendingOpenRequest?.kind === "front" ? pendingOpenRequest : null}
+          onPendingFlowComplete={handlePendingFlowComplete}
+        />
+      );
+    }
+
+    if (activeRoute.key === "crono") {
+      return (
+        <ScheduleScreen
+          pendingOpenRequest={pendingOpenRequest?.kind === "stage" ? pendingOpenRequest : null}
+          onPendingFlowComplete={handlePendingFlowComplete}
+        />
+      );
+    }
+
+    const ActiveComponent = activeRoute.component;
+    return <ActiveComponent />;
+  };
 
   return (
     <SafeAreaView style={styles.shellSafeArea} edges={["top"]}>
@@ -233,7 +303,8 @@ function AppShell() {
         <Pressable style={styles.iconButton} onPress={() => setIsSideMenuOpen(true)}>
           <AppIcon name="Menu" size={24} color={colors.text} />
         </Pressable>
-        <Text style={styles.screenLabel}>{appRoutes.find(r => r.key === currentRouteKey)?.label}</Text>
+        <Text style={styles.screenLabel}>Obra Conectada</Text>
+        <View style={styles.topBarSpacer} />
       </View>
       <Reanimated.View
         key={currentRouteKey}
@@ -241,7 +312,7 @@ function AppShell() {
         layout={LinearTransition.springify().damping(22).stiffness(200)}
         style={styles.screenArea}
       >
-        <ActiveScreen />
+        {renderActiveScreen()}
       </Reanimated.View>
       <BottomNav routes={availableRoutes.filter(r => r.inBottomNav)} currentRouteKey={currentRouteKey} onNavigate={handleNavigate} />
       <SideMenu routes={availableRoutes.filter(r => r.inDrawer)} currentRouteKey={currentRouteKey} houseName={houseName} housePhotoUrl={project?.photo_url} isOwner={isOwner} isHouseMenuOpen={isHouseMenuOpen} visible={isSideMenuOpen} onClose={() => setIsSideMenuOpen(false)} onNavigate={handleNavigate} onToggleHouseMenu={() => setIsHouseMenuOpen(!isHouseMenuOpen)} onSignOut={handleSignOut} />
@@ -292,6 +363,7 @@ const styles = StyleSheet.create({
   iconButton: { width: 34, height: 34, alignItems: "center", justifyContent: "center" },
   iconText: { color: colors.text, fontSize: 24, marginTop: -2 },
   screenLabel: { flex: 1, fontSize: 18, fontWeight: "800", color: colors.text },
+  topBarSpacer: { width: 34, height: 34 },
   screenArea: { flex: 1, backgroundColor: colors.background },
   bottomNavShell: { backgroundColor: colors.surface },
   bottomNavBar: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 14, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.cardBorder, backgroundColor: colors.surface },
@@ -327,6 +399,17 @@ const styles = StyleSheet.create({
   drawerItem: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 14, marginBottom: 4 },
   drawerItemText: { fontSize: 15, fontWeight: "600", color: colors.text },
   drawerItemTextActive: { color: colors.primary, fontWeight: "800" },
+  pendingBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.danger,
+    paddingHorizontal: 6,
+    marginLeft: "auto",
+  },
+  pendingBadgeText: { fontSize: 11, fontWeight: "800", color: colors.surface },
   drawerFooter: { paddingTop: 20, backgroundColor: colors.surface },
   signOutButton: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 18, paddingHorizontal: 16, paddingVertical: 14, backgroundColor: colors.text },
   signOutButtonText: { fontSize: 15, fontWeight: "700", color: colors.surface },

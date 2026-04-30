@@ -1,7 +1,7 @@
 import { ReactNode } from "react";
-import { Image, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeInUp, LinearTransition } from "react-native-reanimated";
-import { colors, radii, spacing, typography } from "../config/theme";
+import { colors, spacing, typography } from "../config/theme";
 
 /**
  * Propriedades do componente AppScreen.
@@ -13,6 +13,7 @@ type AppScreenProps = {
   subtitle?: string;
   children: ReactNode;
   scrollable?: boolean;
+  disableLayoutAnimation?: boolean;
 };
 
 /**
@@ -20,14 +21,13 @@ type AppScreenProps = {
  * Oferece suporte a scroll opcional e cabecalho padronizado.
  * future_fix: Adicionar suporte a RefreshControl para facilitar atualizacao de dados nas telas.
  */
-export function AppScreen({ title, titleColor, subtitle, children, scrollable = true }: AppScreenProps) {
+export function AppScreen({ title, titleColor, subtitle, children, scrollable = true, disableLayoutAnimation = false }: AppScreenProps) {
   const content = (
-    <Animated.View style={styles.content} layout={LinearTransition.springify().damping(20).stiffness(180)}>
+    <Animated.View
+      style={styles.content}
+      layout={disableLayoutAnimation ? undefined : LinearTransition.springify().damping(20).stiffness(180)}
+    >
       <Animated.View entering={FadeInDown.duration(260).springify()} style={styles.header}>
-        <View style={styles.headerBadge}>
-          <Image source={require("../../assets/icon.png")} style={styles.headerLogo} />
-          <Text style={styles.headerBadgeText}>Obra Conectada</Text>
-        </View>
         <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       </Animated.View>
@@ -71,25 +71,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: colors.cardBorder,
-  },
-  headerBadge: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    borderRadius: radii.pill,
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  headerLogo: {
-    width: 22,
-    height: 22,
-    borderRadius: 8,
-  },
-  headerBadgeText: {
-    ...typography.overline,
-    color: colors.primary,
   },
   title: {
     ...typography.screenTitle,

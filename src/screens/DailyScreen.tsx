@@ -40,6 +40,7 @@ import {
   AppVideoViewerModal,
   getOptimizedMediaImageSource,
 } from "../components/AppMediaViewer";
+import { DailyScreenProps } from "../navigation/AppShellNavigation";
 
 const weekLabels = ["dom", "seg", "ter", "qua", "qui", "sex", "sab"];
 const monthLabels = [
@@ -1526,7 +1527,7 @@ function DailyLogDetailsModal({
 
 // Tela principal do modulo "Dia a Dia", exibindo um calendario mensal de registros.
 // Controla a navegacao entre meses e a abertura de modais de criacao/detalhes.
-export function DailyScreen() {
+export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: DailyScreenProps = {}) {
   // Hooks para autenticacao, dados do projeto, logs e equipe.
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
@@ -1544,6 +1545,7 @@ export function DailyScreen() {
   const [sortOrder, setSortOrder] = useState<MonthLogSortOrder>("recentes");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [roomFilterDropdownOpen, setRoomFilterDropdownOpen] = useState(false);
+  const handledPendingRequestIdRef = useRef<number | null>(null);
 
   // Mapeamento dos logs por data para facilitar a verificacao de registros no calendario.
   // Otimiza a performance de renderizacao da grade mensal (O(1) para cada dia).
@@ -1630,6 +1632,28 @@ export function DailyScreen() {
   const selectedLogForUI = selectedLogDetailQuery.data ?? selectedLog;
   const selectedUserIds = selectedLogDetailQuery.data?.presenceIds ?? selectedLog?.presenceIds ?? [];
 
+  useEffect(() => {
+    if (!pendingOpenRequest || pendingOpenRequest.kind !== "front") {
+      handledPendingRequestIdRef.current = null;
+      return;
+    }
+
+    if (handledPendingRequestIdRef.current === pendingOpenRequest.requestId) {
+      return;
+    }
+
+    handledPendingRequestIdRef.current = pendingOpenRequest.requestId;
+    setMonthDate(startOfDay(new Date(`${pendingOpenRequest.logDate}T00:00:00`)));
+    setSelectedDate(pendingOpenRequest.logDate);
+    setDetailsOpen(false);
+    setFormOpen(true);
+  }, [pendingOpenRequest]);
+
+  const completePendingFlow = () => {
+    handledPendingRequestIdRef.current = null;
+    onPendingFlowComplete?.();
+  };
+
   // Manipulador para abertura de um dia especifico no calendario.
   // Decide se deve abrir o formulario de criacao ou o modal de detalhes (se ja houver log).
   const handleOpenDate = (date: Date) => {
@@ -1705,6 +1729,9 @@ export function DailyScreen() {
     });
 
     setFormOpen(false);
+    if (pendingOpenRequest?.kind === "front") {
+      completePendingFlow();
+    }
   };
 
   const handleDelete = async () => {
@@ -1718,6 +1745,9 @@ export function DailyScreen() {
     });
 
     setFormOpen(false);
+    if (pendingOpenRequest?.kind === "front") {
+      completePendingFlow();
+    }
   };
 
   // Renderizacao do componente principal com Header, Calendario e Listagem mensal.
@@ -2071,7 +2101,12 @@ export function DailyScreen() {
           visible={formOpen}
           loading={upsertDailyLog.isPending}
           deleting={deleteDailyLog.isPending}
-          onClose={() => setFormOpen(false)}
+          onClose={() => {
+            setFormOpen(false);
+            if (pendingOpenRequest?.kind === "front") {
+              completePendingFlow();
+            }
+          }}
           onSave={handleSave}
           onDelete={handleDelete}
         />
