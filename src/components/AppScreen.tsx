@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeInDown, FadeInUp, LinearTransition } from "react-native-reanimated";
 import { colors, spacing, typography } from "../config/theme";
 
 /**
@@ -22,19 +21,18 @@ type AppScreenProps = {
  * future_fix: Adicionar suporte a RefreshControl para facilitar atualizacao de dados nas telas.
  */
 export function AppScreen({ title, titleColor, subtitle, children, scrollable = true, disableLayoutAnimation = false }: AppScreenProps) {
+  void disableLayoutAnimation;
+
   const content = (
-    <Animated.View
-      style={styles.content}
-      layout={disableLayoutAnimation ? undefined : LinearTransition.springify().damping(20).stiffness(180)}
-    >
-      <Animated.View entering={FadeInDown.duration(260).springify()} style={styles.header}>
+    <View style={styles.content}>
+      <View style={styles.header}>
         <Text style={[styles.title, titleColor ? { color: titleColor } : null]}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
-      </Animated.View>
-      <Animated.View entering={FadeInUp.duration(300).delay(40)} style={styles.body}>
+      </View>
+      <View style={styles.body}>
         {children}
-      </Animated.View>
-    </Animated.View>
+      </View>
+    </View>
   );
 
   return (
