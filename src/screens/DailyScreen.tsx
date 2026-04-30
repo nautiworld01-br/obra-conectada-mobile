@@ -239,6 +239,7 @@ function DailyLogForm({
   presenceEmployees,
   rooms,
   existingLog,
+  highlightedServiceItemId,
   initialUserIds,
   visible,
   loading,
@@ -252,6 +253,7 @@ function DailyLogForm({
   presenceEmployees: PresenceEmployeeRow[];
   rooms: { id: string; name: string }[];
   existingLog: DailyLogRow | null;
+  highlightedServiceItemId?: string | null;
   initialUserIds: string[];
   visible: boolean;
   loading: boolean;
@@ -1005,34 +1007,46 @@ function DailyLogForm({
                   <View style={styles.serviceItemsSummaryCard}>
                     <Text style={styles.serviceItemsSummaryTitle}>{serviceItemsSummaryLabel}</Text>
                   </View>
-                  {serviceItems.map((item) => (
-                    <View key={item.id} style={styles.serviceItemCard}>
-                      <View style={styles.serviceItemHeader}>
-                        <View style={styles.serviceItemTitleRow}>
-                          <Text style={styles.serviceItemTitle}>Frente {item.sequence}</Text>
-                          <View
-                            style={[
-                              styles.serviceItemStatusBadgeInline,
-                              {
-                                backgroundColor: getServiceItemStatusTone(item.status).backgroundColor,
-                                borderColor: getServiceItemStatusTone(item.status).borderColor,
-                              },
-                            ]}
-                          >
-                            <Text
+                  {serviceItems.map((item) => {
+                    const isHighlightedPendingItem = highlightedServiceItemId === item.id;
+
+                    return (
+                      <View
+                        key={item.id}
+                        style={[
+                          styles.serviceItemCard,
+                          isHighlightedPendingItem && styles.serviceItemCardHighlighted,
+                        ]}
+                      >
+                        <View style={styles.serviceItemHeader}>
+                          <View style={styles.serviceItemTitleRow}>
+                            <Text style={styles.serviceItemTitle}>Frente {item.sequence}</Text>
+                            {isHighlightedPendingItem ? (
+                              <Text style={styles.pendingServiceHint}>Pendência aberta</Text>
+                            ) : null}
+                            <View
                               style={[
-                                styles.serviceItemStatusBadgeInlineText,
-                                { color: getServiceItemStatusTone(item.status).textColor },
+                                styles.serviceItemStatusBadgeInline,
+                                {
+                                  backgroundColor: getServiceItemStatusTone(item.status).backgroundColor,
+                                  borderColor: getServiceItemStatusTone(item.status).borderColor,
+                                },
                               ]}
                             >
-                              {getServiceItemStatusLabel(item.status)}
-                            </Text>
+                              <Text
+                                style={[
+                                  styles.serviceItemStatusBadgeInlineText,
+                                  { color: getServiceItemStatusTone(item.status).textColor },
+                                ]}
+                              >
+                                {getServiceItemStatusLabel(item.status)}
+                              </Text>
+                            </View>
                           </View>
+                          <Pressable onPress={() => handleRemoveServiceItem(item.id)}>
+                            <Text style={styles.serviceItemRemove}>Remover</Text>
+                          </Pressable>
                         </View>
-                        <Pressable onPress={() => handleRemoveServiceItem(item.id)}>
-                          <Text style={styles.serviceItemRemove}>Remover</Text>
-                        </Pressable>
-                      </View>
                       <View style={styles.selectBlock}>
                         <Pressable
                           style={({ pressed }) => [styles.selectButton, hasNoWorkReason && styles.fieldDisabled, pressed && !hasNoWorkReason && styles.buttonPressed]}
@@ -1177,8 +1191,9 @@ function DailyLogForm({
                           )}
                         </View>
                       </View>
-                    </View>
-                  ))}
+                      </View>
+                    );
+                  })}
                 </View>
               )}
             </View>
@@ -1537,6 +1552,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
   const deleteDailyLog = useDeleteDailyLog();
   const [monthDate, setMonthDate] = useState(() => startOfDay(new Date()));
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -1557,7 +1573,13 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
     return map;
   }, [logs]);
 
-  const selectedLog = selectedDate ? logsByDate[selectedDate] ?? null : null;
+  const selectedLog = useMemo(() => {
+    if (selectedLogId) {
+      return logs.find((log) => log.id === selectedLogId) ?? null;
+    }
+
+    return selectedDate ? logsByDate[selectedDate] ?? null : null;
+  }, [logs, logsByDate, selectedDate, selectedLogId]);
   const selectedLogDetailQuery = useDailyLogDetail(selectedLog?.id ?? null);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
@@ -1645,6 +1667,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
     handledPendingRequestIdRef.current = pendingOpenRequest.requestId;
     setMonthDate(startOfDay(new Date(`${pendingOpenRequest.logDate}T00:00:00`)));
     setSelectedDate(pendingOpenRequest.logDate);
+    setSelectedLogId(pendingOpenRequest.logId);
     setDetailsOpen(false);
     setFormOpen(true);
   }, [pendingOpenRequest]);
@@ -1671,8 +1694,10 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
     setSelectedDate(iso);
     
     if (logsByDate[iso]) {
+      setSelectedLogId(logsByDate[iso].id);
       setDetailsOpen(true);
     } else {
+      setSelectedLogId(null);
       setFormOpen(true);
     }
   };
@@ -2035,6 +2060,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
                     style={({ pressed }) => [styles.monthLogCard, pressed && styles.buttonPressed]}
                     onPress={() => {
                       setSelectedDate(log.date);
+                      setSelectedLogId(log.id);
                       setDetailsOpen(true);
                     }}
                   >
@@ -2097,6 +2123,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
           presenceEmployees={presenceEmployees}
           rooms={rooms}
           existingLog={selectedLogForUI}
+          highlightedServiceItemId={pendingOpenRequest?.kind === "front" ? pendingOpenRequest.serviceItemId : null}
           initialUserIds={selectedUserIds}
           visible={formOpen}
           loading={upsertDailyLog.isPending}
@@ -2786,6 +2813,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  serviceItemCardHighlighted: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
   serviceItemMediaSection: {
     gap: 6,
     marginTop: 2,
@@ -2813,6 +2844,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     color: colors.text,
+  },
+  pendingServiceHint: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: colors.primary,
+    textTransform: "uppercase",
   },
   serviceItemStatusBadgeInline: {
     alignSelf: "flex-start",
