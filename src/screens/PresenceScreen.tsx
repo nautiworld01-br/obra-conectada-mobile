@@ -55,7 +55,12 @@ export function PresenceScreen() {
   const [summaryMonth, setSummaryMonth] = useState<{ id: number; label: string } | null>(null);
   
   const dateKey = useMemo(() => isoDate(selectedDate), [selectedDate]);
-  const { presenceEmployees, logs, isLoading } = useDailyLogs();
+  const { presenceEmployees, logs, isLoading } = useDailyLogs({
+    includePresenceIds: true,
+    includePresenceEmployees: true,
+    includeServiceItems: false,
+    includeRoomIds: false,
+  });
 
   const dailyLog = useMemo(() => logs.find(log => log.date === dateKey), [logs, dateKey]);
   const activeEmployees = useMemo(() => presenceEmployees.filter((employee) => employee.status === "ativo"), [presenceEmployees]);

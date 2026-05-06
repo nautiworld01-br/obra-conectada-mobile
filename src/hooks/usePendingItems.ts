@@ -1,8 +1,10 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { displayDate } from "../lib/dateUtils";
-import { useDailyLogs } from "./useDailyLogs";
+import { supabase } from "../lib/supabase";
+import { useProject } from "./useProject";
 import { useRooms } from "./useRooms";
-import { StageStatus, useStages } from "./useStages";
+import { StageRow, StageStatus } from "./useStages";
 
 export type PendingItem = {
   id: string;
@@ -52,10 +54,121 @@ function compareByRecentDateDesc(a: { date: string }, b: { date: string }) {
   return b.date.localeCompare(a.date);
 }
 
+type PendingFrontLogRow = {
+  id: string;
+  date: string;
+};
+
+type PendingFrontServiceItemRow = {
+  id: string;
+  log_id: string;
+  room_id: string;
+  status: "pendente" | "em_andamento" | "concluido";
+};
+
+type PendingFrontItem = {
+  id: string;
+  kind: "front";
+  sourceLabel: "Dia a Dia";
+  title: string;
+  subtitle: string;
+  date: string;
+  navigationTarget: {
+    kind: "front";
+    logDate: string;
+    logId: string;
+    serviceItemId: string;
+  };
+};
+
 export function usePendingItems() {
-  const { logs, isLoading: logsLoading } = useDailyLogs();
-  const { stages, isLoading: stagesLoading } = useStages();
+  const { project, isLoading: projectLoading } = useProject();
   const { rooms, isLoading: roomsLoading } = useRooms();
+
+  const frontsQuery = useQuery({
+    queryKey: ["pending-front-items", project?.id],
+    enabled: Boolean(project?.id && supabase),
+    queryFn: async (): Promise<PendingFrontItem[]> => {
+      if (!supabase || !project?.id) {
+        return [];
+      }
+
+      const { data: logsData, error: logsError } = await supabase
+        .from("daily_logs")
+        .select("id, date")
+        .eq("project_id", project.id)
+        .order("date", { ascending: false });
+
+      if (logsError) {
+        throw logsError;
+      }
+
+      const logs = (logsData ?? []) as PendingFrontLogRow[];
+      if (!logs.length) {
+        return [];
+      }
+
+      const logIds = logs.map((log) => log.id);
+      const logDateById = Object.fromEntries(logs.map((log) => [log.id, log.date])) as Record<string, string>;
+
+      const { data: serviceItemsData, error: serviceItemsError } = await supabase
+        .from("daily_log_service_items")
+        .select("id, log_id, room_id, status")
+        .in("log_id", logIds)
+        .neq("status", "concluido");
+
+      if (serviceItemsError) {
+        throw serviceItemsError;
+      }
+
+      return ((serviceItemsData ?? []) as PendingFrontServiceItemRow[])
+        .map((item) => {
+          const logDate = logDateById[item.log_id];
+          if (!logDate) {
+            return null;
+          }
+
+          return {
+            id: `front:${item.id}`,
+            kind: "front" as const,
+            sourceLabel: "Dia a Dia" as const,
+            title: item.room_id,
+            subtitle: displayDate(logDate),
+            date: logDate,
+            navigationTarget: {
+              kind: "front" as const,
+              logDate,
+              logId: item.log_id,
+              serviceItemId: item.id,
+            },
+          } satisfies PendingFrontItem;
+        })
+        .filter((item): item is PendingFrontItem => Boolean(item))
+        .sort(compareByRecentDateDesc);
+    },
+  });
+
+  const stagesQuery = useQuery({
+    queryKey: ["pending-stage-items", project?.id],
+    enabled: Boolean(project?.id && supabase),
+    queryFn: async (): Promise<StageRow[]> => {
+      if (!supabase || !project?.id) {
+        return [];
+      }
+
+      const { data, error } = await supabase
+        .from("schedule_stages")
+        .select("id, project_id, name, category, responsible, room_id, planned_start, planned_end, observations, percent_complete, status, created_at")
+        .eq("project_id", project.id)
+        .in("status", ["em_andamento", "atrasado", "bloqueado"]);
+
+      if (error) {
+        throw error;
+      }
+
+      return (data ?? []) as StageRow[];
+    },
+  });
 
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
@@ -63,30 +176,14 @@ export function usePendingItems() {
   );
 
   const frontItems = useMemo<PendingItem[]>(() => {
-    return logs
-      .flatMap((log) =>
-        log.service_items
-          .filter((item) => item.status !== "concluido")
-          .map((item) => ({
-            id: `front:${item.id}`,
-            kind: "front" as const,
-            sourceLabel: "Dia a Dia" as const,
-            title: roomNameById[item.room_id] ?? "Cômodo removido",
-            subtitle: displayDate(log.date),
-            date: log.date,
-            navigationTarget: {
-              kind: "front" as const,
-              logDate: log.date,
-              logId: log.id,
-              serviceItemId: item.id,
-            },
-          })),
-      )
-      .sort(compareByRecentDateDesc);
-  }, [logs, roomNameById]);
+    return (frontsQuery.data ?? []).map((item) => ({
+      ...item,
+      title: roomNameById[item.title] ?? "Cômodo removido",
+    }));
+  }, [frontsQuery.data, roomNameById]);
 
   const stageItems = useMemo<PendingItem[]>(() => {
-    return stages
+    return (stagesQuery.data ?? [])
       .filter((stage) => stage.status === "em_andamento" || stage.status === "atrasado" || stage.status === "bloqueado")
       .map<PendingStageCandidate>((stage) => {
         const stageDate = stage.created_at?.slice(0, 10) ?? stage.planned_start ?? stage.planned_end ?? "";
@@ -116,7 +213,7 @@ export function usePendingItems() {
         return compareByRecentDateDesc(a, b);
       })
       .map(({ priority: _priority, ...item }) => item);
-  }, [roomNameById, stages]);
+  }, [roomNameById, stagesQuery.data]);
 
   const collections = useMemo<PendingCollection[]>(
     () => [
@@ -139,6 +236,6 @@ export function usePendingItems() {
   return {
     collections,
     total: frontItems.length + stageItems.length,
-    isLoading: logsLoading || stagesLoading || roomsLoading,
+    isLoading: projectLoading || frontsQuery.isLoading || stagesQuery.isLoading || roomsLoading,
   };
 }

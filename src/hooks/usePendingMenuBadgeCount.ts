@@ -2,6 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "../lib/supabase";
 import { useProfile } from "./useProfile";
 
+type PendingBadgeCountRow = {
+  open_fronts: number | null;
+  open_stages: number | null;
+};
+
 export function usePendingMenuBadgeCount(enabled: boolean) {
   const { profile } = useProfile();
 
@@ -13,34 +18,19 @@ export function usePendingMenuBadgeCount(enabled: boolean) {
         return 0;
       }
 
-      const [dailyLogsResult, stagesResult] = await Promise.all([
-        supabase
-          .from("daily_logs")
-          .select("id, daily_log_service_items ( status )")
-          .eq("project_id", profile.project_id),
-        supabase
-          .from("schedule_stages")
-          .select("id, status")
-          .eq("project_id", profile.project_id)
-          .in("status", ["em_andamento", "atrasado", "bloqueado"]),
-      ]);
+      const { data, error } = await supabase
+        .rpc("get_project_pending_badge_count", {
+          p_project_id: profile.project_id,
+        })
+        .single();
 
-      if (dailyLogsResult.error) {
-        throw dailyLogsResult.error;
+      if (error) {
+        throw error;
       }
 
-      if (stagesResult.error) {
-        throw stagesResult.error;
-      }
-
-      const frontsCount = (dailyLogsResult.data ?? []).reduce((sum, log) => {
-        const openItems = ((log.daily_log_service_items as { status?: string | null }[] | null) ?? []).filter(
-          (item) => item.status !== "concluido",
-        ).length;
-        return sum + openItems;
-      }, 0);
-
-      const stagesCount = (stagesResult.data ?? []).length;
+      const counts = (data ?? { open_fronts: 0, open_stages: 0 }) as PendingBadgeCountRow;
+      const frontsCount = counts.open_fronts ?? 0;
+      const stagesCount = counts.open_stages ?? 0;
 
       return frontsCount + stagesCount;
     },

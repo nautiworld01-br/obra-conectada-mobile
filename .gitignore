@@ -45,6 +45,9 @@ README.local.notify.md
 Feedback_Gemini_e_ChatGPT_para_notificacoes
 .playwright-mcp/
 output/
+.ts-trace/
+expo-web.out.log
+expo-web.err.log
 
 # typescript
 *.tsbuildinfo

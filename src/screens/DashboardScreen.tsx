@@ -86,7 +86,10 @@ export function DashboardScreen() {
   // Carrega informacoes de perfil, logs diarios, etapas, atualizacoes e pagamentos.
   const { user } = useAuth();
   const { isOwner } = useProfile();
-  const { logs, isLoading: logsLoading } = useDailyLogs();
+  const { logs, isLoading: logsLoading } = useDailyLogs({
+    includePresenceIds: false,
+    includePresenceEmployees: false,
+  });
   const { stages, isLoading: stagesLoading } = useStages();
   const { updates, isLoading: updatesLoading } = useUpdates();
   const { rooms, isLoading: roomsLoading } = useRooms();

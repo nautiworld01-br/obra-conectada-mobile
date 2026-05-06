@@ -1546,7 +1546,12 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
   // Hooks para autenticacao, dados do projeto, logs e equipe.
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
-  const { project, logs, presenceEmployees, isLoading } = useDailyLogs();
+  const { project, logs, presenceEmployees, isLoading } = useDailyLogs({
+    includePresenceIds: false,
+    includePresenceEmployees: true,
+    includeServiceItems: true,
+    includeRoomIds: true,
+  });
   const { rooms } = useRooms();
   const upsertDailyLog = useUpsertDailyLog();
   const deleteDailyLog = useDeleteDailyLog();
@@ -1652,7 +1657,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
   }, [monthLogs, monthMediaByLogId]);
 
   const selectedLogForUI = selectedLogDetailQuery.data ?? selectedLog;
-  const selectedUserIds = selectedLogDetailQuery.data?.presenceIds ?? selectedLog?.presenceIds ?? [];
+  const selectedUserIds = selectedLogDetailQuery.data?.presenceIds ?? [];
 
   useEffect(() => {
     if (!pendingOpenRequest || pendingOpenRequest.kind !== "front") {

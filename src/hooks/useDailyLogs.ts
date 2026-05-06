@@ -50,6 +50,47 @@ export type PresenceEmployeeRow = {
   status: "ativo" | "inativo";
 };
 
+type UseDailyLogsOptions = {
+  includePresenceIds?: boolean;
+  includePresenceEmployees?: boolean;
+  includeServiceItems?: boolean;
+  includeRoomIds?: boolean;
+};
+
+type DailyLogListBaseRow = {
+  id: string;
+  date: string;
+  activities: string | null;
+  weather: string | null;
+  observations: string | null;
+  no_work_reason: string | null;
+  no_work_note: string | null;
+  created_by: string;
+  project_id: string;
+  room_id: string | null;
+};
+
+type DailyLogEmployeeLinkRow = {
+  log_id: string;
+  user_id: string | null;
+};
+
+type DailyLogRoomLinkRow = {
+  log_id: string;
+  room_id: string | null;
+};
+
+function groupByLogId<Row extends { log_id: string }>(rows: Row[] | null) {
+  return (rows ?? []).reduce<Record<string, Row[]>>((acc, row) => {
+    if (!acc[row.log_id]) {
+      acc[row.log_id] = [];
+    }
+
+    acc[row.log_id].push(row);
+    return acc;
+  }, {});
+}
+
 function normalizeStringArray(value: unknown) {
   if (!Array.isArray(value)) {
     return null;
@@ -89,43 +130,109 @@ function normalizeDailyLogServiceItems(
 
 // Hook principal para gerenciar os diários de obra.
 // A presença passa a usar profiles.id como identificador real, com compatibilidade legada no banco.
-export function useDailyLogs() {
+export function useDailyLogs(options?: UseDailyLogsOptions) {
   const { project, isLoading: isProjectLoading } = useProject();
+  const includePresenceIds = options?.includePresenceIds ?? true;
+  const includePresenceEmployees = options?.includePresenceEmployees ?? true;
+  const includeServiceItems = options?.includeServiceItems ?? true;
+  const includeRoomIds = options?.includeRoomIds ?? true;
 
-  // Busca todos os registros do projeto para manter calendario, detalhes e presença consistentes.
+  // Busca a lista de diarios em consultas simples e paralelas para evitar joins JSON pesados do PostgREST.
   const logsQuery = useQuery({
-    queryKey: ["daily_logs", project?.id],
+    queryKey: [
+      "daily_logs",
+      project?.id,
+      includePresenceIds ? "with-presence" : "without-presence",
+      includeServiceItems ? "with-service-items" : "without-service-items",
+      includeRoomIds ? "with-room-ids" : "without-room-ids",
+    ],
     enabled: Boolean(project?.id && supabase),
     queryFn: async (): Promise<DailyLogSummaryRow[]> => {
       if (!supabase || !project) return [];
 
-      const { data, error } = await supabase
+      const { data: logsData, error: logsError } = await supabase
         .from("daily_logs")
-        .select(`
-          id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id,
-          daily_log_employees ( user_id ),
-          daily_log_rooms ( room_id ),
-          daily_log_service_items ( id, log_id, room_id, description, status, order_index )
-        `)
+        .select("id, date, activities, weather, observations, no_work_reason, no_work_note, created_by, project_id, room_id")
         .eq("project_id", project.id)
         .order("date", { ascending: false });
 
-      if (error) throw withSchemaDriftContext(error, "consulta de diarios com room_id e presencas");
+      if (logsError) {
+        throw withSchemaDriftContext(logsError, "consulta base de diarios");
+      }
 
-      return (data ?? []).map(log => ({
+      const logs = (logsData ?? []) as DailyLogListBaseRow[];
+      if (!logs.length) {
+        return [];
+      }
+
+      const logIds = logs.map((log) => log.id);
+
+      const roomLinksPromise = includeRoomIds
+        ? supabase
+            .from("daily_log_rooms")
+            .select("log_id, room_id")
+            .in("log_id", logIds)
+        : Promise.resolve({ data: [] as DailyLogRoomLinkRow[], error: null });
+      const serviceItemsPromise = includeServiceItems
+        ? supabase
+            .from("daily_log_service_items")
+            .select("id, log_id, room_id, description, status, order_index")
+            .in("log_id", logIds)
+            .order("order_index", { ascending: true })
+        : Promise.resolve({ data: [] as DailyLogServiceItemRow[], error: null });
+      const employeeLinksPromise = includePresenceIds
+        ? supabase
+            .from("daily_log_employees")
+            .select("log_id, user_id")
+            .in("log_id", logIds)
+        : Promise.resolve({ data: [] as DailyLogEmployeeLinkRow[], error: null });
+
+      const [
+        { data: roomLinks, error: roomLinksError },
+        { data: serviceItems, error: serviceItemsError },
+        { data: employeeLinks, error: employeeLinksError },
+      ] = await Promise.all([
+        roomLinksPromise,
+        serviceItemsPromise,
+        employeeLinksPromise,
+      ]);
+
+      if (roomLinksError) {
+        throw withSchemaDriftContext(roomLinksError, "consulta de comodos dos diarios");
+      }
+
+      if (serviceItemsError) {
+        throw withSchemaDriftContext(serviceItemsError, "consulta de frentes dos diarios");
+      }
+
+      if (employeeLinksError) {
+        throw withSchemaDriftContext(employeeLinksError, "consulta de presencas dos diarios");
+      }
+
+      const employeeLinksByLogId = groupByLogId((employeeLinks ?? []) as DailyLogEmployeeLinkRow[]);
+      const roomLinksByLogId = groupByLogId((roomLinks ?? []) as DailyLogRoomLinkRow[]);
+      const serviceItemsByLogId = groupByLogId((serviceItems ?? []) as DailyLogServiceItemRow[]);
+
+      return logs.map((log) => ({
         ...log,
         room_ids: Array.from(
           new Set(
-            ((log.daily_log_rooms as { room_id: string | null }[] | null) ?? [])
-              .map((item) => item.room_id)
-              .filter((value): value is string => Boolean(value))
-              .concat(log.room_id ? [log.room_id] : []),
+            includeRoomIds
+              ? ((roomLinksByLogId[log.id] ?? []) as DailyLogRoomLinkRow[])
+                  .map((item) => item.room_id)
+                  .filter((value): value is string => Boolean(value))
+                  .concat(log.room_id ? [log.room_id] : [])
+              : [],
           ),
         ),
         service_items: normalizeDailyLogServiceItems(
-          (log.daily_log_service_items as Array<Partial<DailyLogServiceItemRow>> | null) ?? null,
+          includeServiceItems ? serviceItemsByLogId[log.id] ?? null : null,
         ),
-        presenceIds: (log.daily_log_employees as any[] || []).map(item => item.user_id).filter(Boolean)
+        presenceIds: includePresenceIds
+          ? ((employeeLinksByLogId[log.id] ?? []) as DailyLogEmployeeLinkRow[])
+              .map((item) => item.user_id)
+              .filter((value): value is string => Boolean(value))
+          : [],
       }));
     },
   });
@@ -133,7 +240,7 @@ export function useDailyLogs() {
   // Lista os perfis ativos usados por diário e presença.
   const presenceEmployeesQuery = useQuery({
     queryKey: ["presence_employees", project?.id, "ativo"],
-    enabled: Boolean(project?.id && supabase),
+    enabled: Boolean(includePresenceEmployees && project?.id && supabase),
     queryFn: async (): Promise<PresenceEmployeeRow[]> => {
       if (!supabase || !project) return [];
 
@@ -175,15 +282,21 @@ export function useDailyLogs() {
         "postgres_changes",
         { event: "*", schema: "public", table: "daily_log_employees" },
         () => {
-          void logsQuery.refetch();
-          void presenceEmployeesQuery.refetch();
+          if (includePresenceIds) {
+            void logsQuery.refetch();
+          }
+          if (includePresenceEmployees) {
+            void presenceEmployeesQuery.refetch();
+          }
         },
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "daily_log_service_items" },
         () => {
-          void logsQuery.refetch();
+          if (includeServiceItems) {
+            void logsQuery.refetch();
+          }
         },
       )
       .subscribe();
@@ -191,7 +304,7 @@ export function useDailyLogs() {
     return () => {
       void client.removeChannel(channel);
     };
-  }, [logsQuery, presenceEmployeesQuery, project?.id]);
+  }, [includePresenceEmployees, includePresenceIds, includeServiceItems, logsQuery, presenceEmployeesQuery, project?.id]);
 
   useEffect(() => {
     if (Platform.OS === "web") {
@@ -205,14 +318,16 @@ export function useDailyLogs() {
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "active") {
         void logsQuery.refetch();
-        void presenceEmployeesQuery.refetch();
+        if (includePresenceEmployees) {
+          void presenceEmployeesQuery.refetch();
+        }
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [logsQuery, presenceEmployeesQuery, project?.id]);
+  }, [includePresenceEmployees, logsQuery, presenceEmployeesQuery, project?.id]);
 
   return {
     project,
@@ -220,8 +335,8 @@ export function useDailyLogs() {
     hasNextPage: false,
     isFetchingNextPage: false,
     fetchNextPage: async () => undefined,
-    presenceEmployees: presenceEmployeesQuery.data ?? [],
-    isLoading: isProjectLoading || logsQuery.isLoading || presenceEmployeesQuery.isLoading,
+    presenceEmployees: includePresenceEmployees ? (presenceEmployeesQuery.data ?? []) : [],
+    isLoading: isProjectLoading || logsQuery.isLoading || (includePresenceEmployees && presenceEmployeesQuery.isLoading),
   };
 }
 

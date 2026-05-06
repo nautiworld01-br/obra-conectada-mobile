@@ -7,7 +7,7 @@ import { usePendingItems } from "../hooks/usePendingItems";
 import { PendingCollectionKey, PendingItemsScreenProps, PendingScreenUiState } from "../navigation/AppShellNavigation";
 
 function getPendingCountLabel(total: number) {
-  return total === 1 ? "1 pendência" : `${total} pendências`;
+  return total === 1 ? "1 pendência para analisar" : `${total} pendências para analisar`;
 }
 
 function updateExpandedState(
