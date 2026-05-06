@@ -1,5 +1,15 @@
 # Repository Guidelines
 
+## Critical Safety Rule
+PRIORIDADE MAXIMA: se o trabalho tiver qualquer relacao com banco de dados real, dados sensiveis, producao, Supabase remoto, ou registros de usuario, e proibido mexer, sobrescrever, atualizar, deletar ou recriar linhas existentes para "testar", "validar", "simular", "verificar RLS", "confirmar permissao" ou qualquer outro experimento.
+
+Nesses casos:
+- use somente leitura por padrao;
+- nunca execute writes em dados existentes;
+- nunca use datas, ids ou registros reais para teste;
+- se uma escrita remota for realmente inevitavel, pare e peca autorizacao explicita do usuario antes;
+- prefira ambiente local, dry-run, migration review, EXPLAIN, mocks, ou registros novos isolados e descartaveis somente com autorizacao explicita.
+
 ## Project Structure & Module Organization
 `src/` contains the app code: `screens/` for user flows, `components/` for shared UI, `hooks/` for data access and feature logic, `contexts/` and `providers/` for app-wide state, `navigation/` for routing, and `lib/` for Supabase, validation, and utilities. Static assets live in `assets/` and `public/`. Build output goes to `dist/` and should not be edited manually. Database history lives in `supabase/migrations/`; Edge Functions live in `supabase/functions/`.
 

@@ -40,6 +40,19 @@ function normalizeOptionalText(value: string | null | undefined) {
   return normalized.length ? normalized : null;
 }
 
+async function requireAuthenticatedUser() {
+  if (!supabase) {
+    throw new Error("Supabase nao configurado.");
+  }
+
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    throw new Error("Sua sessão expirou ou está inválida. Entre novamente.");
+  }
+
+  return data.user;
+}
+
 function buildStagePayload(payload: UpsertStagePayload) {
   const name = payload.name.trim();
   if (!name) {
@@ -128,7 +141,9 @@ export function useUpsertStage() {
 
   return useMutation({
     mutationFn: async (payload: UpsertStagePayload) => {
-      if (!supabase) {
+      await requireAuthenticatedUser();
+      const client = supabase;
+      if (!client) {
         throw new Error("Supabase nao configurado.");
       }
       if (!payload.projectId) {
@@ -138,7 +153,7 @@ export function useUpsertStage() {
       const stagePayload = buildStagePayload(payload);
 
       if (payload.id) {
-        const { data, error } = await supabase
+        const { data, error } = await client
           .from("schedule_stages")
           .update(stagePayload)
           .eq("id", payload.id)
@@ -152,7 +167,7 @@ export function useUpsertStage() {
         return data;
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from("schedule_stages")
         .insert(stagePayload)
         .select("id, project_id, name, category, responsible, room_id, planned_start, planned_end, observations, percent_complete, status, created_at")
@@ -176,11 +191,13 @@ export function useDeleteStage() {
 
   return useMutation({
     mutationFn: async (payload: { id: string; projectId: string }) => {
-      if (!supabase) {
+      await requireAuthenticatedUser();
+      const client = supabase;
+      if (!client) {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { error } = await supabase.from("schedule_stages").delete().eq("id", payload.id);
+      const { error } = await client.from("schedule_stages").delete().eq("id", payload.id);
 
       if (error) {
         throw error;

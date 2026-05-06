@@ -80,6 +80,19 @@ type DailyLogRoomLinkRow = {
   room_id: string | null;
 };
 
+async function requireAuthenticatedUser() {
+  if (!supabase) {
+    throw new Error("Supabase nao configurado.");
+  }
+
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    throw new Error("Sua sessão expirou ou está inválida. Entre novamente.");
+  }
+
+  return data.user;
+}
+
 function groupByLogId<Row extends { log_id: string }>(rows: Row[] | null) {
   return (rows ?? []).reduce<Record<string, Row[]>>((acc, row) => {
     if (!acc[row.log_id]) {
@@ -448,11 +461,13 @@ export function useUpsertDailyLog() {
       photosUrls?: string[];
       videosUrls?: string[];
     }) => {
-      if (!supabase) {
+      const currentUser = await requireAuthenticatedUser();
+      const client = supabase;
+      if (!client) {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { data: log, error } = await supabase
+      const { data: log, error } = await client
         .rpc("upsert_daily_log_with_profiles", {
           p_project_id: payload.projectId,
           p_date: payload.date,
@@ -461,7 +476,7 @@ export function useUpsertDailyLog() {
           p_observations: payload.observations,
           p_no_work_reason: payload.noWorkReason?.trim() || null,
           p_no_work_note: payload.noWorkNote?.trim() || null,
-          p_created_by: payload.createdBy,
+          p_created_by: currentUser.id,
           p_user_ids: payload.userIds,
           p_room_ids: payload.roomIds ?? [],
           p_service_items: payload.serviceItems?.length
@@ -483,14 +498,14 @@ export function useUpsertDailyLog() {
       }
 
       const savedDailyLog = log as DailyLogRow;
-      const { data: savedLog } = await supabase
+      const { data: savedLog } = await client
         .from("daily_logs")
         .select("updated_at")
         .eq("id", savedDailyLog.id)
         .maybeSingle();
 
       if (savedLog?.updated_at) {
-        void supabase.functions.invoke("daily-log-updated-push", {
+        void client.functions.invoke("daily-log-updated-push", {
           body: {
             logId: savedDailyLog.id,
             projectId: payload.projectId,
@@ -516,11 +531,13 @@ export function useDeleteDailyLog() {
 
   return useMutation({
     mutationFn: async (payload: { projectId: string; logId: string }) => {
-      if (!supabase) {
+      await requireAuthenticatedUser();
+      const client = supabase;
+      if (!client) {
         throw new Error("Supabase nao configurado.");
       }
 
-      const { error } = await supabase.from("daily_logs").delete().eq("id", payload.logId);
+      const { error } = await client.from("daily_logs").delete().eq("id", payload.logId);
 
       if (error) {
         throw error;
