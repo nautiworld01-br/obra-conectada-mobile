@@ -64,8 +64,8 @@ export function PendingItemsScreen({ onOpenPendingItem, uiState, onUiStateChange
       <Text style={styles.summaryText}>{getPendingCountLabel(total)}</Text>
 
       {collections.map((collection) => {
-        const expanded = uiState.expandedCollections[collection.key];
-        const visibleCount = uiState.visibleCountByCollection[collection.key];
+        const expanded = uiState.expandedCollections[collection.key] ?? false;
+        const visibleCount = Math.max(uiState.visibleCountByCollection[collection.key] ?? 5, 5);
         const visibleItems = collection.items.slice(0, visibleCount);
         const hasMore = collection.items.length > visibleItems.length;
 

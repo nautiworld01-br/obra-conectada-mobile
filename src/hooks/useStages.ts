@@ -181,6 +181,8 @@ export function useUpsertStage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["stages", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-items", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-menu-badge-count"] });
     },
   });
 }
@@ -205,6 +207,8 @@ export function useDeleteStage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["stages", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-items", variables.projectId] });
+      queryClient.invalidateQueries({ queryKey: ["pending-menu-badge-count"] });
     },
   });
 }

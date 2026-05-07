@@ -6,7 +6,6 @@ import { SectionCard } from "../components/SectionCard";
 import { colors, radii, spacing, typography } from "../config/theme";
 import { useAuth } from "../contexts/AuthContext";
 import { useDailyLogs } from "../hooks/useDailyLogs";
-import { usePayments } from "../hooks/usePayments";
 import { useProfile } from "../hooks/useProfile";
 import { useStages } from "../hooks/useStages";
 import { useUpdates } from "../hooks/useUpdates";
@@ -93,9 +92,8 @@ export function DashboardScreen() {
   const { stages, isLoading: stagesLoading } = useStages();
   const { updates, isLoading: updatesLoading } = useUpdates();
   const { rooms, isLoading: roomsLoading } = useRooms();
-  const { payments, isLoading: paymentsLoading } = usePayments();
 
-  const loading = logsLoading || stagesLoading || updatesLoading || paymentsLoading || roomsLoading;
+  const loading = logsLoading || stagesLoading || updatesLoading || roomsLoading;
 
   // Calculo e memorizacao dos dados consolidados para o dashboard.
   // Filtra logs do usuario logado, calcula progresso das etapas e total financeiro pago.
@@ -115,9 +113,6 @@ export function DashboardScreen() {
     const stageProgress = stages.length
       ? Math.round(stages.reduce((sum, stage) => sum + (stage.percent_complete ?? 0), 0) / stages.length)
       : 0;
-    const paidTotal = payments
-      .filter((payment) => payment.status === "pago" || payment.status === "aprovado")
-      .reduce((sum, payment) => sum + Number(payment.requested_amount), 0);
     const totalServiceFronts = logs.reduce((sum, log) => sum + log.service_items.length, 0);
     const logsWithDetailedServices = logs.filter((log) => log.service_items.length > 0).length;
     const roomSummaries = rooms.map((room) => {
@@ -182,7 +177,6 @@ export function DashboardScreen() {
       inProgressStages,
       delayedStages,
       stageProgress,
-      paidTotal,
       totalServiceFronts,
       logsWithDetailedServices,
       roomSummaries,
@@ -191,7 +185,7 @@ export function DashboardScreen() {
       roomsNeedingAttention,
       roomsCompleted,
     };
-  }, [logs, payments, rooms, stages, updates, user?.id]);
+  }, [logs, rooms, stages, updates, user?.id]);
 
   // Renderizacao do estado de carregamento enquanto os dados sao buscados.
   if (loading) {

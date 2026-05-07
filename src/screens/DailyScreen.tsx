@@ -1546,11 +1546,12 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
   // Hooks para autenticacao, dados do projeto, logs e equipe.
   // Utiliza queries do TanStack Query (via custom hooks) para sincronizacao com Supabase.
   const { user } = useAuth();
-  const { project, logs, presenceEmployees, isLoading } = useDailyLogs({
+  const { project, logs, presenceEmployees, isLoading, hasNextPage, isFetchingNextPage, fetchNextPage, oldestLoadedDate } = useDailyLogs({
     includePresenceIds: false,
     includePresenceEmployees: true,
     includeServiceItems: true,
     includeRoomIds: true,
+    pageSize: 60,
   });
   const { rooms } = useRooms();
   const upsertDailyLog = useUpsertDailyLog();
@@ -1658,6 +1659,16 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
 
   const selectedLogForUI = selectedLogDetailQuery.data ?? selectedLog;
   const selectedUserIds = selectedLogDetailQuery.data?.presenceIds ?? [];
+
+  useEffect(() => {
+    if (!hasNextPage || isFetchingNextPage || !oldestLoadedDate) {
+      return;
+    }
+
+    if (oldestLoadedDate > monthStart) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage, monthStart, oldestLoadedDate]);
 
   useEffect(() => {
     if (!pendingOpenRequest || pendingOpenRequest.kind !== "front") {
@@ -2092,6 +2103,17 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
                   </Pressable>
                 ))}
 
+                {hasNextPage ? (
+                  <Pressable
+                    style={({ pressed }) => [styles.loadMoreLogsButton, pressed && styles.buttonPressed]}
+                    onPress={() => fetchNextPage()}
+                    disabled={isFetchingNextPage}
+                  >
+                    <Text style={styles.loadMoreLogsText}>
+                      {isFetchingNextPage ? "Carregando registros..." : "Carregar registros anteriores"}
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : (
               <View style={styles.monthLogEmpty}>
@@ -2576,6 +2598,21 @@ const styles = StyleSheet.create({
   monthLogEmptyText: {
     fontSize: 13,
     color: colors.textMuted,
+  },
+  loadMoreLogsButton: {
+    marginTop: 4,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  loadMoreLogsText: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.text,
   },
   modalBackdrop: {
     flex: 1,

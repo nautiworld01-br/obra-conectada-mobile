@@ -73,7 +73,7 @@ export function usePayments() {
 
       const { data, error } = await supabase
         .from("payments")
-        .select("*")
+        .select("id, project_id, requested_by, period, category, planned_amount, requested_amount, description, percent_work, stage_id, observations, due_date, receipt_url, status, payment_date, request_date")
         .eq("project_id", project.id)
         .order("request_date", { ascending: false })
         .range(from, to);

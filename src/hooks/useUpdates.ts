@@ -45,7 +45,31 @@ export function useUpdates() {
 
       const { data, error } = await supabase
         .from("weekly_updates")
-        .select("*, weekly_update_rooms ( room_id )")
+        .select(`
+          id,
+          project_id,
+          created_by,
+          date,
+          week_ref,
+          summary,
+          services_completed,
+          services_not_completed,
+          difficulties,
+          materials_received,
+          materials_missing,
+          next_week_plan,
+          observations,
+          status,
+          photos,
+          videos,
+          stage_id,
+          room_id,
+          approved,
+          owner_comments,
+          created_at,
+          updated_at,
+          weekly_update_rooms ( room_id )
+        `)
         .eq("project_id", project.id)
         .order("date", { ascending: false });
 

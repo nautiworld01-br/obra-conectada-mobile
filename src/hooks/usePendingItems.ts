@@ -194,7 +194,7 @@ export function usePendingItems() {
 
   const pendingItemsQuery = useQuery({
     queryKey: ["pending-items", project?.id],
-    enabled: Boolean(project?.id && supabase),
+    enabled: Boolean(project?.id && supabase && !roomsLoading),
     queryFn: async (): Promise<{
       frontItems: PendingFrontItem[];
       stageItems: PendingStageCandidate[];

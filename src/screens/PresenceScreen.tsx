@@ -55,11 +55,16 @@ export function PresenceScreen() {
   const [summaryMonth, setSummaryMonth] = useState<{ id: number; label: string } | null>(null);
   
   const dateKey = useMemo(() => isoDate(selectedDate), [selectedDate]);
+  const selectedYear = selectedDate.getFullYear();
+  const yearStart = `${selectedYear}-01-01`;
+  const yearEnd = `${selectedYear}-12-31`;
   const { presenceEmployees, logs, isLoading } = useDailyLogs({
     includePresenceIds: true,
     includePresenceEmployees: true,
     includeServiceItems: false,
     includeRoomIds: false,
+    dateFrom: yearStart,
+    dateTo: yearEnd,
   });
 
   const dailyLog = useMemo(() => logs.find(log => log.date === dateKey), [logs, dateKey]);
@@ -68,10 +73,9 @@ export function PresenceScreen() {
   // Estatisticas do resumo mensal
   const monthStats = useMemo(() => {
     if (!summaryMonth) return null;
-    const currentYear = new Date().getFullYear();
     const monthLogs = logs.filter(log => {
       const [y, m] = log.date.split("-").map(Number);
-      return y === currentYear && m === (summaryMonth.id + 1);
+      return y === selectedYear && m === (summaryMonth.id + 1);
     });
 
     const individualStats = activeEmployees.map(emp => {
@@ -86,7 +90,7 @@ export function PresenceScreen() {
     const averagePercent = totalEvents > 0 ? Math.round((totalPresences / totalEvents) * 100) : 0;
 
     return { individualStats, totalPresences, totalAbsences, averagePercent };
-  }, [summaryMonth, logs, activeEmployees]);
+  }, [summaryMonth, logs, activeEmployees, selectedYear]);
 
   // Dados do grafico de barras semanais
   const chartData = useMemo(() => {
