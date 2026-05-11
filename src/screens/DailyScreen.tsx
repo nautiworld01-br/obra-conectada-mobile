@@ -135,15 +135,9 @@ function buildServiceSummary(
     return "Serviços realizados no dia.";
   }
 
-  const highlightedItems = normalizedItems
-    .slice(0, 2)
-    .map((item) => `${item.roomName}: ${item.description}`);
-
-  if (normalizedItems.length <= 2) {
-    return highlightedItems.join(" | ");
-  }
-
-  return `${highlightedItems.join(" | ")} | +${normalizedItems.length - 2} frentes`;
+  return normalizedItems
+    .map((item) => `${item.roomName}: ${item.description}`)
+    .join(" | ");
 }
 
 function getDailyLogPreview(log: DailyLogRow, roomNameById: Record<string, string>) {
@@ -156,10 +150,9 @@ function getDailyLogPreview(log: DailyLogRow, roomNameById: Record<string, strin
   }
 
   if (log.service_items.length > 0) {
-    const firstItem = log.service_items[0];
-    const roomName = roomNameById[firstItem.room_id] ?? "Cômodo removido";
-    const suffix = log.service_items.length > 1 ? ` +${log.service_items.length - 1}` : "";
-    return `${roomName}: ${firstItem.description}${suffix}`;
+    return log.service_items
+      .map((item) => `${roomNameById[item.room_id] ?? "Cômodo removido"}: ${item.description}`)
+      .join(" | ");
   }
 
   return "Sem descrição preenchida.";
@@ -198,15 +191,9 @@ function getServiceItemsInlinePreview(
     return null;
   }
 
-  const items = serviceItems
-    .slice(0, 2)
-    .map((item) => `${roomNameById[item.room_id] ?? "Cômodo removido"}: ${item.description}`);
-
-  if (serviceItems.length <= 2) {
-    return items.join(" | ");
-  }
-
-  return `${items.join(" | ")} | +${serviceItems.length - 2} frentes`;
+  return serviceItems
+    .map((item) => `${roomNameById[item.room_id] ?? "Cômodo removido"}: ${item.description}`)
+    .join(" | ");
 }
 
 type DraftServiceItem = {
