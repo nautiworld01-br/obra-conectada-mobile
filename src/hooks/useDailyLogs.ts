@@ -207,7 +207,7 @@ async function hydrateDailyLogsPage(params: {
   const serviceItemsPromise = params.includeServiceItems
     ? supabase
         .from("daily_log_service_items")
-        .select("id, log_id, room_id, description, status, order_index")
+        .select("id, log_id, room_id, description, status, order_index, photos_urls, videos_urls")
         .in("log_id", logIds)
         .order("order_index", { ascending: true })
     : Promise.resolve({ data: [] as DailyLogServiceItemRow[], error: null });

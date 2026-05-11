@@ -1567,6 +1567,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
   const [sortOrder, setSortOrder] = useState<MonthLogSortOrder>("recentes");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [roomFilterDropdownOpen, setRoomFilterDropdownOpen] = useState(false);
+  const [pendingFrontFormRequestId, setPendingFrontFormRequestId] = useState<number | null>(null);
   const handledPendingRequestIdRef = useRef<number | null>(null);
 
   // Mapeamento dos logs por data para facilitar a verificacao de registros no calendario.
@@ -1586,7 +1587,7 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
 
     return selectedDate ? logsByDate[selectedDate] ?? null : null;
   }, [logs, logsByDate, selectedDate, selectedLogId]);
-  const selectedLogDetailQuery = useDailyLogDetail(selectedLog?.id ?? null);
+  const selectedLogDetailQuery = useDailyLogDetail(selectedLog?.id ?? selectedLogId);
   const roomNameById = useMemo(
     () => Object.fromEntries(rooms.map((room) => [room.id, room.name])),
     [rooms],
@@ -1685,13 +1686,33 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
     setSelectedDate(pendingOpenRequest.logDate);
     setSelectedLogId(pendingOpenRequest.logId);
     setDetailsOpen(false);
-    setFormOpen(true);
+    setFormOpen(false);
+    setPendingFrontFormRequestId(pendingOpenRequest.requestId);
   }, [pendingOpenRequest]);
 
   const completePendingFlow = () => {
     handledPendingRequestIdRef.current = null;
+    setPendingFrontFormRequestId(null);
     onPendingFlowComplete?.();
   };
+
+  useEffect(() => {
+    if (!pendingOpenRequest || pendingOpenRequest.kind !== "front") {
+      setPendingFrontFormRequestId(null);
+      return;
+    }
+
+    if (pendingFrontFormRequestId !== pendingOpenRequest.requestId) {
+      return;
+    }
+
+    if (selectedLogDetailQuery.data?.id !== pendingOpenRequest.logId) {
+      return;
+    }
+
+    setPendingFrontFormRequestId(null);
+    setFormOpen(true);
+  }, [pendingFrontFormRequestId, pendingOpenRequest, selectedLogDetailQuery.data?.id]);
 
   // Manipulador para abertura de um dia especifico no calendario.
   // Decide se deve abrir o formulario de criacao ou o modal de detalhes (se ja houver log).
@@ -1751,6 +1772,10 @@ export function DailyScreen({ pendingOpenRequest, onPendingFlowComplete }: Daily
   }) => {
     if (!project?.id || !selectedDate || !user?.id) {
       return;
+    }
+
+    if ((selectedLogId || selectedLog) && !selectedLogDetailQuery.data) {
+      throw new Error("Aguarde o carregamento completo do diário antes de salvar. Isso evita perder presenças ou mídias já salvas.");
     }
 
     await upsertDailyLog.mutateAsync({
